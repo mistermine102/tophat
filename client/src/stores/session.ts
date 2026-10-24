@@ -1,0 +1,326 @@
+// Session store: the loaded game, streamed analyses, the move tree/cursor, side-line analyses, settings.
+// Plain Vue reactivity; one instance per app (provided via `provide`/`inject`, see useSession()).
+import type { Color, GameInfo, GameSummary, MoveAnalysis, Settings } from '@chess-coach/shared';
+import { computed, inject, reactive, watch, type InjectionKey } from 'vue';
+import { ApiError, type ApiClient, type Unsubscribe } from '../api/types';
+import { MoveTree, type TreeNode } from '../lib/moveTree';
+import { loadRecent, recentKey, rememberGame, type RecentGame } from '../lib/recent';
+import { computeSummary } from '../lib/summary';
+
+export interface SideEntry {
+  status: 'pending' | 'done' | 'error';
+  analysis?: MoveAnalysis;
+  error?: string;
+}
+
+export interface Preview {
+  /** Position shown on the board instead of the current node. */
+  fen: string;
+  /** Move leading to it (for highlight). */
+  uci: string;
+  /** Short description shown above the board. */
+  caption: string;
+}
+
+export interface SessionOptions {
+  focusDebounceMs?: number;
+  storage?: Pick<Storage, 'getItem' | 'setItem'> | null;
+  /** Called when the loaded game changes (e.g. to update the URL). */
+  onGameChange?: (id: string | null) => void;
+}
+
+export function sideFromSettings(game: GameInfo, username: string | null): { you: Color; orientation: Color } | null {
+  const u = username?.trim().toLowerCase();
+  if (!u) return null;
+  if (game.headers.White?.toLowerCase() === u) return { you: 'white', orientation: 'white' };
+  if (game.headers.Black?.toLowerCase() === u) return { you: 'black', orientation: 'black' };
+  return { you: 'white', orientation: 'white' };
+}
+
+export function createSession(api: ApiClient, opts: SessionOptions = {}) {
+  const focusDebounceMs = opts.focusDebounceMs ?? 250;
+  const storage = opts.storage ?? null;
+
+  const state = reactive({
+    game: null as GameInfo | null,
+    tree: null as MoveTree | null,
+    analyses: {} as Record<number, MoveAnalysis>,
+    plyErrors: {} as Record<number, string>,
+    side: new Map<string, SideEntry>(),
+    progress: { done: 0, total: 0 },
+    serverSummary: null as GameSummary | null,
+    you: 'white' as Color,
+    orientation: 'white' as Color,
+    loading: false,
+    loadError: null as string | null,
+    connectionError: null as string | null,
+    preview: null as Preview | null,
+    settings: { username: null } as Settings,
+    recent: loadRecent(storage, recentKey(api.mode)) as RecentGame[],
+  });
+
+  let unsubscribe: Unsubscribe | null = null;
+  let focusTimer: ReturnType<typeof setTimeout> | null = null;
+  const focused = new Set<number>();
+
+  const current = computed<TreeNode | null>(() => state.tree?.current ?? null);
+
+  function analysisFor(node: TreeNode | null | undefined): MoveAnalysis | null {
+    if (!node || node.ply === 0) return null;
+    if (node.mainPly !== null) return state.analyses[node.mainPly] ?? null;
+    return state.side.get(node.id)?.analysis ?? null;
+  }
+
+  function isPending(node: TreeNode | null | undefined): boolean {
+    if (!node || node.ply === 0) return false;
+    if (node.mainPly !== null) return !state.analyses[node.mainPly] && !state.plyErrors[node.mainPly];
+    const e = state.side.get(node.id);
+    return !e || e.status === 'pending';
+  }
+
+  function errorFor(node: TreeNode | null | undefined): string | null {
+    if (!node || node.ply === 0) return null;
+    if (node.mainPly !== null) return state.plyErrors[node.mainPly] ?? null;
+    return state.side.get(node.id)?.error ?? null;
+  }
+
+  const currentAnalysis = computed(() => analysisFor(current.value));
+
+  const summary = computed<GameSummary | null>(() => {
+    if (!state.game) return null;
+    const local = computeSummary(state.game, state.analyses);
+    const s = state.serverSummary;
+    return s && s.done >= local.done ? s : local;
+  });
+
+  const progress = computed(() => {
+    const total = state.game?.moves.length ?? 0;
+    const done = Math.max(state.progress.done, Object.keys(state.analyses).length);
+    return { done: Math.min(done, total), total };
+  });
+
+  function stopStream() {
+    unsubscribe?.();
+    unsubscribe = null;
+  }
+
+  function reset() {
+    stopStream();
+    if (focusTimer) clearTimeout(focusTimer);
+    focusTimer = null;
+    focused.clear();
+    state.game = null;
+    state.tree = null;
+    state.analyses = {};
+    state.plyErrors = {};
+    state.side = new Map();
+    state.progress = { done: 0, total: 0 };
+    state.serverSummary = null;
+    state.preview = null;
+    state.connectionError = null;
+  }
+
+  function applyGame(game: GameInfo) {
+    state.game = game;
+    state.tree = new MoveTree(game);
+    const fromSettings = sideFromSettings(game, state.settings.username);
+    state.you = fromSettings?.you ?? game.you;
+    state.orientation = fromSettings?.orientation ?? game.orientation;
+    state.progress = { done: 0, total: game.moves.length };
+    state.recent = rememberGame(storage, recentKey(api.mode), game);
+  }
+
+  function startStream(id: string) {
+    stopStream();
+    unsubscribe = api.stream(id, {
+      onAnalysis(ply, analysis) {
+        if (state.game?.id !== id) return;
+        state.analyses[ply] = analysis;
+        delete state.plyErrors[ply];
+        state.connectionError = null;
+      },
+      onProgress(done, total) {
+        if (state.game?.id !== id) return;
+        state.progress = { done, total };
+      },
+      onSummary(s) {
+        if (state.game?.id !== id) return;
+        state.serverSummary = s;
+        if (s.done >= s.total) stopStream();
+      },
+      onPlyError(ply, message) {
+        if (state.game?.id !== id) return;
+        state.plyErrors[ply] = message;
+      },
+      onConnectionError(message) {
+        if (state.game?.id !== id) return;
+        state.connectionError = message;
+      },
+    });
+  }
+
+  async function openGame(id: string): Promise<boolean> {
+    state.loading = true;
+    state.loadError = null;
+    try {
+      const snap = await api.getGame(id);
+      reset();
+      applyGame(snap.game);
+      state.analyses = { ...snap.analyses };
+      state.serverSummary = snap.summary;
+      state.progress = { done: Object.keys(snap.analyses).length, total: snap.game.moves.length };
+      opts.onGameChange?.(snap.game.id);
+      if (Object.keys(snap.analyses).length < snap.game.moves.length) startStream(snap.game.id);
+      else if (!snap.summary) startStream(snap.game.id);
+      return true;
+    } catch (e) {
+      state.loadError = e instanceof ApiError ? e.message : `Could not open the game: ${(e as Error).message}`;
+      return false;
+    } finally {
+      state.loading = false;
+    }
+  }
+
+  /** Import a PGN. Throws ApiError (e.g. 400 bad PGN) for the dialog to show. */
+  async function importPgn(pgn: string): Promise<void> {
+    state.loading = true;
+    try {
+      const game = await api.createGame(pgn);
+      const ok = await openGame(game.id);
+      if (!ok) throw new ApiError(state.loadError ?? 'Could not open the game.');
+    } finally {
+      state.loading = false;
+    }
+  }
+
+  // --- side-line analysis + focus ---------------------------------------------------------------------------
+
+  function requestSide(node: TreeNode) {
+    if (node.mainPly !== null || state.side.has(node.id) || !node.fenBefore) return;
+    state.side.set(node.id, { status: 'pending' });
+    const parent = node.parent;
+    const prev = parent && parent.fenBefore ? { fenBefore: parent.fenBefore, uci: parent.uci } : undefined;
+    const gameId = state.game?.id;
+    api
+      .analyse({ fenBefore: node.fenBefore, uci: node.uci, ...(prev ? { prev } : {}) })
+      .then((analysis) => {
+        if (state.game?.id === gameId) state.side.set(node.id, { status: 'done', analysis });
+      })
+      .catch((e: unknown) => {
+        if (state.game?.id === gameId) state.side.set(node.id, { status: 'error', error: (e as Error).message });
+      });
+  }
+
+  function scheduleFocus(ply: number) {
+    if (focusTimer) clearTimeout(focusTimer);
+    focusTimer = setTimeout(() => {
+      focusTimer = null;
+      const game = state.game;
+      if (!game || state.analyses[ply] || focused.has(ply)) return;
+      focused.add(ply);
+      api.focus(game.id, ply).catch(() => focused.delete(ply));
+    }, focusDebounceMs);
+  }
+
+  watch(
+    () => current.value?.id,
+    () => {
+      const node = current.value;
+      state.preview = null;
+      if (!node || node.ply === 0) return;
+      if (node.mainPly !== null) {
+        if (!state.analyses[node.mainPly]) scheduleFocus(node.mainPly);
+      } else {
+        requestSide(node);
+      }
+    },
+  );
+
+  // --- navigation ---------------------------------------------------------------------------------------------
+
+  const nav = {
+    next: () => state.tree?.next(),
+    prev: () => state.tree?.prev(),
+    first: () => state.tree?.first(),
+    last: () => state.tree?.last(),
+    backToGame: () => state.tree?.backToGame(),
+    goTo: (node: TreeNode) => state.tree?.goTo(node),
+    goToMainPly: (ply: number) => state.tree?.goToMainPly(ply),
+  };
+
+  /** A move made on the board (UCI). */
+  function playMove(uci: string): TreeNode | null {
+    return state.tree?.play(uci)?.node ?? null;
+  }
+
+  /** Enter an engine line from `from` (e.g. clicking a PV move): plays the first `count` moves. */
+  function playLine(from: TreeNode, ucis: string[], count = ucis.length): void {
+    const tree = state.tree;
+    if (!tree) return;
+    const nodes = tree.playLine(ucis.slice(0, count), from);
+    if (nodes.length) tree.goTo(nodes[nodes.length - 1]!);
+  }
+
+  function flip() {
+    state.orientation = state.orientation === 'white' ? 'black' : 'white';
+  }
+
+  function setPreview(p: Preview | null) {
+    state.preview = p;
+  }
+
+  async function loadSettings() {
+    try {
+      state.settings = await api.getSettings();
+    } catch {
+      /* server down: keep defaults */
+    }
+  }
+
+  async function saveSettings(s: Settings): Promise<void> {
+    state.settings = await api.putSettings(s);
+    if (state.game) {
+      const side = sideFromSettings(state.game, state.settings.username);
+      if (side) {
+        state.you = side.you;
+        state.orientation = side.orientation;
+      }
+    }
+  }
+
+  function dispose() {
+    stopStream();
+    if (focusTimer) clearTimeout(focusTimer);
+  }
+
+  return {
+    api,
+    state,
+    current,
+    currentAnalysis,
+    summary,
+    progress,
+    analysisFor,
+    isPending,
+    errorFor,
+    openGame,
+    importPgn,
+    playMove,
+    playLine,
+    flip,
+    setPreview,
+    loadSettings,
+    saveSettings,
+    dispose,
+    ...nav,
+  };
+}
+
+export type Session = ReturnType<typeof createSession>;
+export const SessionKey: InjectionKey<Session> = Symbol('session');
+
+export function useSession(): Session {
+  const s = inject(SessionKey);
+  if (!s) throw new Error('useSession() called without a provided session');
+  return s;
+}

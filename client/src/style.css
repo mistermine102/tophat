@@ -1,1 +1,39 @@
 @import "tailwindcss";
+
+@theme {
+  --color-neutral-850: #1d1d1f;
+  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+
+:root {
+  color-scheme: dark;
+  /* Board edge length: fills the height on desktop, leaves room for the side panels. */
+  --board-size: clamp(300px, min(100vh - 228px, 100vw - 790px), 880px);
+}
+
+html,
+body,
+#app {
+  height: 100%;
+}
+
+/* Big screens: scale rem-based text up a little so the panels stay readable next to a large board. */
+@media (min-width: 1800px) and (min-height: 1000px) {
+  html {
+    font-size: 17px;
+  }
+  :root {
+    --board-size: clamp(300px, min(100vh - 246px, 100vw - 820px), 880px);
+  }
+}
+
+body {
+  background: #141416;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbars that fit the dark theme. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #3f3f46 transparent;
+}
