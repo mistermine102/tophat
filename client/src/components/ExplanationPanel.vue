@@ -185,8 +185,8 @@ const opening = computed(() => {
           <span class="text-neutral-400">Accuracy <span class="tabular-nums text-neutral-200">{{ Math.round(a.accuracy) }}%</span></span>
         </div>
         <div v-if="a && ex" class="mt-3 space-y-2.5 border-t border-white/5 pt-3" data-testid="levels">
-          <div v-if="confirmed && a.label !== 'book' && a.label !== 'forced'" class="text-sm font-medium text-emerald-400">
-            ✓ Good — this was the move.
+          <div v-if="confirmed && a.verdictText" class="text-sm font-medium text-emerald-400" data-testid="verdict">
+            ✓ {{ a.verdictText }}
           </div>
           <LevelList title="Immediate" :level="ex.immediate" />
           <LevelList title="Short term" :level="ex.short" />
