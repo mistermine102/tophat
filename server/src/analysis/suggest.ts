@@ -1,0 +1,105 @@
+// Explainable pick (SPEC "Suggestions"). Pure: candidates arrive with their deep/shallow scores and facts.
+//
+// Pick = first candidate in engine order (deep MultiPV rank) that passes all of:
+//  1. Good or better: winLoss <= suggest.pickMaxLoss (code 'too-much-loss') and the material rule doesn't flag it
+//     (materialCheck vs the best line gives no label; code 'material-rule'). Addition: it must not hang a piece,
+//     make a losing capture or allow mate unless its own short line wins material or mates (code
+//     'hangs-material') — in lost or crushing positions win% saturates and the material rule (relative to the
+//     best line) lets e.g. a queen hang because the best line loses as much.
+//  2. Keeps the result: if the best move keeps the mover winning (win% >= suggest.winningMin) the candidate must
+//     too; else if the best holds a draw-ish position (win% >= suggest.drawishMin) the candidate must not drop
+//     below it (code 'loses-result'). Also 'loses-result': the candidate gets mated by force while the best move
+//     doesn't (win% saturates in lost positions, so mate in 2 and -13 look the same).
+//  3. Near-term: the shallow search rates it within suggest.shallowTolerance win% of the deep best:
+//     win%(deep best) - win%(shallow score of the candidate) <= tolerance (code 'shallow-disagrees'; also when no
+//     shallow score is known) ...
+//  4. ... and it has at least one concrete Immediate or Short-term fact (code 'no-concrete-fact'), see
+//     `concreteFacts`: check, checkmate, a capture that wins material or recaptures, promotion, fork, pin,
+//     skewer, discovered attack, escape (saving an attacked piece), stopping the opponent's verified threat
+//     ('defends-threat'), a threat with verified gain or mate, a line (within its narrated steps)
+//     that wins material or mates. (SPEC lists check / winning capture / threat / fork / pin / escape / line
+//     gain / mate; skewer, discovered attack, promotion and recapture are the same kind of concrete point.)
+// All candidates are judged (so every one gets `explainable` + `notExplainableReasons`).
+
+import type { AnalysisSettings, Fact, MaterialCheck, Score } from '@chess-coach/shared';
+import { winPercentFromScore } from '@chess-coach/shared';
+
+export type ReasonCode = 'too-much-loss' | 'material-rule' | 'hangs-material' | 'loses-result' | 'shallow-disagrees' | 'no-concrete-fact';
+
+export interface SuggestCandidate {
+  uci: string;
+  /** Deep score, mover POV. */
+  score: Score;
+  /** Shallow score, mover POV (null if unknown). */
+  shallowScore: Score | null;
+  /** materialCheck of this candidate's line against the best line (no label = passes). */
+  material: MaterialCheck | null;
+  /** Immediate facts (incl. the threat fact) and Short-term facts (line, forced-reply). */
+  facts: readonly Fact[];
+}
+
+/** The facts among `facts` that count as concrete for rule 4. */
+export function concreteFacts(facts: readonly Fact[]): Fact[] {
+  return facts.filter((f) => {
+    switch (f.type) {
+      case 'check':
+      case 'checkmate':
+      case 'promotion':
+      case 'fork':
+      case 'pin':
+      case 'skewer':
+      case 'discovered-attack':
+      case 'escape':
+      case 'defends-threat':
+        return true;
+      case 'capture':
+        return f.outcome === 'wins-material' || f.outcome === 'recapture';
+      case 'threat':
+        return f.gain >= 1 || (f.mateIn ?? 0) > 0;
+      case 'line':
+        // material gained within the narrated steps (not 'a few moves later' beyond them)
+        return (f.materialDelta > 0 && !f.measuredAt) || f.result === 'mate';
+      default:
+        return false;
+    }
+  });
+}
+
+/** A new hanging piece / losing capture / allowed mate that the candidate's own short line doesn't justify. */
+export function hangsWithoutPayoff(facts: readonly Fact[]): boolean {
+  const line = facts.find((f): f is Extract<Fact, { type: 'line' }> => f.type === 'line');
+  if (line && (line.result === 'mate' || line.result === 'wins-material')) return false;
+  return facts.some((f) => (f.type === 'hangs' && !f.already) || f.type === 'allows-mate' || (f.type === 'capture' && f.outcome === 'loses-material'));
+}
+
+/** Reason codes why a candidate is not an explainable pick (empty = explainable). `bestScore`: deep, mover POV. */
+export function judgeCandidate(c: SuggestCandidate, bestScore: Score, settings: AnalysisSettings): ReasonCode[] {
+  const r = settings.suggest;
+  const reasons: ReasonCode[] = [];
+  const winBest = winPercentFromScore(bestScore);
+  const win = winPercentFromScore(c.score);
+  const winLoss = Math.max(0, winBest - win);
+  if (winLoss > r.pickMaxLoss) reasons.push('too-much-loss');
+  if (c.material?.label) reasons.push('material-rule');
+  if (hangsWithoutPayoff(c.facts)) reasons.push('hangs-material');
+  const getsMated = (c.score.mate ?? 0) < 0 && !((bestScore.mate ?? 0) < 0);
+  if (getsMated || (winBest >= r.winningMin && win < r.winningMin) || (winBest >= r.drawishMin && winBest < r.winningMin && win < r.drawishMin)) {
+    reasons.push('loses-result');
+  }
+  if (!c.shallowScore || winBest - winPercentFromScore(c.shallowScore) > r.shallowTolerance) reasons.push('shallow-disagrees');
+  if (concreteFacts(c.facts).length === 0) reasons.push('no-concrete-fact');
+  return reasons;
+}
+
+export interface SuggestResult {
+  /** Index into the candidates of the pick, or null (deep engine move, hard to explain). */
+  pick: number | null;
+  reasons: ReasonCode[][];
+}
+
+/** Judge all candidates (engine order) and pick the first explainable one. */
+export function suggest(candidates: readonly SuggestCandidate[], bestScore: Score, settings: AnalysisSettings): SuggestResult {
+  const reasons = candidates.map((c) => judgeCandidate(c, bestScore, settings));
+  const i = reasons.findIndex((r) => r.length === 0);
+  return { pick: i >= 0 ? i : null, reasons };
+}

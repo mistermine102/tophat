@@ -23,29 +23,15 @@ import {
   type Role,
   type Square,
 } from 'chessops';
-import { parseFen } from 'chessops/fen';
 import type { PieceRef } from '@chess-coach/shared';
+import { PIECE_VALUES } from './material';
 
-/** Material values in pawns (ARCHITECTURE.md conventions). King = 0 for material purposes. */
-export const PIECE_VALUES: Readonly<Record<Role, number>> = {
-  pawn: 1,
-  knight: 3,
-  bishop: 3,
-  rook: 5,
-  queen: 9,
-  king: 0,
-};
+// Piece values (PIECE_VALUES) and FEN parsing (positionFromFen) live in ./material — the single definition.
 
 /** Ordering value for "least valuable attacker" (king last). */
 const ORDER_VALUE: Readonly<Record<Role, number>> = { pawn: 1, knight: 3, bishop: 3.1, rook: 5, queen: 9, king: 100 };
 
 export const pieceValue = (role: Role): number => PIECE_VALUES[role];
-
-/** Parses a FEN into a legal standard-chess position; throws on invalid input. */
-export function positionFromFen(fen: string): Chess {
-  const setup = parseFen(fen).unwrap();
-  return Chess.fromSetup(setup).unwrap();
-}
 
 export const toPieceRef = (piece: Piece, square: Square): PieceRef => ({
   role: piece.role,

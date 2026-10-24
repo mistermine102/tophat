@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parseSquare } from 'chessops';
-import { positionFromFen } from '../src/chess/attacks';
+import { positionFromFen } from '../src/chess/material';
 import { hangingLoss, isHanging, see, seeCaptureWith, seeMove } from '../src/chess/see';
 
 const sq = (s: string) => parseSquare(s)!;

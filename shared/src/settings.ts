@@ -80,6 +80,12 @@ export interface ExplanationRule {
 export interface SearchBudget {
   depth: number;
   multipv: number;
+  /**
+   * Time cap (ms): the search stops at `depth` or after this long, whichever comes first. Needed because
+   * Stockfish can take minutes for a fixed depth in sharp positions with mates around (measured: d12 MultiPV 2
+   * 68 s, d18 MultiPV 1 > 120 s in the Opera game).
+   */
+  maxMs: number;
 }
 
 export interface AnalysisBudget {
@@ -148,10 +154,10 @@ export const DEFAULT_SETTINGS: AnalysisSettings = {
     deepPayoffMinGap: 5,
   },
   budget: {
-    deep: { depth: 18, multipv: 5 },
-    shallow: { depth: 8, multipv: 5 },
-    threat: { depth: 12, multipv: 1 },
-    forcedness: { depth: 12, multipv: 2 },
+    deep: { depth: 18, multipv: 5, maxMs: 5000 },
+    shallow: { depth: 8, multipv: 5, maxMs: 500 },
+    threat: { depth: 12, multipv: 1, maxMs: 500 },
+    forcedness: { depth: 12, multipv: 2, maxMs: 500 },
     forcednessPlies: 6,
   },
 };

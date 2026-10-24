@@ -42,12 +42,15 @@ chess-coach/
     app.ts                # createApp(ctx: AppContext) -- Express app factory (testable without engine/listen)
     engine/uci.ts         # Engine: UCI process wrapper
     engine/scheduler.ts   # priority queue in front of the Engine (single engine process)
-    chess/                # pure position helpers on chessops: material, see.ts (static exchange), attacks
+    chess/                # pure position helpers on chessops: material (PIECE_VALUES, positionFromFen, lineMaterial),
+                          # see.ts (static exchange), attacks, notation.ts (UCI normalisation, SAN of PVs, FEN after moves)
     facts/immediate.ts    # Immediate facts: (posBefore, move) -> Fact[]
     facts/positional.ts   # positional features + deltas
-    facts/line.ts         # Short-term narration of a PV
+    facts/line.ts         # Short-term narration of a PV, forcedness, null-move threat
+    facts/longterm.ts     # Long-term level: filtered positional deltas, positional-gain, deep-payoff, necessary
     analysis/classify.ts  # label rules incl. material rule, Miss, Great, Forced, Book
     analysis/book.ts      # opening book lookup (Lichess chess-openings TSV, vendored in server/data/openings/)
+    analysis/searchCache.ts  # memoised engine searches (memory + sqlite), keyed by position + search params
     analysis/suggest.ts   # explainable pick
     analysis/explain.ts   # Fact -> text templates (the ONLY place that produces prose)
     analysis/analyzeMove.ts  # orchestrates engine calls for one (fenBefore, move) -> MoveAnalysis
@@ -56,6 +59,8 @@ chess-coach/
     routes.ts             # REST + SSE
   server/test/            # vitest; engine-dependent tests use describe.skipIf(!engineAvailable())
   server/scripts/engine-timing.ts  # `npm run bench:engine -w server`: times the analysis budget searches
+  server/scripts/analyze-pgn.ts    # full pipeline on a PGN (no HTTP) -> markdown report (+ JSON)
+  bench/games/            # sample PGNs for analyze-pgn (Opera game, Kasparov–Topalov 1999, Deep Blue–Kasparov g6)
   client/src/ ...
   client/e2e/             # playwright
   bench/                  # puzzle + annotated-games benchmarks, reports written to bench/reports/*.md
@@ -149,6 +154,22 @@ cold = after `ucinewgame`; multi-threaded timings are noisy, ±50 %):
 
 So the deep search is ≥ 95 % of the cost: ≈ 3–4 s per move, i.e. ≈ 4–6 min for an 80-ply game at d18.
 
+**As built in M2** (`analysis/analyzeMove.ts`; every search goes through `SearchCache`, so a position/params pair
+is searched once — across plies, games and side lines, and across restarts via sqlite):
+1. deep at `fenBefore` (MultiPV 5) — + `searchmoves=[played]` at deep depth only if the played move isn't in it;
+2. deep at `fenAfter` (MultiPV 5) → `evalAfter`. This *is* the next ply's deep search, so a game costs
+   ≈ plies + 1 deep searches (the last ply's `fenAfter`; none after mate/stalemate);
+3. shallow at `fenBefore` (+ shallow `searchmoves` for candidates outside its top 5);
+4. threat (null move) after each candidate and the played move, plus once at `fenBefore` (the opponent's threat;
+   each candidate is checked with a threat-depth `searchmoves=[threat move]` search → `defends-threat`);
+5. forcedness at the opponent replies of the narrated lines of the played move, the best move and the pick;
+6. without a supplied previous result: deep (+searchmoves) at `prev.fenBefore` — the previous ply's own searches.
+
+**Time caps** (`SearchBudget.maxMs`, M2 addition): Stockfish can take minutes for a fixed depth in sharp positions
+with mates around (Opera game, measured: d12 MultiPV 2 = 68 s, d18 MultiPV 1 > 120 s, d18 MultiPV 5 = 20 s), so
+every search is `go depth D movetime maxMs` (whichever first): deep 5000 ms, shallow / threat / forcedness 500 ms.
+Measured per ply (cold cache, Threads 10): 4–7 s, ≈ 5.5 s on average (the capped deep search dominates).
+
 ## Win chance / accuracy (`shared/src/winchance.ts`)
 
 `scoreToCp`, `winningChances`, `winPercent(cp)`, `winPercentFromScore`, `winPercentForColor(whiteScore, color)`,
@@ -178,6 +199,7 @@ export interface PieceRef { role: PieceRole; square: string; color: Color }
 export type Fact =
   | { type: 'check'; double?: boolean; discovered?: boolean }
   | { type: 'checkmate'; double?: boolean; discovered?: boolean }
+  | { type: 'stalemate' }                                            // the move stalemates the opponent (draw)
   | { type: 'capture'; captured: PieceRef; outcome: 'wins-material' | 'even-trade' | 'recapture' | 'loses-material'; net: number }
   | { type: 'promotion'; to: PieceRole }
   | { type: 'castle'; side: 'king' | 'queen' }
@@ -193,12 +215,13 @@ export type Fact =
   | { type: 'hangs'; piece: PieceRef; loss: number; already?: boolean }  // negative: leaves material en prise; already = was en prise before the move and still is
   | { type: 'allows-mate'; inMoves: number }                         // negative
   | { type: 'threat'; move: string; san: string; gain: number; mateIn?: number; facts: Fact[] }
-  | { type: 'line'; steps: LineStep[]; materialDelta: number; mateIn?: number; result: 'wins-material' | 'loses-material' | 'mate' | 'mated' | 'trade' | 'quiet' }
+  | { type: 'defends-threat'; move: string; san: string; gain: number; mateIn?: number; facts: Fact[] }  // the opponent's threat (as in 'threat', opponent POV) no longer works after the move
+  | { type: 'line'; steps: LineStep[]; materialDelta: number; mateIn?: number; result: 'wins-material' | 'loses-material' | 'mate' | 'mated' | 'trade' | 'quiet'; won?: PieceRole[]; lost?: PieceRole[]; measuredAt?: number }  // won/lost: net pieces gained/lost by the mover; measuredAt: material measured after this many plies (> steps.length)
   | { type: 'forced-reply'; san: string; alternatives: number }      // opponent's reply was (nearly) the only move
-  | { type: 'positional'; feature: PositionalFeature; delta: number; detail?: string; side?: 'own' | 'opponent'; squares?: string[] }  // delta: + = good for mover; side: whose pieces changed
+  | { type: 'positional'; feature: PositionalFeature; delta: number; detail?: string; side?: 'own' | 'opponent'; squares?: string[]; at?: 'line-end' }  // delta: + = good for mover; side: whose pieces changed; at: 'line-end' = change measured at the end of the short line, not right after the move
   | { type: 'positional-gain'; cp: number }                          // eval gain not explained by material
   | { type: 'deep-payoff' }                                          // only deep search likes it
-  | { type: 'necessary' }                                            // all alternatives much worse
+  | { type: 'necessary'; onlyMove?: boolean }                        // all alternatives much worse (onlyMove: the only legal move)
   | { type: 'nothing-notable' };
 
 export type PositionalFeature =
@@ -212,13 +235,13 @@ export interface Explanation { immediate: Level; short: Level; long: Level }
 
 export interface Candidate {
   uci: string; san: string;
-  rank: number;                       // 1-based engine rank (deep)
+  rank: number;                       // 1-based engine rank (deep); 0 = the played move when it isn't among the deep lines
   score: Score;                       // White POV
   winLoss: number;                    // mover POV, vs best
   pv: string[];                       // SAN
   pvUci: string[];
   explainable: boolean;
-  notExplainableReasons?: string[];   // machine-readable codes, e.g. 'too-much-loss','shallow-disagrees','no-concrete-fact','loses-result','material-rule'
+  notExplainableReasons?: string[];   // machine-readable codes, 'too-much-loss','material-rule','hangs-material','loses-result','shallow-disagrees','no-concrete-fact'
   explanation?: Explanation;          // present for played move, pick and best
 }
 
@@ -243,6 +266,7 @@ export interface MoveAnalysis {
   candidates: Candidate[];             // top-5 summary (explanation may be omitted)
   arrows: Arrow[];
   timings?: Record<string, number>;
+  labelText?: string;                  // rendered label + reason (explain.ts), mover-neutral
 }
 export interface Arrow { from: string; to: string; kind: 'pick' | 'best' | 'threat' | 'played' }
 
@@ -261,9 +285,44 @@ Additions made in M1b (all optional / additive): `checkmate.double/discovered`, 
 before the move and still is), `positional.side` (`'own' | 'opponent'`: whose structure changed) and
 `positional.squares`.
 
+Additions made in M2 (all additive; the client renders `Level.text`, so new fact types need no client change):
+- Facts: `stalemate` (the move stalemates the opponent); `defends-threat` (the opponent's verified null-move threat —
+  same fields as `threat`, opponent POV — no longer works after the move); `line.won/lost` (net pieces the mover
+  gains/loses in the line, equal roles cancelled) and `line.measuredAt` (material measured further along the PV
+  than the narrated steps, when the narration was capped mid-exchange); `positional.at: 'line-end'`;
+  `necessary.onlyMove`.
+- `MoveAnalysis.labelText` — rendered label + reason (explain.ts), e.g. "Blunder ?? — leaves the queen on g5
+  hanging (−8). White is still winning (+17.8 → +8.5), but this is the habit to fix."
+- `Candidate.rank = 0` for the played move when it isn't among the deep lines; reason code `hangs-material`.
+- Evals: `evalBefore` = deep best at fenBefore (White POV); `evalAfter` = deep best at fenAfter (White POV) — the
+  same search as the next ply's `evalBefore`, so the eval graph is continuous. After checkmate `evalAfter` is
+  `toWhitePov({ mate: 0 }, sideMated)` (i.e. `{cp: 1000}` when White mates, `{mate: 0}` when Black mates — detect
+  mate on the board for display); stalemate `{cp: 0}`. `winLoss`/label come from the fenBefore search only.
+- `SearchBudget.maxMs` (settings): per-search time cap, see "Analysis budget".
+
+## Facts → text, suggestions (M2)
+
+- `facts/line.ts`: narration (min..max plies of the PV, extended while tactical or while some piece can be won by
+  SEE), step facts (no negative facts), forced replies (MultiPV-2 gap ≥ `forcedReplyMinGap`; never on a mating
+  move), line result at the PV's quiet point; null-move threat: mate in ≤ 3 or a material gain ≥ 1 whose first
+  move is itself a winning capture or a fork/skewer/discovered attack.
+- `facts/longterm.ts`: positional deltas (move + line end) with noise filters, `positional-gain` only for moves
+  that give material up, `deep-payoff`, `necessary`, `nothing-notable`. Exact rules in the file headers.
+- `analysis/suggest.ts`: SPEC rules + `hangs-material` (no new hanging piece / losing capture / allowed mate unless
+  the candidate's own short line wins material or mates). Concrete facts: check, checkmate, winning capture or
+  recapture, promotion, fork, pin, skewer, discovered attack, escape, `defends-threat`, threat with gain/mate,
+  line that wins material or mates.
+- `analysis/explain.ts`: templates, mover-neutral with colour names; level dedupe (check implied by a fork/skewer
+  of the king, attacks covered by tactics, attacks merged per attacker, escape dropped when capturing); a
+  hang / losing capture whose short line wins material or mates is worded as a sacrifice; ≤ 4 sentences per level;
+  `labelText`; `SUGGESTION_TEXT` captions ("Good — this was the move.", "deep engine move — hard to explain").
+- `analyzeMove` drops a move's threat (and, for captures, its new attacks) when the engine's expected reply simply
+  takes the moved piece.
+
 ## Board facts (M1b: `server/src/chess/*`, `server/src/facts/*`; pure, no engine)
 
-- `chess/attacks.ts`: `PIECE_VALUES`, `positionFromFen`, `toPieceRef`, `attackersOf(board, sq, color, {occupied?, xray?})`,
+- `chess/material.ts` (M2: the single home of `PIECE_VALUES` and `positionFromFen`; attacks.ts no longer exports them).
+- `chess/attacks.ts`: `toPieceRef`, `attackersOf(board, sq, color, {occupied?, xray?})`,
   `defendersOf`, `attackedPieces`, `attacksFrom`, `lineBehind`, `pinsAgainst(board, color, {relative?})`,
   `absolutelyPinned`, `legalMobility`, `legalMoveCount`, `withTurn`.
 - `chess/see.ts` (pawn units): `see(pos, sq, by = turn)` ≥ 0 (best exchange `by` can start on `sq`; legal captures only
@@ -292,8 +351,22 @@ before the move and still is), `positional.side` (`'own' | 'opponent'`: whose st
 
 `ply` is 1-based index into `moves` (ply 1 = White's first move).
 
+M2 details: `POST /api/games` returns the same id (and the already-finished analyses) for a re-imported game;
+GameInfo `you`/`orientation` follow the *current* username setting. SSE: subscribe-then-replay (an analysis can
+arrive twice — idempotent), `progress` + `summary` after every finished ply, heartbeat comment `: ping` every
+15 s, cleanup on disconnect; the stream stays open after the game is done. `focus` → 204, 404 unknown game, 400
+bad ply. `/api/analyse` → 400 for an illegal move / bad FEN / a `prev` that doesn't lead to `fenBefore`, 503
+without engine. Errors are `{ error }` JSON. Main-line ply N uses ply N−1 as `prev` (and its finished result for
+Miss / book chain when available); side lines pass `prev` in the body.
+
 ## Cache
 
-Key = sha1(`ANALYSIS_VERSION | settingsHash | fenBefore | uci | prevKey`). Value = MoveAnalysis JSON.
-`data/cache.sqlite` via `node:sqlite` (`DatabaseSync`). Games are also persisted (id = sha1 of normalised move
-list + start FEN) so reopening the same PGN returns the same id.
+Key = sha1(`ANALYSIS_VERSION | settingsHash | fenBefore | uci | prevKey | bookChain`) (`games.ts analysisKey`;
+prevKey = prev fenBefore + uci, bookChain = 1/0/u). Value = MoveAnalysis JSON.
+`data/cache.sqlite` via `node:sqlite` (`DatabaseSync`; path override env `CHESS_COACH_DB`, `':memory:'` in
+tests). Tables (key → JSON): `analyses`, `searches` (SearchCache: EPD + depth + maxMs + MultiPV + searchmoves →
+SearchResult; independent of ANALYSIS_VERSION, so changing facts/explain code re-uses all engine work), `games`
+(id = sha1 of start FEN + UCI move list), `settings`. A restart reloads a game by id and re-queues only missing plies.
+
+`npx tsx server/scripts/analyze-pgn.ts game.pgn --out report.md [--json out.json] [--db path] [--fresh]` runs the
+same GameManager pipeline without HTTP (`--fresh` ignores cached analyses but keeps cached searches).
