@@ -1,9 +1,9 @@
-engine/
+/engine/
 node_modules/
 dist/
 *.sqlite
 *.sqlite-*
-data/
+/data/
 .env
 test-results/
 playwright-report/

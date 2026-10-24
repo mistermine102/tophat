@@ -15,6 +15,14 @@ parallel. If you need to change a contract, update this file in the same commit 
 - Engine binary: `engine/stockfish.exe` (gitignored; `npm run setup:engine` downloads Stockfish 19 from the
   official GitHub release `sf_19`, asset `stockfish-windows-x86-64-universal.zip`). Path override via env
   `STOCKFISH_PATH`.
+- **TypeScript 6.0.x** (not 7.x): TS 7 is the native Go port without the JS compiler API, and `vue-tsc` cannot
+  run on it. One TS version for the whole repo (root devDependency). No build step: `noEmit`, `moduleResolution:
+  bundler`, extensionless relative imports; `tsx` runs the server, Vite/Vitest transform TS directly.
+- **`@chess-coach/shared`** is consumed as TS source: its `package.json` `exports` map `.` → `src/index.ts` and
+  `./*` → `src/*.ts`. Import `from '@chess-coach/shared'` (or `'@chess-coach/shared/winchance'`) in server, client
+  and tests alike. Do not add Node/browser APIs to shared.
+- Root `npm test` runs Vitest projects `shared`, `server`, `client` (root `vitest.config.ts`); `npm run typecheck`
+  runs `tsc` (shared, server) and `vue-tsc` (client).
 
 ## Layout
 
@@ -30,7 +38,8 @@ chess-coach/
     settings.ts           # default thresholds/settings (below)
     winchance.ts          # cp/mate -> win%, move accuracy, game accuracy (Lichess formulas)
   server/src/
-    index.ts              # starts Express on PORT (default 5174)
+    index.ts              # starts Engine + Scheduler, Express on PORT (default 5174)
+    app.ts                # createApp(ctx: AppContext) -- Express app factory (testable without engine/listen)
     engine/uci.ts         # Engine: UCI process wrapper
     engine/scheduler.ts   # priority queue in front of the Engine (single engine process)
     chess/                # pure position helpers on chessops: material, see.ts (static exchange), attacks
@@ -45,7 +54,8 @@ chess-coach/
     games.ts              # PGN import -> Game; per-game queue state; summary
     cache.ts              # node:sqlite cache
     routes.ts             # REST + SSE
-  server/test/            # vitest; engine-dependent tests are tagged/skipped when no engine binary
+  server/test/            # vitest; engine-dependent tests use describe.skipIf(!engineAvailable())
+  server/scripts/engine-timing.ts  # `npm run bench:engine -w server`: times the analysis budget searches
   client/src/ ...
   client/e2e/             # playwright
   bench/                  # puzzle + annotated-games benchmarks, reports written to bench/reports/*.md
@@ -94,10 +104,23 @@ export class Engine {
 - Positions with no legal moves: return `{ lines: [], bestmove: null }` without hanging (engine prints
   `bestmove (none)`).
 - Defaults: Threads = max(1, cpus-2), Hash = 512.
+- Additions made in M0 (all optional / additive): `SearchRequest.timeoutMs` (default 120 s; movetime-only
+  searches: movetime + 10 s), `EngineOptions.searchTimeoutMs`; `engine.name` (from `id name`, e.g.
+  `"Stockfish 19"`), `engine.alive`, `engine.restart()`; error classes `EngineError`, `EngineTimeoutError`,
+  `EngineCrashedError`; helpers `defaultEnginePath()`, `engineAvailable()`, `parseInfoLine()`, `PvCollector`.
+- The FEN is validated (and normalised) with chessops before it is sent (invalid FENs can crash Stockfish);
+  illegal `searchmoves` reject with `EngineError`. King-takes-rook castling (`e1h1`) in searchmoves is converted
+  to `e1g1`.
+- Timeout → `stop`; if the engine doesn't answer it is killed. Crash → the pending search rejects with
+  `EngineCrashedError`; the next call transparently starts a new process. After `quit()` calls reject.
 
-`scheduler.ts` wraps an Engine with a priority queue: `run(job, priority)`; priorities: `SIDELINE=0` (highest),
-`FOCUS=1`, `BACKGROUND=2`. A move analysis is a job composed of several searches; priority applies per job.
-`bump(jobKey, priority)` re-prioritises a queued job.
+`scheduler.ts` wraps an Engine with a priority queue: `new Scheduler(engine)`, `run(key, priority, job)` where
+`job: (engine) => Promise<T>`; priorities `Priority.SIDELINE=0` (highest), `FOCUS=1`, `BACKGROUND=2`. A move
+analysis is a job composed of several searches; priority applies per job. One job runs at a time (not
+preemptive); FIFO within a priority. Same key while queued/running → the same promise (job runs once) and the
+queued job is upgraded to the higher priority (never downgraded). `bump(key, priority)` re-prioritises a queued
+job; a job that changes priority joins the back of its new priority class. Finished keys are forgotten (results
+are cached elsewhere). Also `has(key)`, `priorityOf(key)`, `size`, `busy`, `onIdle()`.
 
 ## Analysis budget (defaults in settings, tune with measurements)
 
@@ -109,6 +132,35 @@ Per analysed move `(fenBefore, move)`:
    flipped (null move; skip if the move gives check), MultiPV 1, depth 12.
 4. **Forcedness** checks along the short line: at each opponent reply in the first N plies, MultiPV 2 depth 12.
 5. The deep line of the played move (from 1 or the searchmoves search) gives the material-rule line.
+
+All values live in `DEFAULT_SETTINGS.budget` (`shared/src/settings.ts`).
+
+**Measured in M0** (Stockfish 19, Ryzen 5 3600, Threads=10, Hash=512; 3 middlegames: QGD / Najdorf / closed Ruy;
+cold = after `ucinewgame`; multi-threaded timings are noisy, ±50 %):
+
+| search | time per search |
+|---|---|
+| deep d18 MultiPV 5 | 1.4–6.8 s (typ. 2–5 s); warm hash 1.3–4.2 s |
+| deep d16 / d14 / d20 MultiPV 5 | 1.1–2.3 s / 0.45–1.0 s / 3–13 s |
+| d18 MultiPV 1 | 0.24–1.9 s |
+| shallow d8 MultiPV 5 | 12–34 ms |
+| threat d12 MultiPV 1 | 17–53 ms |
+| forcedness d12 MultiPV 2 | 40–280 ms |
+
+So the deep search is ≥ 95 % of the cost: ≈ 3–4 s per move, i.e. ≈ 4–6 min for an 80-ply game at d18.
+
+## Win chance / accuracy (`shared/src/winchance.ts`)
+
+`scoreToCp`, `winningChances`, `winPercent(cp)`, `winPercentFromScore`, `winPercentForColor(whiteScore, color)`,
+`flipScore`, `toWhitePov(score, sideToMove)`, `fromWhitePov(whiteScore, color)`, `moveAccuracy(winBefore,
+winAfter)`, `gameAccuracy(whiteCps[], startColor)` / `gameAccuracyFromScores(whiteScores[], startColor)` (input
+includes the initial position's eval; `null` = unknown), plus `standardDeviation`, `weightedMean`,
+`harmonicMean`. Notes:
+- `moveAccuracy` is Lichess' exact `fromWinPercents`: 100 when win% doesn't drop, else
+  `103.1668100711649·e^(−0.04354415386753951·Δ) − 3.166924740191411` **+ 1** ("uncertainty bonus"), clamped to
+  [0, 100]. SPEC.md quotes the rounded formula without the +1; we follow Lichess.
+- `mate: 0` = the POV side is checkmated (−1000 cp). `flipScore({mate: 0})` = `{cp: 1000}` (a delivered mate has no
+  signed UCI mate value) — detect checkmate on the board to display "#".
 
 ## Shared types (`shared/src/types.ts`)
 
@@ -215,7 +267,7 @@ export interface Settings { username: string | null }
 | POST | `/api/games/:id/focus` | `{ ply }` | 204; bumps that ply (and ply+1) to FOCUS priority |
 | POST | `/api/analyse` | `{ fenBefore, uci, prev?: { fenBefore, uci } }` | `MoveAnalysis` (SIDELINE priority; `prev` enables Miss detection) |
 | GET/PUT | `/api/settings` | `Settings` | `Settings` (persisted in sqlite) |
-| GET | `/api/health` | — | `{ ok, engine: 'Stockfish 19' }` |
+| GET | `/api/health` | — | `{ ok: true, engine: 'Stockfish 19' }`; 503 `{ ok: false, engine: null, error }` if the engine isn't running |
 
 `ply` is 1-based index into `moves` (ply 1 = White's first move).
 

@@ -2,7 +2,15 @@
 
 Coordinator keeps this updated. Each milestone is done by a subagent; its report summary goes under the milestone.
 
-- [ ] **M0 Scaffold** — workspaces, shared types/settings/winchance, setup-engine script, Engine (UCI) + scheduler, tests.
+- [x] **M0 Scaffold** — workspaces, shared types/settings/winchance, setup-engine script, Engine (UCI) + scheduler, tests.
+  - npm workspaces (`shared`, `server`, `client`), TS 6.0 strict ESM (TS 7 can't run vue-tsc), no build step;
+    `@chess-coach/shared` is imported as TS source everywhere. Express 5 + tsx, Vue 3.5 + Vite 8 + Tailwind 4, Vitest 5.
+  - shared: `types.ts` (verbatim), `settings.ts` (`DEFAULT_SETTINGS`, `ANALYSIS_VERSION=1`, `settingsHash`),
+    `winchance.ts` (Lichess win%/accuracy, faithful port of `AccuracyPercent.gameAccuracy`).
+  - server: `Engine` (uci.ts; serialised, timeouts, crash→restart, `bestmove (none)`), `Scheduler` (priorities,
+    dedupe, bump, FIFO), `/api/health`. `npm run setup:engine` is idempotent.
+  - 58 tests (engine integration tests auto-skip without the binary). Deep d18 MultiPV5 ≈ 1.4–6.8 s/move
+    (Threads 10) — ≥95 % of per-move cost; see ARCHITECTURE.md "Analysis budget".
 - [ ] **M1a Classification** — material/SEE helpers, classify.ts (all labels + material rule + Miss + Great + Forced), book.ts, tests.
 - [ ] **M1b Facts** — immediate.ts, positional.ts (+ deltas), tests.
 - [ ] **M1c Client UI** — full v1 screen against fixture data (no server dependency), component tests.
