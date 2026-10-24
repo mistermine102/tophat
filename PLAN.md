@@ -15,7 +15,10 @@ Coordinator keeps this updated. Each milestone is done by a subagent; its report
   - material.ts (lineMaterial to quiet point), classify.ts (ClassifyInput/classifyMove/materialCheck, mover-POV scores), book.ts (Lichess TSVs vendored, 0.3 s load).
   - Interpretations: material reference capped at current/pre-opponent-move material (so missed free pieces are Miss, not material Blunder); mating best line never flags a still-mating move; recapture on last-move square is never Great; book traps (Fool's mate) keep Miss/Blunder.
   - Material guard uses unclamped cp (mate = ±(100000−100n)) so hanging a queen at +17.8→+8.5 is a Blunder. 153 server tests.
-- [ ] **M1b Facts** — immediate.ts, positional.ts (+ deltas), tests.
+- [x] **M1b Facts** — immediate.ts, positional.ts (+ deltas), tests.
+  - chess/attacks.ts, chess/see.ts (legal-capture SEE), facts/immediate.ts (fork/skewer only if mover wins vs every reply), facts/positional.ts (~0.05 ms/pos).
+  - Puzzle benchmark (bench/reports/puzzle-facts.md): any-move recall fork 92%, skewer 89%, discovered 87%, double check 100%, mateIn1 100%, pin 35% (weak: Lichess pin = exploiting existing pins). 20/20 eyeballed non-theme firings genuine.
+  - Merged total: 254 tests passing.
 - [ ] **M1c Client UI** — full v1 screen against fixture data (no server dependency), component tests.
 - [ ] **M2 Integration** — line.ts (short-term narration + forcedness), suggest.ts, explain.ts, analyzeMove.ts, games/cache/routes/SSE, client wired to API.
 - [ ] **M3 Benchmarks** — Lichess puzzles vs facts; Lichess annotated games vs labels; fix & tune; reports in bench/reports.
