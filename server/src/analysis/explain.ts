@@ -34,6 +34,8 @@ export interface ExplainContext {
   mover: Color;
   /** The move's label (played move only): bad labels lead with the refutation; Book keeps the short level brief. */
   label?: Label;
+  /** The move (UCI): tells a pin made by the moving piece from one it uncovers. */
+  uci?: string;
 }
 
 type F<T extends Fact['type']> = Extract<Fact, { type: T }>;
@@ -162,6 +164,7 @@ export function allowsText(f: F<'allows'>, ctx: ExplainContext): string {
   if (tactic?.type === 'fork') direct.push(`forking ${targetsPhrase(tactic.targets)}`);
   else if (tactic?.type === 'skewer') direct.push(`skewering ${owned(tactic.front)} (when it moves, ${the(tactic.behind)} can be taken)`);
   else if (tactic?.type === 'discovered-attack') direct.push(`uncovering an attack on ${owned(tactic.target)}`);
+  else if (tactic?.type === 'pin' && tactic.pinner.square !== f.reply.uci.slice(2, 4)) direct.push(`uncovering a pin by ${the(tactic.pinner)} on ${owned(tactic.pinned)}`);
   else if (tactic?.type === 'pin') direct.push(tactic.absolute ? `pinning ${owned(tactic.pinned)} to the king` : `pinning ${owned(tactic.pinned)} to the ${tactic.behind.role} behind it`);
   if (cap) direct.push(`winning ${owned(cap.captured)} (${points(-cap.net)})`);
   // … and what it leaves the mover facing (the attackers may be other pieces: told as a situation, not as the
@@ -209,6 +212,7 @@ function immediateFactText(f: Fact, ctx: ExplainContext): string | null {
     case 'fork':
       return `Fork: ${the(f.attacker)} attacks ${targetsPhrase(f.targets)} at once`;
     case 'pin':
+      if (ctx.uci && f.pinner.square !== ctx.uci.slice(2, 4)) return `Uncovers a pin: ${the(f.pinner)} now pins ${owned(f.pinned)} to the ${f.absolute ? 'king' : `${f.behind.role} on ${f.behind.square}`}`;
       return f.absolute
         ? `Pins ${owned(f.pinned)} to the king — it is not allowed to move`
         : `Pins ${owned(f.pinned)} to the ${f.behind.role} on ${f.behind.square} — if it moves, the ${f.behind.role} can be taken`;
@@ -291,7 +295,7 @@ function renderImmediate(facts: readonly Fact[], ctx: ExplainContext, line?: F<'
     const hang = cap && fs.find((f): f is F<'hangs'> => f.type === 'hangs' && f.piece.square === cap.captured.square);
     if (hang) {
       const opp = colorName(other(ctx.mover));
-      merged.set(hang, `Leaves ${the(hang.piece)} hanging: ${opp} takes it with ${allows.reply.san} (${points(-hang.loss)})`);
+      merged.set(hang, `${hang.already ? "Still leaves" : "Leaves"} ${the(hang.piece)} hanging: ${opp} takes it with ${allows.reply.san} (${points(-hang.loss)})`);
       fs = fs.filter((f) => f !== allows);
     }
     // one mate sentence: the refutation already says "can force mate"
@@ -380,6 +384,8 @@ function stepClause(step: LineStep, mayWin = true, back?: boolean): string {
     case 'skewer':
       return ` skewers the ${f.front.role} and ${f.behind.role}`;
     case 'pin':
+      // a pin made by another piece (the move opened its line) is uncovered, not made by the moving piece
+      if (f.pinner.square !== step.uci.slice(2, 4)) return ` uncovers a pin: the ${f.pinner.role} on ${f.pinner.square} pins the ${f.pinned.role} to the ${f.absolute ? 'king' : f.behind.role}`;
       return f.absolute ? ` pins the ${f.pinned.role} to the king` : ` pins the ${f.pinned.role} to the ${f.behind.role}`;
     case 'discovered-attack':
       return ` uncovers an attack on the ${f.target.role}`;
@@ -797,7 +803,7 @@ export type LabelTextInput = Pick<MoveAnalysis, 'label' | 'labelReason' | 'color
   /** The played move (SAN), named in the material sentence. */
   san?: string;
   /** The played move's own verified 'hangs' fact (Immediate level), if any. */
-  verifiedHang?: { piece: PieceRef; loss: number } | null;
+  verifiedHang?: { piece: PieceRef; loss: number; already?: boolean } | null;
 };
 
 /** One or two sentences: label name + why (mover-neutral). */
@@ -837,7 +843,7 @@ export function labelText(a: LabelTextInput, settings: AnalysisSettings): string
       // the hung piece is named only from the move's own verified 'hangs' fact (a piece standing on that square
       // after the move, confirmed by the engine line), with that fact's number; otherwise the line's net loss
       const vh = a.verifiedHang;
-      const lossText = vh ? `leaves ${the(vh.piece)} hanging (${points(-vh.loss)})` : m ? `loses material: the engine line ends ${Math.abs(m.loss)} ${Math.abs(m.loss) === 1 ? "point" : "points"} worse than after ${a.bestSan}` : '';
+      const lossText = vh ? `${vh.already ? "does not save" : "leaves"} ${the(vh.piece)}${vh.already ? ", which is still hanging" : " hanging"} (${points(-vh.loss)})` : m ? `loses material: the engine line ends ${Math.abs(m.loss)} ${Math.abs(m.loss) === 1 ? "point" : "points"} worse than after ${a.bestSan}` : '';
       if (materialDecides && m) {
         const still = a.winAfter >= settings.suggest.winningMin
           ? ` ${me} is still winning (engine eval ${formatEval(a.evalBefore)} → ${formatEval(a.evalAfter)}), but this is the habit to fix.`

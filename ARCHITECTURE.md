@@ -342,7 +342,12 @@ Additions made in the explanation-quality pass (M5 prep; additive):
   sentences; `labelText` (for bad moves with a comparison from the best move's own facts: "Qf6 was much better.
   Qf6 defends the pawn on f7."); `verdictText`; `SUGGESTION_TEXT.deepOnly`.
 - `analyzeMove` drops a move's threat (and, for captures, its new attacks) when the engine's expected reply simply
-  takes the moved piece.
+  takes the moved piece. Board claims are checked against the move's PV (first 6 plies): a `hangs` piece must be
+  captured there (else dropped; `already` when it could be won just as well before the move), `defends-threat` of a
+  material threat is dropped when the PV plays the threat anyway, a null-move threat that already existed before the
+  move or whose target can capture the threatening piece is dropped. The played move's `allows` is dropped when the
+  best move allows the same reply with the same effect, and marked `already` when it equals the opponent's pre-move
+  threat and hits nothing new. `ExplainContext` carries `label` and `uci` (uncovered pins are credited to the pinner).
 
 ## Board facts (M1b: `server/src/chess/*`, `server/src/facts/*`; pure, no engine)
 

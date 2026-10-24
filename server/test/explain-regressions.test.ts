@@ -249,6 +249,15 @@ describe('review round 3', () => {
   });
 });
 
+describe('review round 4', () => {
+  it('a pin opened by the moving piece is "uncovered", credited to the real pinner (lmnbpO0B 18: Qf4 with Rd1 behind)', () => {
+    const pin: Fact = { type: 'pin', pinner: { role: 'rook', square: 'd1', color: 'white' }, pinned: { role: 'knight', square: 'd7', color: 'black' }, behind: { role: 'queen', square: 'd8', color: 'black' }, absolute: false };
+    const line: LineF = { type: 'line', steps: [{ ply: 1, san: 'Re8', uci: 'f8e8', color: 'black', facts: [] }, { ply: 2, san: 'Qf4', uci: 'd2f4', color: 'white', facts: [pin] }], materialDelta: 0, result: 'quiet' };
+    expect(lineText(line, B)).toBe('Re8 → Qf4 uncovers a pin: the rook on d1 pins the knight to the queen.');
+    expect(renderExplanation({ immediate: [pin], short: [], long: [] }, { mover: 'white', uci: 'd2f4' }).immediate.text[0]).toBe("Uncovers a pin: the rook on d1 now pins Black's knight on d7 to the queen on d8.");
+  });
+});
+
 describe('6. confirmations per label', () => {
   it('Book / Forced / Best / Great captions', () => {
     expect(verdictText('book', true)).toBe('Opening theory.');

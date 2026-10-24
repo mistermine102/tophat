@@ -28,7 +28,7 @@ import { BAD_LABELS, betterReasons, labelText, renderExplanation, verdictText } 
 import { type SearchParams, type Searcher, SearchCache } from './searchCache';
 import { type ReasonCode, lineDelta, suggest } from './suggest';
 import { legalMove as legalMoveAt, legalPrefix, normalizeFen, playMove, positionStatus, pvToSan, uciSquares } from '../chess/notation';
-import { seeMove } from '../chess/see';
+import { hangingLoss, seeMove } from '../chess/see';
 import { parseSquare } from 'chessops/util';
 import type { PvLine, SearchResult } from '../engine/uci';
 import { materialBalance, positionFromFen } from '../chess/material';
@@ -187,7 +187,8 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
     const immediate = verifyWithLine(pruneRefuted(immediateFacts(fen, p.uci, prevOpt), p.uci, pv[1]), fen, pv);
     if (threat && !replyTakesMovedPiece(p.uci, pv[1]) && !threatExistedBefore(fen, threat) && !targetHitsBack(p.fenAfter, threat)) immediate.push(threat);
     // "stops the threat" only if the engine line doesn't play it anyway
-    if (defends && !opponentPlays(pv, (defends as { move: string }).move)) immediate.push(defends);
+    // (a mate threat may still be played without mating: only material threats are checked against the PV)
+    if (defends && !((defends as { mateIn?: number }).mateIn === undefined && opponentPlays(pv, (defends as { move: string }).move))) immediate.push(defends);
     // engine-verified forced mate against the mover that the best move avoids (board check only sees mate in 1)
     const matedIn = line.score.mate !== undefined && line.score.mate < 0 ? -line.score.mate : 0;
     if (matedIn > 1 && !((best.score.mate ?? 0) < 0) && !immediate.some((f) => f.type === 'allows-mate')) immediate.push({ type: 'allows-mate', inMoves: matedIn });
@@ -259,12 +260,13 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
       const b = cands[0]!;
       const bestAllows = sameMoveUci(fen, b.uci, w.uci) ? null : refutationFact({ fenBefore: fen, uci: b.uci, pv: b.pv, line: b.narrated.line });
       // the reply is exactly the opponent's verified threat from before the move: the move "doesn't stop" it
-      if (allows && oppThreat && allows.reply.uci === oppThreat.move) allows.already = true;
+      // (only when it hits nothing new: Rg8+ walking into Kh7 is the move's own doing)
+      if (allows && oppThreat && allows.reply.uci === oppThreat.move && !(allows.targets?.length)) allows.already = true;
       if (allows && !(bestAllows && allowsSignature(bestAllows) === allowsSignature(allows))) immediate = [allows, ...immediate];
     }
     const short: Fact[] = [narrated.line, ...narrated.forcedReplies];
     shortFacts.set(w.uci, short);
-    const e = renderExplanation({ immediate, short, long }, label ? { mover, label } : { mover });
+    const e = renderExplanation({ immediate, short, long }, label ? { mover, label, uci: w.uci } : { mover, uci: w.uci });
     factsMs += now() - tf;
     explained.set(w.uci, e);
     return e;
@@ -336,7 +338,7 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
     : [];
   const hangs = playedWork.immediate.filter((f): f is Extract<Fact, { type: 'hangs' }> => f.type === 'hangs').sort((a, b) => b.loss - a.loss);
   const hang = hangs.find((h) => h.piece.square === cr.labelReason.material?.hung?.square) ?? hangs[0];
-  analysis.labelText = labelText({ ...analysis, bestSan: bestWork.san, bestUci: bestWork.uci, checkmate: cr.checkmate, better, verifiedHang: hang ? { piece: hang.piece, loss: hang.loss } : null }, settings);
+  analysis.labelText = labelText({ ...analysis, bestSan: bestWork.san, bestUci: bestWork.uci, checkmate: cr.checkmate, better, verifiedHang: hang ? { piece: hang.piece, loss: hang.loss, ...(hang.already ? { already: true } : {}) } : null }, settings);
   const verdict = verdictText(cr.label, playedIsBest);
   if (verdict) analysis.verdictText = verdict;
   return analysis;
@@ -382,7 +384,16 @@ export function verifyWithLine(facts: Fact[], fen: string, pv: readonly string[]
     if (i % 2 === 1 && pos.board.get(mv.to)) taken.add(to);
     pos.play(mv);
   }
-  return facts.filter((f) => f.type !== 'hangs' || taken.has(f.piece.square));
+  // a piece that stood on the same square and could be won just as well before the move: "already" hanging
+  const before = positionFromFen(fen);
+  return facts
+    .filter((f) => f.type !== 'hangs' || taken.has(f.piece.square))
+    .map((f) => {
+      if (f.type !== 'hangs' || f.already) return f;
+      const sq = parseSquare(f.piece.square)!;
+      const p = before.board.get(sq);
+      return p && p.role === f.piece.role && p.color === f.piece.color && hangingLoss(before, sq) >= f.loss ? { ...f, already: true } : f;
+    });
 }
 
 /**

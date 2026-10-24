@@ -250,7 +250,12 @@ export function narrationPlies(fenBefore: string, pv: readonly string[], setting
   };
   const lo = Math.min(min, n);
   const end = first(lo, (k) => (stopOk(k) || claimOk(k)) && agrees(k)) ?? first(lo, stopOk);
-  if (end === undefined) return Math.min(max, n); // never quiet: the material result will be resolved or 'unclear'
+  if (end === undefined) {
+    // never quiet: the material result will be resolved or 'unclear' — but don't stop right after a capture
+    // whose recapture is the next move (…Bxf6+ gxf6)
+    for (let k = Math.min(max, n); k > lo; k--) if (!info.captured[k]) return k;
+    return Math.min(max, n);
+  }
   const target = opts.targetDelta;
   if (target !== undefined && info.delta[end]! > target + 0.5) {
     const shown = first(end + 1, (k) => (stopOk(k) || claimOk(k)) && info.delta[k]! <= target + 0.5);
@@ -613,11 +618,16 @@ function replyWasAlreadyThere(fenBefore: string, replyUci: string, facts: readon
   const m = legalMove(pos, replyUci);
   if (!m) return false;
   // a mate-in-one threat the reply sets up that it would have set up before the move as well (…Qd6 hitting h2)
+  // (only if the pieces it now hits were en prise then too — Qf3 taking the queen off d4's defence is new)
   const mateThreat = facts.some((f) => f.type === 'threat' && f.mateIn === 1);
   if (mateThreat) {
     const p = pos.clone();
     p.play(m);
-    if (threatensMateInOne(p)) return true;
+    const sameTargets = targets.every((t) => {
+      const q = p.board.get(parseSquare(t.square)!);
+      return q?.role === t.role && q.color === t.color && hangingLoss(p, parseSquare(t.square)!) > 0;
+    });
+    if (threatensMateInOne(p) && sameTargets) return true;
   }
   const cap = facts.find((f): f is Extract<Fact, { type: 'capture' }> => f.type === 'capture');
   if (cap && !(capturedBy(pos, m) && seeMove(pos, replyUci) >= cap.net)) return false;

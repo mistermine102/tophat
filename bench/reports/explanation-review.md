@@ -20,6 +20,14 @@ Categories: **FALSE** (wrong on the board / contradicts the line), **MISLEADING*
 |---|---|---|---|---|---|---|---|
 | 0 (coordinator, before) | Opera report (old code) | — | ≥ 1 ("White loses a knight (−3)" in a level line) | many ("Qb3 (forced)", "a few moves later", "Good — this was the move" under Book) | many (8-ply book narrations, isolated-pawn noise) | — | 6.Qb3 "deep engine move" although it wins b7 |
 | 1 (me) | Opera, new code r1 | 22 | 1 | 10 | 2 | — | 5 / 1 (+1 deep-only) |
+| 2 (5 reviewer agents) | 7 games, r2 | 180 | 22 | 75 | 80 | 43 | 47 / 15 |
+| 3 (5 reviewer agents) | 7 games, r3 | 180 | 5 | 52 | 19 | 73 | 58 / 2 |
+| 4 (3 reviewer agents) | 7 games, r4 | 180 | 4 (one root cause, fixed after the round) | 26 | 21 | 64 | 56 / 4 |
+
+WEAK rose from round 2 to 3 because reviewers moved on to wording once the gross errors were gone. After round 4 the
+remaining FALSE root cause (uncovered pins worded as made by the moving piece) was fixed and spot-checked on the r5
+output; the final reports `bench/reports/analyze-*.md` are rendered from that code (searches cached, so the
+reports' wall times are re-render times).
 
 ## Round 1 — Opera game, first version of the new pipeline (reviewed by me)
 
@@ -76,3 +84,54 @@ Representative defects, grouped by root cause (all instances of a cause were fix
 Not fixed in this round (outside these files or too deep): pre-existing pins reported as new (immediate.ts),
 "defends" for a blocking move (immediate.ts), Great moves explained only by their own line (no "what the 2nd best
 allows" fact), picks whose story equals the played move's, positional mistakes with no concrete fact.
+
+## Round 3 — all 7 games (r3), five independent reviewer agents
+
+180 entries. Totals: FALSE 5, MISLEADING 52, USELESS 19, WEAK 73 (reviewers went deeper into wording once the
+gross errors were gone); picks 58 good / 2 bad. Per game (F/M/U/W, picks): Opera 0/4/4/5, 5/0 · tM14SUiA
+0/2/0/4, 7/0 · PuBQ0CoQ 0/5/2/7, 3/0 · mcz8Z7Cr 1/10/2/7, 12/0 · lmnbpO0B 2/15/3/14, 8/2 · 5frUvyHl 1/8/4/20,
+7/0 · dmVsbMbS 1/8/4/16, 16/0.
+
+| Game, ply | Move | Level | Sentence | Cat. | Root cause → fix |
+|---|---|---|---|---|---|
+| mcz8Z7Cr 27 | Bxg5 | Short | "White comes out ahead in material (+4); material is level" | FALSE | gain phrased as a win although the mover started 4 down → "wins back" decided by the starting balance ("White wins back material (+4 points); material is level") |
+| dmVsbMbS 19 | Re1 | Short | "White wins back a pawn" (material was level) | FALSE | "back" from the opponent's last capture (an even recapture) → same fix: only when the mover started behind |
+| lmnbpO0B 15 | dxe5 | Imm | "Wins Black's pawn on e5 for free" | FALSE | "for free" from SEE net = piece value, also true for a defended pawn won by a longer exchange → "for free" removed |
+| lmnbpO0B 28 | fxg6 | Label | "(−5 points)" with no baseline (PV loses 7) | FALSE | the material-rule loss is relative to the best line → "loses material: the engine line ends 5 points worse than after Rxg6" |
+| 5frUvyHl 23 | Qf3 | Imm | "Allows Qd6 … threatens Qxh2#" (already possible) | FALSE | "already" didn't cover mate threats → a reply equal to the opponent's verified pre-move threat, or whose mate-in-one threat existed before, reads "Doesn't stop Qd6 …" |
+| dmVsbMbS 53/55/59 | a6, a7, a8=Q | Imm | "Allows Rh1+ … mate" (threat existed) | MISLEADING | same fix |
+| 5frUvyHl 37/39, lmnbpO0B 38, mcz8Z7Cr 10/20/22/42 | h3, Kg1, … | Long | "White's king is safer", "Black gains space/centre" | MISLEADING | persistence applied only to structure → every move-level long-term note must still hold at the end of the short line |
+| mcz8Z7Cr 32 | label | Label | "Qf7 threatens Qxd5, winning a queen (+9)" | MISLEADING | queens facing each other → a threat whose target can capture the threatening piece is dropped (`targetHitsBack`) |
+| mcz8Z7Cr 42 | Qxf2+ | Imm | "Allows Qxf2: then … rooks both under attack, threatens Qxf8#" | MISLEADING | the reply piece is simply recaptured → no targets / threat for a reply piece the mover can win |
+| lmnbpO0B 17/20, Opera 11 | labels | Label | "Nxe5 leads to winning a pawn" (played move wins one too) | MISLEADING | comparison listed shared outcomes → the line reason only when the played line does worse |
+| lmnbpO0B 38/39 | Qf6 / Rhxd7 | Short | "bxc3 wins the queen" (queen trade) | MISLEADING | take-back by balance only → a recapture of the same kind of piece reads "takes back" |
+| 5frUvyHl 24, dmVsbMbS 20, … | picks | Long | "Black just had to play this" on an opportunity move | MISLEADING | → "The only good move here — every other move is much worse." (Great/Forced: dropped, the verdict says it) |
+| 5frUvyHl 32 | Rdf8 | Imm | "Attacks White's queen on f7, which is undefended" | WEAK | → "Attacks White's queen on f7 with a rook." (a bigger piece attacked by a smaller one) |
+| PuBQ0CoQ 44, mcz8Z7Cr 43 | Qxa2, Rxf2 | Imm | "After that White can force mate in 3" (count unclear) | WEAK | → "— it starts a forced mate in 3 for White" |
+
+Not fixed (recorded for M5): king displacement / castling loss as a fact (Nf6 vs Qf6 have equal material); "adds an
+attacker to a pinned piece" (O-O-O, Rd1); prophylaxis ("a3 stops Nb4"); pins credited to the moved piece when
+they are uncovered (immediate.ts); en passant not named; stories still end without a result where the PV never
+settles; a hang that was already en prise sometimes worded "Leaves … hanging" (immediate.ts `already` threshold).
+
+## Round 4 — all 7 games (r4), three independent reviewer agents
+
+180 entries. Totals: FALSE 4, MISLEADING 26, USELESS 21, WEAK 64; picks 56 good / 4 bad. Per sheet group (F/M/U/W,
+picks): Opera+tM14SUiA+PuBQ0CoQ 0/8/8/21, 14/0 · lmnbpO0B+mcz8Z7Cr 4/13/7/20, 18/2 · 5frUvyHl+dmVsbMbS 0/5/6/23, 24/2.
+
+| Game, ply | Move | Level | Sentence | Cat. | Root cause → fix |
+|---|---|---|---|---|---|
+| lmnbpO0B 18/19 | Re8 / h4 lines | Short | "Qf4 pins the knight to the queen" | FALSE | the pin fact's pinner is the rook on d1 (uncovered), but the step was worded as the moving piece's pin → "Qf4 uncovers a pin: the rook on d1 pins the knight to the queen" (steps, refutations, Immediate) |
+| lmnbpO0B 22, 28 | Bxc3 / Rxg6 pick | Imm / Short | "Allows Qxc3, pinning …", "Bxh7+ pins the knight" | FALSE | same |
+| 5frUvyHl 23 | Qf3 | Imm | "Doesn't stop Qd6 …" (d4 newly undefended) | MISLEADING | "already" now also requires the same targets to have been en prise before → "Allows Qd6: then … h2 and d4 …" |
+| dmVsbMbS 57 | Rg8+ | Imm | "Doesn't stop Kh7 …" (the rook walked into it) | MISLEADING | the pre-move-threat rule only applies when the reply hits nothing new |
+| Opera 28, tM14SUiA 46 | Qe6 / Qa7 | Label + Imm | "leaves the rook on d7 hanging" (was already lost) | MISLEADING | a hang with the same SEE before the move → "Still leaves the rook on d7 hanging …"; label "does not save the rook on d7, which is still hanging" |
+| Opera 28 | Qe6 | Short | ends "… → Bxf6+ takes the knight" (gxf6 next) | MISLEADING | a never-quiet line ends at the last ply that isn't a capture |
+| Opera 18 | Kd8 (best) | Long | "… about 1.0 pawns' worth of compensation" | MISLEADING | the compensation formula only restated the line's material for the best move itself → only for other moves |
+| PuBQ0CoQ 44 | g6 (best) | Imm | "Nothing special" (it stops the mate like h5) | MISLEADING | "stops the threat only if the PV doesn't play it" removed mate threats whose first move is played without mating → material threats only |
+
+Open after round 4 (not fixed; candidates for M5): king displacement / lost castling as facts; "adds an attacker to a
+pinned piece"; prophylaxis; checking forks that are sacrifices ("Nf4+ attacks the queen"); queen sacrifices with check
+("Qe8+ attacks the rook"); played vs best compared at different line lengths (Kh2 vs Kg1); Great moves explained only by
+their own line; the label's material-rule numbers (classify.ts) can differ from the Immediate SEE number; mistakes with
+only a positional reason still read "Nothing special happens right away."

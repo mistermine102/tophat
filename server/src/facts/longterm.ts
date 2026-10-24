@@ -226,7 +226,8 @@ export function longTermFacts(input: LongTermInput): Fact[] {
 
   const head: Fact[] = [];
   const mateInvolved = input.score.mate !== undefined || input.bestScore.mate !== undefined;
-  if (!mateInvolved && givesMaterialUp(input.immediate)) {
+  // (not for the engine's best move itself: there the formula only restates the line's material)
+  if (!mateInvolved && !input.isBest && givesMaterialUp(input.immediate)) {
     const gain = guardCp(input.score) - guardCp(input.bestScore) - 100 * input.lineMaterialDelta;
     if (gain >= s.explain.positionalGainMinCp) head.push({ type: 'positional-gain', cp: Math.round(gain) });
   }

@@ -139,8 +139,10 @@ describe('long-term facts', () => {
   it('positional-gain: material given up without the eval dropping (gambit)', () => {
     const fen = legalFen('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1');
     const gambit: Fact[] = [{ type: 'hangs', piece: { role: 'pawn', square: 'f4', color: 'white' }, loss: 1 }];
-    const fs = longTermFacts({ ...base, immediate: gambit, fenBefore: fen, fenAfter: fen, lineEndFen: fen, mover: 'white', lineMaterialDelta: -1, score: { cp: 20 }, bestScore: { cp: 30 } });
+    const fs = longTermFacts({ ...base, isBest: false, immediate: gambit, fenBefore: fen, fenAfter: fen, lineEndFen: fen, mover: 'white', lineMaterialDelta: -1, score: { cp: 20 }, bestScore: { cp: 30 } });
     expect(fs).toContainEqual({ type: 'positional-gain', cp: 90 });
+    // the engine's best move itself: the formula would only restate the line's material (Opera 9...Kd8)
+    expect(longTermFacts({ ...base, immediate: gambit, fenBefore: fen, fenAfter: fen, lineEndFen: fen, mover: 'white', lineMaterialDelta: -1, score: { cp: 30 }, bestScore: { cp: 30 } }).some((f) => f.type === 'positional-gain')).toBe(false);
     // the same line without giving anything up (the pawn just falls in the engine line): not 'compensation'
     const quiet = longTermFacts({ ...base, fenBefore: fen, fenAfter: fen, lineEndFen: fen, mover: 'white', lineMaterialDelta: -1, score: { cp: 20 }, bestScore: { cp: 30 } });
     expect(quiet.some((f) => f.type === 'positional-gain')).toBe(false);
