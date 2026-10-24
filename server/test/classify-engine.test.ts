@@ -206,15 +206,33 @@ describe.skipIf(!engineAvailable())('classification on real positions (Stockfish
   );
 
   it(
-    'SPEC limitation (documented): hanging the queen while mating stays mild — the clamp hides the drop',
+    'a2) hangs the queen at ~+18 -> ~+8.5 (both beyond the win% clamp): still a Blunder (unclamped guard)',
     async () => {
-      // White mates in ~4; 1.Qg5?? hxg5 2.Nxg5 is still ~+9 (>= +10 clamps to 1000): eval drop < 250
-      const fen = legalFen('6k1/ppp2pp1/7p/8/8/5N2/PPPQ1PPP/4R1K1 w - - 0 1');
+      // White: Q+R+2N vs R. 1.Qg5?? hxg5 2.Nxg5 leaves R+2N vs R.
+      const fen = legalFen('r5k1/ppp2pp1/7p/8/8/2N2N2/PPPQ1PPP/4R1K1 w - - 0 1');
       const a = await analyseMove(engine, fen, 'd2g5');
       const msg = dump(a);
-      expect(a.result.labelReason.material!.loss, msg).toBeGreaterThanOrEqual(8);
-      expect(a.result.labelReason.material!.evalDropCp, msg).toBeLessThan(S.material.blunderMinEvalDropCp);
-      expect(LABEL_SEVERITY[a.result.label], msg).toBeLessThan(LABEL_SEVERITY.blunder);
+      expect(a.input.best.score.cp ?? 0, msg).toBeGreaterThanOrEqual(1500);
+      expect(a.input.played.score.cp ?? 0, msg).toBeGreaterThanOrEqual(600);
+      expect(a.result.labelReason.winChance, msg).not.toBe('blunder'); // win% barely moves
+      expect(a.result.labelReason.material, msg).toMatchObject({ label: 'blunder', hung: { role: 'queen', square: 'g5' } });
+      expect(a.result.label, msg).toBe('blunder');
+    },
+    T,
+  );
+
+  it(
+    'a3) had a forced mate, hangs the queen and no longer mates (still > +10) -> Blunder',
+    async () => {
+      for (const fen of ['r5k1/ppp2pp1/7p/8/8/2B2N2/PPPQ1PPP/3RR1K1 w - - 0 1', '6k1/ppp2pp1/7p/8/8/5N2/PPPQ1PPP/4R1K1 w - - 0 1']) {
+        const a = await analyseMove(engine, legalFen(fen), 'd2g5');
+        const msg = dump(a);
+        expect(a.input.best.score.mate ?? 0, msg).toBeGreaterThan(0);
+        expect(a.input.played.score.mate, msg).toBeUndefined();
+        expect(a.input.played.score.cp ?? 0, msg).toBeGreaterThan(800);
+        expect(a.result.labelReason.material, msg).toMatchObject({ label: 'blunder', hung: { role: 'queen', square: 'g5' } });
+        expect(a.result.label, msg).toBe('blunder');
+      }
     },
     T,
   );

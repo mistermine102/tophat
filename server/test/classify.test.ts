@@ -7,6 +7,7 @@ import {
   classifyMove,
   countLegalMoves,
   findHung,
+  guardCp,
   labelFromWinLoss,
   materialCheck,
   sameMoveUci,
@@ -308,12 +309,25 @@ describe('materialCheck (SPEC material rule)', () => {
 
   it('hung queen while +12 -> Blunder, with the hung piece', () => {
     const m = hangQueen(1342, 683);
-    expect(m).toMatchObject({ playedLine: 4, bestLine: 12, loss: 8, evalDropCp: 317, label: 'blunder', hung: { role: 'queen', square: 'g5', color: 'white' } });
+    expect(m).toMatchObject({ playedLine: 4, bestLine: 12, loss: 8, evalDropCp: 659, label: 'blunder', hung: { role: 'queen', square: 'g5', color: 'white' } });
   });
-  it('eval drop is measured on clamped scores', () => {
-    expect(hangQueen(5000, 1100).evalDropCp).toBe(0);
-    expect(hangQueen(5000, 1100).label).toBeUndefined(); // still > +10: SPEC clamp exempts it
-    expect(hangQueen(1342, 683).evalDropCp).toBe(1000 - 683);
+  it('eval drop uses unclamped cp: hanging the queen at +20 -> +11 is a Blunder', () => {
+    expect(hangQueen(2000, 1100)).toMatchObject({ evalDropCp: 900, label: 'blunder' });
+    expect(hangQueen(5000, 4800)).toMatchObject({ evalDropCp: 200, label: 'mistake' }); // tiny drop: guard (sacrifice-like)
+  });
+  it('mate scores map to large finite values decreasing with distance', () => {
+    expect(guardCp({ mate: 1 })).toBe(99_900);
+    expect(guardCp({ mate: 5 })).toBe(99_500);
+    expect(guardCp({ mate: -3 })).toBe(-99_700);
+    expect(guardCp({ mate: 0 })).toBe(-100_000);
+    expect(guardCp({ cp: 2345 })).toBe(2345);
+    // had a forced mate, hung the queen and no longer mates (still +15) -> Blunder
+    const m = materialCheck(
+      { fenBefore: MAT, playedPv: ['d2g5', 'h6g5', 'f3g5', 'a8d8'], bestPv: ['e1e7', 'b7b5'], playedScore: { cp: 1500 }, bestScore: { mate: 4 } },
+      S,
+    );
+    expect(m.evalDropCp).toBe(99_600 - 1500);
+    expect(m.label).toBe('blunder');
   });
   it('eval-drop boundaries: 250 -> Blunder, 249 -> Mistake, 150 -> Mistake, 149 -> none', () => {
     expect(hangQueen(900, 650).label).toBe('blunder');
@@ -362,7 +376,7 @@ describe('materialCheck (SPEC material rule)', () => {
     expect(lineMaterial(SMOTHER, bestPv, { horizonPlies: 12 })).toMatchObject({ mate: 'mover', balance: -1, startBalance: 8 });
     // played: Qf7?? Rxf7 Nxf7+ Kg8 -> down the queen for a rook
     const m = materialCheck({ fenBefore: SMOTHER, playedPv: ['c4f7', 'f8f7', 'h6f7', 'h8g8', 'f7g5'], bestPv, playedScore: { cp: 400 }, bestScore: { mate: 2 } }, S);
-    expect(m).toMatchObject({ playedLine: 4, bestLine: 8, loss: 4, evalDropCp: 600, label: 'blunder', hung: { role: 'queen', square: 'f7' } });
+    expect(m).toMatchObject({ playedLine: 4, bestLine: 8, loss: 4, evalDropCp: 99_800 - 400, label: 'blunder', hung: { role: 'queen', square: 'f7' } });
   });
   it('a played move that still mates is never flagged (even with sacrifices in its line)', () => {
     const m = materialCheck(

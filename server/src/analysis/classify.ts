@@ -9,7 +9,7 @@
 //  - Each rule is documented once, at the function that implements it.
 
 import type { Color, Label, MaterialCheck, MoveAnalysis, PieceRef, Score } from '@chess-coach/shared';
-import { type AnalysisSettings, scoreToCp, winPercentFromScore } from '@chess-coach/shared';
+import { type AnalysisSettings, winPercentFromScore } from '@chess-coach/shared';
 import { normalizeMove } from 'chessops/chess';
 import type { NormalMove } from 'chessops/types';
 import { parseUci } from 'chessops/util';
@@ -180,6 +180,24 @@ export interface MaterialCheckInput {
   prevFenBefore?: string;
 }
 
+/** Mate scores in the material guard: +-(MATE_CP - MATE_STEP_CP * distance); `mate: 0` (mated now) = -MATE_CP. */
+export const MATE_CP = 100_000;
+export const MATE_STEP_CP = 100;
+
+/**
+ * Unclamped centipawns for the material rule's eval-drop guard (mover POV). Mate in n for the mover =
+ * MATE_CP - 100n (a faster mate is worth more), getting mated in n = -(MATE_CP - 100n). Win% does NOT use this.
+ */
+export function guardCp(score: Score): number {
+  if (score.mate !== undefined) {
+    const n = Math.abs(score.mate);
+    if (score.mate === 0) return -MATE_CP;
+    return Math.sign(score.mate) * (MATE_CP - MATE_STEP_CP * Math.min(n, 999));
+  }
+  if (score.cp !== undefined) return score.cp;
+  throw new Error('guardCp: score has neither cp nor mate');
+}
+
 const moverMates = (line: LineMaterialResult, score: Score) => line.mate === 'mover' || (score.mate ?? 0) > 0;
 
 /**
@@ -196,8 +214,12 @@ const moverMates = (line: LineMaterialResult, score: Score) => line.mate === 'mo
  *   which would turn every missed free piece into a "material" Blunder and make Miss unreachable.)
  *   If the best line is a forced mate for the mover, its material is meaningless (sacrifices on the way to mate),
  *   so the reference is the baseline.
- * - `loss = max(0, reference - playedLine)`; `evalDropCp = clampedCp(best) - clampedCp(played)` (mover POV,
- *   clamped to +-1000 like win%).
+ * - `loss = max(0, reference - playedLine)`; `evalDropCp = guardCp(best) - guardCp(played)` (mover POV) on
+ *   UNCLAMPED centipawns, mates mapped to +-(100000 - 100 * distance) (see `guardCp`). Deviation from SPEC
+ *   ("clamped"), requested by the user: with clamping, hanging the queen at +20 -> +11, or while having a forced
+ *   mate, showed no drop and was never flagged. Win% / winLoss stay clamped. Material loss is the primary signal;
+ *   the guard only exempts sacrifices, and a real hang drops the eval by far more than the threshold even when
+ *   the engine's cp is noisy at huge evals.
  * - `loss >= blunderMinLoss` (3) and `evalDropCp >= blunderMinEvalDropCp` (250) -> at least Blunder;
  *   else `loss >= mistakeMinLoss` (2) and `evalDropCp >= mistakeMinEvalDropCp` (150) -> at least Mistake.
  *   The eval-drop guard exempts correct sacrifices (material goes, eval doesn't); even trades lose no material.
@@ -209,7 +231,7 @@ export function materialCheck(input: MaterialCheckInput, settings: AnalysisSetti
   const opts = { horizonPlies: m.quietHorizonPlies };
   const played = lineMaterial(input.fenBefore, input.playedPv, opts);
   const best = lineMaterial(input.fenBefore, input.bestPv, opts);
-  const evalDropCp = scoreToCp(input.bestScore) - scoreToCp(input.playedScore);
+  const evalDropCp = guardCp(input.bestScore) - guardCp(input.playedScore);
 
   let baseline = played.startBalance;
   if (input.prevFenBefore) {
