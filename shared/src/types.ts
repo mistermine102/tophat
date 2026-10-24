@@ -14,6 +14,7 @@ export interface PieceRef { role: PieceRole; square: string; color: Color }
 export type Fact =
   | { type: 'check'; double?: boolean; discovered?: boolean }
   | { type: 'checkmate'; double?: boolean; discovered?: boolean }
+  | { type: 'stalemate' }                                            // the move stalemates the opponent (draw)
   | { type: 'capture'; captured: PieceRef; outcome: 'wins-material' | 'even-trade' | 'recapture' | 'loses-material'; net: number }
   | { type: 'promotion'; to: PieceRole }
   | { type: 'castle'; side: 'king' | 'queen' }
@@ -29,12 +30,13 @@ export type Fact =
   | { type: 'hangs'; piece: PieceRef; loss: number; already?: boolean }  // negative: leaves material en prise; already = was en prise before the move and still is
   | { type: 'allows-mate'; inMoves: number }                         // negative
   | { type: 'threat'; move: string; san: string; gain: number; mateIn?: number; facts: Fact[] }
-  | { type: 'line'; steps: LineStep[]; materialDelta: number; mateIn?: number; result: 'wins-material' | 'loses-material' | 'mate' | 'mated' | 'trade' | 'quiet' }
+  | { type: 'defends-threat'; move: string; san: string; gain: number; mateIn?: number; facts: Fact[] }  // the opponent's threat (as in 'threat', opponent POV) no longer works after the move
+  | { type: 'line'; steps: LineStep[]; materialDelta: number; mateIn?: number; result: 'wins-material' | 'loses-material' | 'mate' | 'mated' | 'trade' | 'quiet'; won?: PieceRole[]; lost?: PieceRole[]; measuredAt?: number }  // won/lost: net pieces gained/lost by the mover; measuredAt: material measured after this many plies (> steps.length)
   | { type: 'forced-reply'; san: string; alternatives: number }      // opponent's reply was (nearly) the only move
-  | { type: 'positional'; feature: PositionalFeature; delta: number; detail?: string; side?: 'own' | 'opponent'; squares?: string[] }  // delta: + = good for mover; side: whose pieces changed
+  | { type: 'positional'; feature: PositionalFeature; delta: number; detail?: string; side?: 'own' | 'opponent'; squares?: string[]; at?: 'line-end' }  // delta: + = good for mover; side: whose pieces changed; at: 'line-end' = change measured at the end of the short line, not right after the move
   | { type: 'positional-gain'; cp: number }                          // eval gain not explained by material
   | { type: 'deep-payoff' }                                          // only deep search likes it
-  | { type: 'necessary' }                                            // all alternatives much worse
+  | { type: 'necessary'; onlyMove?: boolean }                        // all alternatives much worse (onlyMove: the only legal move)
   | { type: 'nothing-notable' };
 
 export type PositionalFeature =
@@ -48,13 +50,13 @@ export interface Explanation { immediate: Level; short: Level; long: Level }
 
 export interface Candidate {
   uci: string; san: string;
-  rank: number;                       // 1-based engine rank (deep)
+  rank: number;                       // 1-based engine rank (deep); 0 = the played move when it isn't among the deep lines
   score: Score;                       // White POV
   winLoss: number;                    // mover POV, vs best
   pv: string[];                       // SAN
   pvUci: string[];
   explainable: boolean;
-  notExplainableReasons?: string[];   // machine-readable codes, e.g. 'too-much-loss','shallow-disagrees','no-concrete-fact','loses-result','material-rule'
+  notExplainableReasons?: string[];   // machine-readable codes, 'too-much-loss','material-rule','hangs-material','loses-result','shallow-disagrees','no-concrete-fact'
   explanation?: Explanation;          // present for played move, pick and best
 }
 
@@ -79,6 +81,7 @@ export interface MoveAnalysis {
   candidates: Candidate[];             // top-5 summary (explanation may be omitted)
   arrows: Arrow[];
   timings?: Record<string, number>;
+  labelText?: string;                  // rendered label + reason (explain.ts), mover-neutral
 }
 export interface Arrow { from: string; to: string; kind: 'pick' | 'best' | 'threat' | 'played' }
 

@@ -5,6 +5,7 @@
 // discovered attack) are emitted only when the target can actually be won (SEE > 0) or is more valuable.
 //
 // Definitions (all "new" facts compare the position before and after the move, tracking piece identity):
+// - stalemate: the opponent has no legal move and is not in check (the game is drawn).
 // - check / checkmate: the opponent is in check (mated); `discovered` if a checker is not the moved piece (the
 //   castling rook counts as moved), `double` if ≥ 2 checkers. `check` is not emitted together with `checkmate`.
 // - capture: outcome from SEE net (`seeMove`): < 0 loses-material; otherwise recapture (if `prev` shows the
@@ -40,16 +41,15 @@ import { castlingSide } from 'chessops/chess';
 import { rookCastlesTo } from 'chessops/util';
 import type { Fact, PieceRef } from '@chess-coach/shared';
 import {
-  PIECE_VALUES,
   attackedPieces,
   attackersOf,
   attacksFrom,
   between,
   defendersOf,
   lineBehind,
-  positionFromFen,
   toPieceRef,
 } from '../chess/attacks';
+import { PIECE_VALUES, positionFromFen } from '../chess/material';
 import { capturedBy, hangingLoss, see, seeCaptureWith, seeMove } from '../chess/see';
 
 export type FactType = Fact['type'];
@@ -57,6 +57,7 @@ export type FactType = Fact['type'];
 /** Importance order of immediate facts (most important first). Facts are sorted by this, then by value. */
 export const FACT_IMPORTANCE: readonly FactType[] = [
   'checkmate',
+  'stalemate',
   'allows-mate',
   'hangs',
   'fork',
@@ -221,6 +222,7 @@ export function immediateFactsFromPosition(before: Position, uci: string, opts: 
 
   const afterCtx = after.ctx();
   const mate = after.isCheckmate(afterCtx);
+  const over = mate || after.isStalemate(afterCtx); // no reply: nothing can hang or be won
   const checkers = afterCtx.checkers;
 
   // --- check / checkmate ---
@@ -229,6 +231,8 @@ export function immediateFactsFromPosition(before: Position, uci: string, opts: 
     if (checkers.moreThanOne()) f.double = true;
     if ([...checkers].some((s) => !movedAfter.has(s))) f.discovered = true;
     facts.push(f);
+  } else if (after.isStalemate(afterCtx)) {
+    facts.push({ type: 'stalemate' });
   }
 
   // --- capture ---
@@ -270,7 +274,7 @@ export function immediateFactsFromPosition(before: Position, uci: string, opts: 
   const lossAfter = new Map<Square, number>();
   for (const sq of after.board[mover].diff(after.board.king)) lossAfter.set(sq, hangingLoss(after, sq));
 
-  if (!mate) {
+  if (!over) {
     // hangs
     const gained = Math.max(0, net ?? 0);
     const wasInCheck = before.isCheck();
@@ -312,7 +316,7 @@ export function immediateFactsFromPosition(before: Position, uci: string, opts: 
     }
   }
 
-  if (!mate) tacticalFacts(before, after, move, mover, toSq, movedAfter, back, checkers.has(toSq), facts);
+  if (!over) tacticalFacts(before, after, move, mover, toSq, movedAfter, back, checkers.has(toSq), facts);
 
   return sortFacts(facts);
 }

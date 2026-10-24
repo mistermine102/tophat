@@ -1,0 +1,367 @@
+// Orchestrates one move analysis: (fenBefore, uci, prev?) -> MoveAnalysis (shared/src/types.ts).
+//
+// Searches (all through SearchCache, so nothing is searched twice; the caller runs this inside one Scheduler job
+// at the job's priority):
+//   1. deep      fenBefore, MultiPV budget.deep          -> candidates, best, 2nd best (Great), played line
+//   1b. searchmoves fenBefore, deep depth, [played]      -> only if the played move isn't among the deep lines
+//   2. deepAfter fenAfter, MultiPV budget.deep           -> evalAfter (White POV). This is exactly the deep search
+//                                                          of the next ply, so a game needs ~1 deep search/ply.
+//   3. shallow   fenBefore, MultiPV budget.shallow       (+ shallow searchmoves for candidates outside it)
+//   4. threat    null-move position after each candidate / the played move, budget.threat
+//   5. forcedness at opponent replies of the narrated lines of the played move, the best move and the pick
+//   6. prev      if the previous ply's result isn't supplied: deep (+searchmoves) at prev.fenBefore — the same
+//                searches that ply's own analysis uses (cached), to build the Miss / book-chain context.
+// Classification (classify.ts) gets mover-POV scores from search 1/1b, the previous ply's winLoss/win% (Miss),
+// prev.fenBefore (material baseline), prev.uci (Great take-back rule) and the book chain.
+
+import type { AnalysisSettings, Arrow, Candidate, Color, Fact, Label, MaterialCheck, MoveAnalysis, Score } from '@chess-coach/shared';
+import { ANALYSIS_VERSION, moveAccuracy, toWhitePov, winPercentForColor, winPercentFromScore } from '@chess-coach/shared';
+import { bookInfo } from './book';
+import { type ClassifyInput, type EngineMoveLine, type PrevMoveContext, classifyMove, countLegalMoves, materialCheck, sameMoveUci } from './classify';
+import { labelText, renderExplanation } from './explain';
+import { type SearchParams, type Searcher, SearchCache } from './searchCache';
+import { type ReasonCode, suggest } from './suggest';
+import { legalPrefix, normalizeFen, playMove, positionStatus, pvToSan, uciSquares } from '../chess/notation';
+import type { PvLine, SearchResult } from '../engine/uci';
+import { immediateFacts } from '../facts/immediate';
+import { type ForcedInfo, type NarratedLine, type ThreatFact, forcedFromSearch, forcednessChecks, narrateLine, narrationPlies, nullMoveFen, threatFromSearch, threatStillWorks } from '../facts/line';
+import { longTermFacts } from '../facts/longterm';
+
+export interface AnalyzeContext {
+  searcher: Searcher;
+  cache: SearchCache;
+  settings: AnalysisSettings;
+}
+
+export interface PrevResult {
+  winLoss: number;
+  winBefore: number;
+  label: Label;
+}
+
+export interface PrevInput {
+  fenBefore: string;
+  uci: string;
+  /** The previous move's analysis result, if known (main line: ply N-1). Otherwise it is computed. */
+  result?: PrevResult | null;
+}
+
+export interface AnalyzeInput {
+  fenBefore: string;
+  uci: string;
+  /** The opponent's previous move (Miss, recapture, material baseline, Great's take-back rule, book chain). */
+  prev?: PrevInput | null;
+  /** SPEC book chain: every earlier move of the game was book (undefined = unknown, treated as true). */
+  earlierMovesAllBook?: boolean;
+}
+
+/** Everything known about one move (a candidate or the played move) while building the analysis. */
+interface MoveWork {
+  uci: string;
+  san: string;
+  rank: number; // 0 = not among the deep lines
+  score: Score; // deep, mover POV
+  pv: string[]; // legal UCI, starting with the move
+  fenAfter: string;
+  immediate: Fact[];
+  threat: ThreatFact | null;
+  narrated: NarratedLine;
+  shallow: Score | null;
+  material: MaterialCheck | null;
+  reasons?: ReasonCode[];
+}
+
+const now = () => performance.now();
+
+export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Promise<MoveAnalysis> {
+  const t0 = now();
+  const { settings, cache, searcher } = ctx;
+  const B = settings.budget;
+  const timings: Record<string, number> = {};
+  let cachedSearches = 0;
+  const search = async (name: string, fen: string, p: SearchParams): Promise<SearchResult> => {
+    const t = now();
+    const o = await cache.search(searcher, fen, p);
+    if (o.cached) cachedSearches++;
+    else timings[name] = Math.round((timings[name] ?? 0) + (now() - t));
+    return o.result;
+  };
+  const deepParams: SearchParams = { depth: B.deep.depth, multipv: B.deep.multipv, maxMs: B.deep.maxMs };
+
+  const fen = normalizeFen(input.fenBefore);
+  const played = playMove(fen, input.uci);
+  const mover: Color = played.color;
+  const opp: Color = mover === 'white' ? 'black' : 'white';
+  const legalMoves = countLegalMoves(fen);
+  const prevMove = input.prev ? { fenBefore: normalizeFen(input.prev.fenBefore), uci: input.prev.uci } : null;
+
+  // 1. deep search + played line
+  const deep = await search('deep', fen, deepParams);
+  const lines = deep.lines.filter((l) => legalPrefix(fen, [l.move]).length === 1);
+  if (lines.length === 0) throw new Error(`engine returned no lines for ${fen}`);
+  const best = lines[0]!;
+  let playedLine: PvLine | undefined = lines.find((l) => sameMoveUci(fen, l.move, played.uci));
+  if (!playedLine) {
+    const r = await search('searchmoves', fen, { depth: B.deep.depth, multipv: 1, maxMs: B.deep.maxMs, searchmoves: [played.uci] });
+    playedLine = r.lines[0];
+    if (!playedLine) throw new Error(`searchmoves ${played.uci} returned nothing in ${fen}`);
+  }
+
+  // 2. evaluation after the move (= next ply's deep search)
+  const status = positionStatus(played.fenAfter);
+  let evalAfter: Score;
+  if (status === 'checkmate') evalAfter = toWhitePov({ mate: 0 }, opp);
+  else if (status === 'stalemate') evalAfter = { cp: 0 };
+  else {
+    const after = await search('deepAfter', played.fenAfter, deepParams);
+    const s = after.lines[0]?.score;
+    evalAfter = s ? toWhitePov(s, opp) : toWhitePov(playedLine.score, mover);
+  }
+
+  // 6. previous move context
+  const tPrev = now();
+  const prevInfo = prevMove ? await prevContext(ctx, search, prevMove, fen, input.prev?.result ?? null, input.earlierMovesAllBook) : null;
+  timings.prevTotal = Math.round(now() - tPrev);
+
+  // classification
+  const info = bookInfo(fen, played.fenAfter);
+  const chain = input.earlierMovesAllBook !== false && (prevInfo?.label === undefined || prevInfo.label === 'book');
+  const toLine = (l: PvLine): EngineMoveLine => ({ uci: l.move, score: l.score, pv: l.pv });
+  const classifyInput: ClassifyInput = {
+    fenBefore: fen,
+    legalMoveCount: legalMoves,
+    played: toLine(playedLine),
+    playedIsBest: sameMoveUci(fen, best.move, played.uci),
+    best: toLine(best),
+    second: lines[1] ? toLine(lines[1]) : null,
+    book: { after: info.after, beforeIsStartOrBook: info.beforeIsStartOrBook, earlierMovesAllBook: chain },
+    prev: prevInfo?.ctx ?? null,
+  };
+  const cr = classifyMove(classifyInput, settings);
+
+  // 3. shallow search
+  const shallow = await search('shallow', fen, { depth: B.shallow.depth, multipv: B.shallow.multipv, maxMs: B.shallow.maxMs });
+  const shallowScore = async (uci: string): Promise<Score | null> => {
+    const l = shallow.lines.find((x) => sameMoveUci(fen, x.move, uci));
+    if (l) return l.score;
+    const r = await search('shallow', fen, { depth: B.shallow.depth, multipv: 1, maxMs: B.shallow.maxMs, searchmoves: [uci] });
+    return r.lines[0]?.score ?? null;
+  };
+
+  // facts per move (candidates + played)
+  const tFacts = now();
+  let factsMs = 0;
+  const prevOpt = prevMove ? { prev: prevMove } : {};
+  const threatParams: SearchParams = { depth: B.threat.depth, multipv: B.threat.multipv, maxMs: B.threat.maxMs };
+  // the opponent's threat right now (what they'd play if the mover passed) — candidates that stop it say so
+  const oppNull = nullMoveFen(fen);
+  const oppThreat = oppNull ? threatFromSearch(oppNull, await search('threat', oppNull, threatParams)) : null;
+  const work = async (line: PvLine, rank: number): Promise<MoveWork> => {
+    const p = playMove(fen, line.move);
+    const pv = legalPrefix(fen, line.pv.length && sameMoveUci(fen, line.pv[0]!, line.move) ? line.pv : [line.move]);
+    let threat: ThreatFact | null = null;
+    const nf = nullMoveFen(p.fenAfter);
+    if (nf) threat = threatFromSearch(nf, await search('threat', nf, threatParams));
+    let defends: Fact | null = null;
+    if (oppThreat && nf) {
+      // (nf === null: the move gives check or ends the game — that answers a threat only for one move)
+      const still = legalPrefix(p.fenAfter, [oppThreat.move]).length === 1
+        ? threatStillWorks(p.fenAfter, oppThreat, await search('threat', p.fenAfter, { ...threatParams, multipv: 1, searchmoves: [oppThreat.move] }))
+        : false;
+      // taking the threatening piece is already told by the capture fact
+      const takesThreatener = p.uci.slice(2, 4) === oppThreat.move.slice(0, 2);
+      if (!still && !takesThreatener) defends = { type: 'defends-threat', move: oppThreat.move, san: oppThreat.san, gain: oppThreat.gain, facts: oppThreat.facts, ...(oppThreat.mateIn !== undefined ? { mateIn: oppThreat.mateIn } : {}) };
+    }
+    const tf = now();
+    const immediate = pruneRefuted(immediateFacts(fen, p.uci, prevOpt), p.uci, pv[1]);
+    if (threat && !replyTakesMovedPiece(p.uci, pv[1])) immediate.push(threat);
+    if (defends) immediate.push(defends);
+    // engine-verified forced mate against the mover that the best move avoids (board check only sees mate in 1)
+    const matedIn = line.score.mate !== undefined && line.score.mate < 0 ? -line.score.mate : 0;
+    if (matedIn > 1 && !((best.score.mate ?? 0) < 0) && !immediate.some((f) => f.type === 'allows-mate')) immediate.push({ type: 'allows-mate', inMoves: matedIn });
+    const narrated = narrateLine(fen, pv, { settings, prev: prevMove, score: line.score });
+    const isBest = sameMoveUci(fen, line.move, best.move);
+    const material = isBest
+      ? null
+      : materialCheck({ fenBefore: fen, playedPv: pv, bestPv: best.pv, playedScore: line.score, bestScore: best.score, ...(prevMove ? { prevFenBefore: prevMove.fenBefore } : {}) }, settings);
+    factsMs += now() - tf;
+    return { uci: p.uci, san: p.san, rank, score: line.score, pv, fenAfter: p.fenAfter, immediate, threat, narrated, shallow: await shallowScore(p.uci), material };
+  };
+  const cands: MoveWork[] = [];
+  for (let i = 0; i < lines.length; i++) cands.push(await work(lines[i]!, i + 1));
+  const playedIdx = cands.findIndex((c) => sameMoveUci(fen, c.uci, played.uci));
+  const playedWork = playedIdx >= 0 ? cands[playedIdx]! : await work(playedLine, 0);
+
+  // 4. suggestion
+  const judge = (ws: MoveWork[]) => suggest(ws.map((w) => ({ uci: w.uci, score: w.score, shallowScore: w.shallow, material: w.material, facts: [...w.immediate, w.narrated.line] })), best.score, settings);
+  const sug = judge(cands);
+  cands.forEach((c, i) => (c.reasons = sug.reasons[i]));
+  if (playedIdx < 0) playedWork.reasons = judge([playedWork]).reasons[0];
+  const pickWork = sug.pick !== null ? cands[sug.pick]! : null;
+
+  // 5. forcedness + full explanations for played / best / pick
+  const winBest = winPercentFromScore(best.score);
+  const secondBestLoss = lines[1] ? Math.max(0, winBest - winPercentFromScore(lines[1].score)) : null;
+  const explained = new Map<string, Candidate['explanation']>();
+  const explain = async (w: MoveWork): Promise<NonNullable<Candidate['explanation']>> => {
+    const done = explained.get(w.uci);
+    if (done) return done;
+    const plies = narrationPlies(fen, w.pv, settings, w.score);
+    const forced = new Map<number, ForcedInfo>();
+    for (const c of forcednessChecks(fen, w.pv, plies, settings)) {
+      if (c.legalMoves <= 1) forced.set(c.index, { forced: true, alternatives: 0 });
+      else {
+        const r = await search('forcedness', c.fen, { depth: B.forcedness.depth, multipv: B.forcedness.multipv, maxMs: B.forcedness.maxMs });
+        forced.set(c.index, forcedFromSearch(c, r.lines, settings));
+      }
+    }
+    const tf = now();
+    const narrated = narrateLine(fen, w.pv, { settings, prev: prevMove, score: w.score, forced, plies });
+    const isBest = sameMoveUci(fen, w.uci, best.move);
+    const long = longTermFacts({
+      fenBefore: fen,
+      fenAfter: w.fenAfter,
+      lineEndFen: narrated.endFen,
+      mover,
+      immediate: w.immediate,
+      lineMaterialDelta: narrated.line.materialDelta,
+      score: isBest ? best.score : w.score,
+      bestScore: best.score,
+      shallowScore: w.shallow,
+      isBest,
+      secondBestLoss,
+      legalMoves,
+      settings,
+    });
+    const e = renderExplanation({ immediate: w.immediate, short: [narrated.line, ...narrated.forcedReplies], long }, { mover });
+    factsMs += now() - tf;
+    explained.set(w.uci, e);
+    return e;
+  };
+
+  const toCandidate = (w: MoveWork, withExplanation?: NonNullable<Candidate['explanation']>): Candidate => {
+    const isBest = sameMoveUci(fen, w.uci, best.move);
+    const winLoss = isBest ? 0 : Math.max(0, winBest - winPercentFromScore(w.score));
+    const c: Candidate = {
+      uci: w.uci,
+      san: w.san,
+      rank: w.rank,
+      score: toWhitePov(w.score, mover),
+      winLoss,
+      pv: pvToSan(fen, w.pv),
+      pvUci: w.pv,
+      explainable: (w.reasons ?? []).length === 0,
+    };
+    if (w.reasons?.length) c.notExplainableReasons = [...w.reasons];
+    if (withExplanation) c.explanation = withExplanation;
+    return c;
+  };
+
+  const bestWork = cands[0]!;
+  const playedCand = toCandidate(playedWork, await explain(playedWork));
+  playedCand.winLoss = cr.winLoss;
+  const bestCand = toCandidate(bestWork, await explain(bestWork));
+  const pickCand = pickWork ? toCandidate(pickWork, await explain(pickWork)) : null;
+  timings.facts = Math.round(factsMs);
+  timings.factsTotal = Math.round(now() - tFacts);
+
+  // evals, accuracy, arrows
+  const evalBefore = toWhitePov(best.score, mover);
+  const winBefore = winBest;
+  const winAfter = winPercentForColor(evalAfter, mover);
+  const arrows: Arrow[] = [{ ...uciSquares(played.uci), kind: 'played' }, { ...uciSquares(bestWork.uci), kind: 'best' }];
+  if (pickWork) arrows.push({ ...uciSquares(pickWork.uci), kind: 'pick' });
+  if (playedWork.threat) arrows.push({ ...uciSquares(playedWork.threat.move), kind: 'threat' });
+
+  timings.cachedSearches = cachedSearches;
+  timings.total = Math.round(now() - t0);
+  const analysis: MoveAnalysis = {
+    version: ANALYSIS_VERSION,
+    fenBefore: fen,
+    fenAfter: played.fenAfter,
+    uci: played.uci,
+    san: played.san,
+    color: mover,
+    evalBefore,
+    evalAfter,
+    winBefore,
+    winAfter,
+    winLoss: cr.winLoss,
+    accuracy: moveAccuracy(winBefore, winAfter),
+    label: cr.label,
+    labelReason: cr.labelReason,
+    played: playedCand,
+    best: bestCand,
+    pick: pickCand,
+    pickIsBest: !!pickWork && pickWork.uci === bestWork.uci,
+    deepOnly: !pickWork,
+    candidates: cands.map((w) => toCandidate(w)),
+    arrows,
+    timings,
+  };
+  analysis.labelText = labelText({ ...analysis, bestSan: bestWork.san, bestUci: bestWork.uci, checkmate: cr.checkmate }, settings);
+  return analysis;
+}
+
+/** The engine's expected reply (PV ply 2) captures the piece that just moved (on its destination square). */
+function replyTakesMovedPiece(uci: string, reply: string | undefined): boolean {
+  return !!reply && reply.slice(2, 4) === uci.slice(2, 4);
+}
+
+/**
+ * When the move is a capture and the expected reply simply takes the piece back, the capturing piece's new
+ * attacks are moot (a trade): drop its 'attack' facts (the threat fact is dropped by the caller for any move
+ * whose piece is taken). A quiet move keeps its attacks — they are its point, and the line shows the refutation.
+ * Forks/pins are verified against every reply and stay.
+ */
+function pruneRefuted(facts: Fact[], uci: string, reply: string | undefined): Fact[] {
+  if (!replyTakesMovedPiece(uci, reply)) return facts;
+  if (!facts.some((f) => f.type === 'capture')) return facts;
+  const to = uci.slice(2, 4);
+  return facts.filter((f) => !(f.type === 'attack' && f.attacker.square === to));
+}
+
+type SearchFn = (name: string, fen: string, p: SearchParams) => Promise<SearchResult>;
+
+/** Previous-move context for classify (Miss, baseline, take-back) and its label (book chain). */
+async function prevContext(
+  ctx: AnalyzeContext,
+  search: SearchFn,
+  prev: { fenBefore: string; uci: string },
+  fenNow: string,
+  known: PrevResult | null,
+  earlierMovesAllBook: boolean | undefined,
+): Promise<{ ctx: PrevMoveContext; label?: Label }> {
+  if (known) {
+    return { ctx: { winLoss: known.winLoss, winBefore: known.winBefore, winAfter: known.winBefore - known.winLoss, fenBefore: prev.fenBefore, uci: prev.uci }, label: known.label };
+  }
+  const B = ctx.settings.budget;
+  const p = playMove(prev.fenBefore, prev.uci);
+  if (normalizeFen(p.fenAfter) !== fenNow) throw new Error(`prev move ${prev.uci} does not lead to ${fenNow}`);
+  const deep = await search('prev', prev.fenBefore, { depth: B.deep.depth, multipv: B.deep.multipv, maxMs: B.deep.maxMs });
+  const best = deep.lines[0];
+  if (!best) throw new Error(`engine returned no lines for ${prev.fenBefore}`);
+  let line = deep.lines.find((l) => sameMoveUci(prev.fenBefore, l.move, p.uci));
+  if (!line) {
+    const r = await search('prev', prev.fenBefore, { depth: B.deep.depth, multipv: 1, maxMs: B.deep.maxMs, searchmoves: [p.uci] });
+    line = r.lines[0];
+    if (!line) throw new Error(`searchmoves ${p.uci} returned nothing in ${prev.fenBefore}`);
+  }
+  const info = bookInfo(prev.fenBefore, p.fenAfter);
+  const cr = classifyMove(
+    {
+      fenBefore: prev.fenBefore,
+      legalMoveCount: countLegalMoves(prev.fenBefore),
+      played: { uci: line.move, score: line.score, pv: line.pv },
+      playedIsBest: sameMoveUci(prev.fenBefore, best.move, p.uci),
+      best: { uci: best.move, score: best.score, pv: best.pv },
+      second: deep.lines[1] ? { uci: deep.lines[1].move, score: deep.lines[1].score, pv: deep.lines[1].pv } : null,
+      book: { after: info.after, beforeIsStartOrBook: info.beforeIsStartOrBook, ...(earlierMovesAllBook === false ? { earlierMovesAllBook: false } : {}) },
+      prev: null,
+    },
+    ctx.settings,
+  );
+  return { ctx: { winLoss: cr.winLoss, winBefore: cr.winBest, winAfter: cr.winPlayed, fenBefore: prev.fenBefore, uci: prev.uci }, label: cr.label };
+}
+
+export { SearchCache };
