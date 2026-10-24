@@ -29,5 +29,6 @@ Coordinator keeps this updated. Each milestone is done by a subagent; its report
   - M2-client merged: real wiring verified (streaming, focus reprioritisation, side lines, reload via ?game=id), POV labelled everywhere, env ENGINE_THREADS/ENGINE_HASH_MB/ANALYSIS_PROFILE=fast/LOG_ANALYSIS, 11 E2E (3 mock + 8 real incl. engine kill, FEN start, stalemate, 160-ply). Legend, square hover highlight, Play-it.
 - [ ] **M3 Benchmarks** — Lichess puzzles vs facts; Lichess annotated games vs labels; fix & tune; reports in bench/reports.
 - [ ] **M4 E2E + performance** — Playwright flows, screenshots reviewed, timing per game measured and tuned.
-- [ ] **M5 Explanation review loop** — independent reviewer agents grade explanations on sample games; fix; repeat.
+- [~] **M5 Explanation review loop** — independent reviewer agents grade explanations on sample games; fix; repeat.
+  - M5a merged: payoff-bounded short lines (no mid-exchange claims), refutation fact `allows` leads bad moves, claims cross-checked with the PV (no "for free"), long-term ≤2 facts, pick concreteness fixed, verdictText. Review rounds with reviewer agents (FALSE/misleading): r2 22/75 → r3 5/52 → r4 4/26 (r4 FALSE root cause fixed after). Log: bench/reports/explanation-review.md. Remaining: king displacement/castling rights, prophylaxis, positional mistakes read "Nothing special".
 - [ ] **M6 Final** — README, final report, known limitations.
