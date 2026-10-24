@@ -177,7 +177,7 @@ export interface PieceRef { role: PieceRole; square: string; color: Color }
 // Facts: discriminated union. Data only; `explain.ts` renders text.
 export type Fact =
   | { type: 'check'; double?: boolean; discovered?: boolean }
-  | { type: 'checkmate' }
+  | { type: 'checkmate'; double?: boolean; discovered?: boolean }
   | { type: 'capture'; captured: PieceRef; outcome: 'wins-material' | 'even-trade' | 'recapture' | 'loses-material'; net: number }
   | { type: 'promotion'; to: PieceRole }
   | { type: 'castle'; side: 'king' | 'queen' }
@@ -190,12 +190,12 @@ export type Fact =
   | { type: 'escape'; piece: PieceRef; from: string }               // piece was en prise, now safe
   | { type: 'defend'; defender: PieceRef; piece: PieceRef }          // newly defends an attacked piece
   | { type: 'block-check' } | { type: 'escape-check' }
-  | { type: 'hangs'; piece: PieceRef; loss: number }                 // negative: leaves material en prise
+  | { type: 'hangs'; piece: PieceRef; loss: number; already?: boolean }  // negative: leaves material en prise; already = was en prise before the move and still is
   | { type: 'allows-mate'; inMoves: number }                         // negative
   | { type: 'threat'; move: string; san: string; gain: number; mateIn?: number; facts: Fact[] }
   | { type: 'line'; steps: LineStep[]; materialDelta: number; mateIn?: number; result: 'wins-material' | 'loses-material' | 'mate' | 'mated' | 'trade' | 'quiet' }
   | { type: 'forced-reply'; san: string; alternatives: number }      // opponent's reply was (nearly) the only move
-  | { type: 'positional'; feature: PositionalFeature; delta: number; detail?: string }
+  | { type: 'positional'; feature: PositionalFeature; delta: number; detail?: string; side?: 'own' | 'opponent'; squares?: string[] }  // delta: + = good for mover; side: whose pieces changed
   | { type: 'positional-gain'; cp: number }                          // eval gain not explained by material
   | { type: 'deep-payoff' }                                          // only deep search likes it
   | { type: 'necessary' }                                            // all alternatives much worse
@@ -256,6 +256,27 @@ export interface GameSummary { white: SideSummary; black: SideSummary; done: num
 
 export interface Settings { username: string | null }
 ```
+
+Additions made in M1b (all optional / additive): `checkmate.double/discovered`, `hangs.already` (piece was en prise
+before the move and still is), `positional.side` (`'own' | 'opponent'`: whose structure changed) and
+`positional.squares`.
+
+## Board facts (M1b: `server/src/chess/*`, `server/src/facts/*`; pure, no engine)
+
+- `chess/attacks.ts`: `PIECE_VALUES`, `positionFromFen`, `toPieceRef`, `attackersOf(board, sq, color, {occupied?, xray?})`,
+  `defendersOf`, `attackedPieces`, `attacksFrom`, `lineBehind`, `pinsAgainst(board, color, {relative?})`,
+  `absolutelyPinned`, `legalMobility`, `legalMoveCount`, `withTurn`.
+- `chess/see.ts` (pawn units): `see(pos, sq, by = turn)` ≥ 0 (best exchange `by` can start on `sq`; legal captures only
+  — pins, check, king captures; promotion +8; en passant), `seeCaptureWith(pos, from, sq)` (forced first capturer),
+  `seeMove(pos, uci)` (net material of a move incl. the opponent's best exchange on the destination), `isHanging`,
+  `hangingLoss`, `capturedBy`.
+- `facts/immediate.ts`: `immediateFacts(fenBefore, uci, {prev?: {fenBefore, uci}}): Fact[]` sorted by the exported
+  `FACT_IMPORTANCE`; exact definitions in the file header. Pass `prev` (the opponent's last move) to get
+  `capture.outcome = 'recapture'`. Also `immediateFactsFromPosition`, `hasMateInOne`, `sortFacts`.
+- `facts/positional.ts`: `positionalFeatures(fen | pos)` per colour; `positionalDelta(fenBefore, fenAfter, mover)` →
+  `positional` facts (thresholds in `POSITIONAL_THRESHOLDS`); works for any two positions (e.g. before the move vs
+  end of the short line).
+- Benchmark: `npx tsx bench/puzzle-facts.ts [--theme fork] [--n 500] [--report]` → `bench/reports/puzzle-facts.md`.
 
 ## HTTP API (server, prefix `/api`; Vite dev proxies `/api` to the server)
 
