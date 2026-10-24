@@ -4,9 +4,9 @@ import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { type AnalysisSettings, DEFAULT_SETTINGS, type GameInfo, type GameSummary, type MoveAnalysis } from '@chess-coach/shared';
+import type { GameInfo, GameSummary, MoveAnalysis } from '@chess-coach/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createApp, createGameManager } from '../src/app';
+import { analysisSettingsFor, createApp, createGameManager } from '../src/app';
 import type { Searcher } from '../src/analysis/searchCache';
 import { CacheDb } from '../src/cache';
 import { Scheduler } from '../src/engine/scheduler';
@@ -16,11 +16,7 @@ import { parseGamePgn } from '../src/games';
 const T = 240_000;
 
 // Fast budget so a whole game finishes in seconds (the pipeline is the same).
-const FAST: AnalysisSettings = structuredClone(DEFAULT_SETTINGS);
-FAST.budget.deep = { depth: 10, multipv: 5, maxMs: 1000 };
-FAST.budget.shallow = { depth: 6, multipv: 5, maxMs: 300 };
-FAST.budget.threat = { depth: 8, multipv: 1, maxMs: 300 };
-FAST.budget.forcedness = { depth: 8, multipv: 2, maxMs: 300 };
+const FAST = analysisSettingsFor('fast');
 
 // chess.com-style export: many headers, clock comments. Blackburne Shilling trap, 7...Nf3# (14 plies).
 const PGN = `[Event "Live Chess"]
@@ -100,13 +96,13 @@ describe.skipIf(!engineAvailable())('HTTP API (Stockfish)', () => {
   const post = (path: string, body: unknown) => fetch(`${base}${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
 
   beforeAll(async () => {
-    engine = await Engine.start({ threads: 4, hashMb: 128 });
+    engine = await Engine.start({ threads: Number(process.env.ENGINE_THREADS ?? 4), hashMb: 128 });
     dir = mkdtempSync(join(tmpdir(), 'chess-coach-http-'));
     dbPath = join(dir, 'cache.sqlite');
     db = new CacheDb(dbPath);
     const scheduler = new Scheduler<Searcher>(engine);
     const games = createGameManager({ scheduler, db, settings: FAST });
-    server = createApp({ engine, scheduler, games }).listen(0);
+    server = createApp({ engine, scheduler, games, testHooks: true }).listen(0);
     await new Promise<void>((r) => server.once('listening', () => r()));
     base = `http://127.0.0.1:${(server.address() as AddressInfo).port}/api`;
   });
@@ -236,6 +232,23 @@ describe.skipIf(!engineAvailable())('HTTP API (Stockfish)', () => {
       expect((await post('/analyse', { fenBefore: g.moves[6]!.fenBefore, uci: 'e1e3' })).status).toBe(400);
       expect((await post('/analyse', { fenBefore: 'garbage', uci: 'e2e4' })).status).toBe(400);
       expect((await post('/analyse', { fenBefore: g.moves[6]!.fenBefore, uci: 'f3d4', prev: { fenBefore: g.moves[0]!.fenBefore, uci: 'e2e4' } })).status).toBe(400);
+    },
+    T,
+  );
+
+  it(
+    'a failed ply is reported as an error event and re-analysed on focus',
+    async () => {
+      expect((await post('/test/fail-next', { n: 2 })).status).toBe(200);
+      const pgn = '[White "x"]\n[Black "y"]\n\n1. c4 e5 *';
+      const info = (await (await post('/games', { pgn })).json()) as GameInfo;
+      const stream = `${base}/games/${info.id}/stream`;
+      const first = await readSse(stream, (ev) => ev.some((e) => e.event === 'error') && ev.some((e) => e.event === 'analysis'));
+      const err = first.find((e) => e.event === 'error')!.data as { ply: number; message: string };
+      expect(err).toEqual({ ply: 1, message: expect.stringMatching(/injected/) });
+      expect((await post(`/games/${info.id}/focus`, { ply: 1 })).status).toBe(204);
+      const again = await readSse(stream, summaryDone);
+      expect(again.filter((e) => e.event === 'analysis').map((e) => (e.data as { ply: number }).ply).sort()).toEqual([1, 2]);
     },
     T,
   );

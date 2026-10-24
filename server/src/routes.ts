@@ -86,6 +86,22 @@ export function apiRouter(ctx: AppContext, games: GameManager): Router {
     res.json(games.putSettings(req.body));
   });
 
+  // Fault injection for E2E tests, only with env CHESS_COACH_TEST_HOOKS=1.
+  if (ctx.testHooks ?? process.env.CHESS_COACH_TEST_HOOKS === '1') {
+    // kill the Stockfish process (a running search rejects with EngineCrashedError; the next search restarts it)
+    r.post('/test/kill-engine', (_req, res) => {
+      const proc = (ctx.engine as unknown as { proc?: { kill(): void } | null } | null)?.proc;
+      proc?.kill();
+      res.json({ killed: !!proc });
+    });
+    // the next `n` analysis attempts fail (each ply is attempted twice), e.g. { n: 2 } -> one failed ply
+    r.post('/test/fail-next', (req, res) => {
+      const n = Number((req.body as { n?: unknown } | undefined)?.n ?? 2);
+      games.injectFailures(n);
+      res.json({ n });
+    });
+  }
+
   const onError: ErrorRequestHandler = (err, _req, res, _next) => {
     if (res.headersSent) return;
     if (err instanceof PgnImportError || err instanceof BadRequestError) res.status(400).json({ error: err.message });
