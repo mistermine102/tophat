@@ -28,6 +28,10 @@ export interface GreatRule {
   throwsAwayWinBelow: number;
   /** Great requires at least this many legal moves. */
   minLegalMoves: number;
+  /** Not Great: a check evasion with at most this many legal moves (an obvious only-move). */
+  maxLegalMovesInCheck: number;
+  /** Not Great: a capture whose static exchange wins at least this many pawns (taking free material). */
+  freeCaptureMinGain: number;
 }
 
 export interface MaterialRule {
@@ -48,6 +52,18 @@ export interface MissRule {
   keepGainFraction: number;
   /** The played move must lose more than this (an inaccuracy's worth). */
   playedMinLoss: number;
+}
+
+export interface MateRule {
+  /**
+   * Allowed mate: the played move allows a forced mate in <= this many moves (engine score of the played move)
+   * that the best move doesn't allow -> at least Blunder, even when win% was already ~0 (classify.ts).
+   */
+  allowedMaxMoves: number;
+  /** ... a forced mate after the best move too counts as "doesn't allow" only if it is at least this many moves longer. */
+  allowedMuchLongerBy: number;
+  /** Missed mate: the best move forces mate in <= this many moves and the played move doesn't force mate -> at least Miss. */
+  missedMaxMoves: number;
 }
 
 export interface SuggestionRule {
@@ -99,6 +115,20 @@ export interface AnalysisBudget {
   forcedness: SearchBudget;
   /** Number of plies of the short line in which opponent replies are checked for forcedness. */
   forcednessPlies: number;
+  /** 5. Label verification near thresholds (analysis/label.ts `verifyNearThreshold`). */
+  verify: VerifyBudget;
+}
+
+/**
+ * Stability (M3): when a label sits within `margin` win% of a threshold that decides it (winLoss vs the
+ * Excellent / Good / Inaccuracy / Mistake bounds, or the 2nd best's loss vs Great's bound), the two moves are
+ * re-searched together (`searchmoves=[best, other]`, MultiPV 2) at deep depth + `depthPlus` and the label is
+ * taken from that search. Not hysteresis: the deeper verdict wins in both directions. `margin` 0 disables it.
+ */
+export interface VerifyBudget {
+  margin: number;
+  depthPlus: number;
+  maxMs: number;
 }
 
 export interface AnalysisSettings {
@@ -106,6 +136,7 @@ export interface AnalysisSettings {
   great: GreatRule;
   material: MaterialRule;
   miss: MissRule;
+  mate: MateRule;
   suggest: SuggestionRule;
   explain: ExplanationRule;
   budget: AnalysisBudget;
@@ -125,6 +156,8 @@ export const DEFAULT_SETTINGS: AnalysisSettings = {
     maxWinAfterBest: 97,
     throwsAwayWinBelow: 70,
     minLegalMoves: 2,
+    maxLegalMovesInCheck: 3,
+    freeCaptureMinGain: 1,
   },
   material: {
     blunderMinLoss: 3,
@@ -137,6 +170,11 @@ export const DEFAULT_SETTINGS: AnalysisSettings = {
     opponentMinLoss: 10,
     keepGainFraction: 0.5,
     playedMinLoss: 5,
+  },
+  mate: {
+    allowedMaxMoves: 3,
+    allowedMuchLongerBy: 3,
+    missedMaxMoves: 3,
   },
   suggest: {
     candidates: 5,
@@ -159,6 +197,7 @@ export const DEFAULT_SETTINGS: AnalysisSettings = {
     threat: { depth: 12, multipv: 1, maxMs: 500 },
     forcedness: { depth: 12, multipv: 2, maxMs: 500 },
     forcednessPlies: 6,
+    verify: { margin: 1, depthPlus: 2, maxMs: 8000 },
   },
 };
 

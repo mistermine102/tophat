@@ -60,7 +60,20 @@ export interface Candidate {
   explanation?: Explanation;          // present for played move, pick and best
 }
 
-export interface MaterialCheck { playedLine: number; bestLine: number; loss: number; evalDropCp: number; label?: Label; hung?: PieceRef }
+/** A mover's piece lost in the engine line: captured on `square` at line ply `ply` (1 = the move itself, 2 = the opponent's reply, ...). */
+export interface LostPiece extends PieceRef { ply: number }
+/**
+ * Material rule data (classify.ts materialCheck). `hung` = a mover's piece that is en prise right after the move
+ * (on that square) and is lost in the line; `lostInLine` = the mover's pieces lost in losing exchanges of the line
+ * (first = first lost), also when the piece only becomes loose later in the line (then `hung` is absent).
+ * `hungLoss` = the hung piece's static-exchange loss (same number as the Immediate 'hangs' fact); `loss` is the
+ * line-based comparison with the best move.
+ */
+export interface MaterialCheck { playedLine: number; bestLine: number; loss: number; evalDropCp: number; label?: Label; hung?: PieceRef; hungLoss?: number; lostInLine?: LostPiece[] }
+/** The played move allows a forced mate in `matedIn` moves that the best move avoids (`bestMatedIn`: the best move's own, much longer, forced mate). */
+export interface AllowedMate { matedIn: number; bestMatedIn?: number }
+/** The mover had a forced mate in `mateIn` moves (the best move) and played a move that doesn't force mate. */
+export interface MissedMate { mateIn: number }
 
 export interface MoveAnalysis {
   version: number;
@@ -72,7 +85,7 @@ export interface MoveAnalysis {
   winLoss: number;
   accuracy: number;                    // per-move accuracy %
   label: Label;
-  labelReason: { winChance: Label; material?: MaterialCheck; miss?: boolean; great?: { secondBestLoss: number }; book?: { eco: string; name: string } };
+  labelReason: { winChance: Label; material?: MaterialCheck; miss?: boolean; great?: { secondBestLoss: number }; book?: { eco: string; name: string }; allowedMate?: AllowedMate; missedMate?: MissedMate };
   played: Candidate;                   // the played move as a candidate, with explanation
   best: Candidate;
   pick: Candidate | null;              // explainable pick; null if none

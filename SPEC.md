@@ -69,6 +69,20 @@ a Blunder.
 - The UI states it honestly, e.g. *"Blunder ?? — you left your queen hanging (−9). You're still winning
   (+12.0 → +3.1), but this is the habit to fix."*
 
+**Mate rules (user requirement, same philosophy; added in M3):** honest labels for bad habits even in decided
+positions, where the win% clamp hides everything.
+- **Allowed mate:** the played move allows a forced mate in ≤ 3 moves (setting) that the best move avoids (or only
+  allows a much longer one, ≥ 3 moves longer) → at least **Blunder**, even if win% was already ~0
+  (Opera game 15...Nxd7?? allows 16.Qb8+! Nxb8 17.Rd8#; 15...Qxd7 avoids the mate).
+- **Missed mate:** the mover had a forced mate in ≤ 3 (setting) and played a move that doesn't force mate → at
+  least **Miss** (a Blunder stays a Blunder; a slower mate is not "missed").
+- The UI says it, e.g. *"Blunder ?? — this allows a forced mate in 2. Black was already losing, but Qxd7 would have
+  avoided it — watch for mating threats."*
+
+**Great — obvious only-moves excluded (M3):** recaptures/take-backs, check evasions with ≤ 3 legal moves, taking
+free material (the capture's static exchange alone wins material: a hanging piece or a free pawn), and the next
+move of a combination after the opponent had a single legal reply.
+
 Severity order (for "worse of"): Blunder > Miss > Mistake > Inaccuracy > Good > Excellent > Best/Great/Book/Forced.
 
 **Brilliant** is out of v1.

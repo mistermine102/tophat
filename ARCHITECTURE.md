@@ -245,7 +245,10 @@ export interface Candidate {
   explanation?: Explanation;          // present for played move, pick and best
 }
 
-export interface MaterialCheck { playedLine: number; bestLine: number; loss: number; evalDropCp: number; label?: Label; hung?: PieceRef }
+export interface LostPiece extends PieceRef { ply: number }     // M3
+export interface MaterialCheck { playedLine: number; bestLine: number; loss: number; evalDropCp: number; label?: Label; hung?: PieceRef; hungLoss?: number; lostInLine?: LostPiece[] }
+export interface AllowedMate { matedIn: number; bestMatedIn?: number }   // M3
+export interface MissedMate { mateIn: number }                          // M3
 
 export interface MoveAnalysis {
   version: number;
@@ -257,7 +260,7 @@ export interface MoveAnalysis {
   winLoss: number;
   accuracy: number;                    // per-move accuracy %
   label: Label;
-  labelReason: { winChance: Label; material?: MaterialCheck; miss?: boolean; great?: { secondBestLoss: number }; book?: { eco: string; name: string } };
+  labelReason: { winChance: Label; material?: MaterialCheck; miss?: boolean; great?: { secondBestLoss: number }; book?: { eco: string; name: string }; allowedMate?: AllowedMate; missedMate?: MissedMate };
   played: Candidate;                   // the played move as a candidate, with explanation
   best: Candidate;
   pick: Candidate | null;              // explainable pick; null if none
@@ -299,6 +302,26 @@ Additions made in M2 (all additive; the client renders `Level.text`, so new fact
   `toWhitePov({ mate: 0 }, sideMated)` (i.e. `{cp: 1000}` when White mates, `{mate: 0}` when Black mates — detect
   mate on the board for display); stalemate `{cp: 0}`. `winLoss`/label come from the fenBefore search only.
 - `SearchBudget.maxMs` (settings): per-search time cap, see "Analysis budget".
+
+Additions made in M3 (label quality; all additive, `ANALYSIS_VERSION` 2):
+- `labelReason.allowedMate?: AllowedMate` = `{ matedIn, bestMatedIn? }`: the played move allows a forced mate in
+  `matedIn` ≤ `settings.mate.allowedMaxMoves` (3) moves that the best move avoids (or only allows `bestMatedIn` ≥
+  matedIn + `allowedMuchLongerBy` (3) moves later) → label at least Blunder, even when win% was already ~0 (the
+  clamp makes −10 and "mated" equal). `labelReason.missedMate?: MissedMate` = `{ mateIn }`: the best move mated in
+  ≤ `settings.mate.missedMaxMoves` (3) and the played move doesn't force mate → at least Miss (a Blunder stays).
+  Neither applies to the engine's #1 move, a checkmating move or a single legal move. `labelReason.miss` keeps its
+  meaning (the "punish the opponent's mistake" rule only).
+- `MaterialCheck.hung` now names only a piece that is en prise **right after the move** (on its square, untouched by
+  the line until captured, opponent SEE > 0) and `MaterialCheck.hungLoss` is its static-exchange loss (the same number
+  as the Immediate `hangs` fact; `loss` stays the line-based comparison); `MaterialCheck.lostInLine?: LostPiece[]` (`PieceRef & { ply }`, ply 1 =
+  the move, 2 = the reply, …) lists the mover's pieces lost in losing exchanges of the line, first lost first — when
+  `hung` is absent the loss happens in the follow-up and `labelText` says "loses material in the follow-up (−4): the
+  knight falls on d7 within 3 moves" instead of "leaves … hanging".
+- Great exclusions (classify.ts `isGreat`; settings `great.maxLegalMovesInCheck` (3), `great.freeCaptureMinGain`
+  (1)): besides take-backs, no Great for a check evasion with ≤ 3 legal moves, a capture whose SEE alone wins ≥ 1,
+  or the move right after an opponent move that was their only legal move (continuation of a combination).
+- `analysis/label.ts`: `labelMove(settings, search, input)` = searches 1/1b/6 + `classifyMove` (moved out of
+  analyzeMove, which calls it first); the label benchmark (`bench/label-benchmark.ts`) calls the same function.
 
 ## Facts → text, suggestions (M2)
 

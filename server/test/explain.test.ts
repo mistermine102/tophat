@@ -285,6 +285,18 @@ describe('label text', () => {
     const t = labelText({ ...base, label: 'blunder', labelReason: { winChance: 'excellent', material: { playedLine: 3, bestLine: 11, loss: 8, evalDropCp: 930, label: 'blunder', hung: { role: 'queen', square: 'g5', color: 'white' } } } }, S);
     expect(t).toMatchInlineSnapshot(`"Blunder ?? — leaves the queen on g5 hanging (−8). White is still winning (+17.8 → +8.5), but this is the habit to fix."`);
   });
+  it('material lost later in the line is not called "hanging" (M3 regression: Opera 10...cxb5)', () => {
+    const material = { playedLine: -6, bestLine: -2, loss: 4, evalDropCp: 300, label: 'blunder' as const, lostInLine: [{ role: 'knight' as const, square: 'd7', color: 'black' as const, ply: 6 }] };
+    const t = labelText({ ...base, color: 'black', evalBefore: { cp: -540 }, evalAfter: { cp: -800 }, winBefore: 10, winAfter: 5, winLoss: 4, label: 'blunder', labelReason: { winChance: 'good', material } }, S);
+    expect(t).not.toMatch(/hanging/);
+    expect(t).toMatchInlineSnapshot(`"Blunder ?? — loses material in the follow-up (−4): the knight falls on d7 within 3 moves. Black's winning chances go from 10% to 6%."`);
+  });
+  it('allowed mate / missed mate', () => {
+    const lost = { ...base, color: 'black' as const, evalBefore: { cp: 1010 }, evalAfter: { mate: 2 }, winBefore: 2.4, winAfter: 2.4, winLoss: 0, bestSan: 'Qxd7' };
+    expect(labelText({ ...lost, label: 'blunder', labelReason: { winChance: 'best', allowedMate: { matedIn: 2 } } }, S)).toMatchInlineSnapshot(`"Blunder ?? — this allows a forced mate in 2. Black was already losing, but Qxd7 would have avoided it — watch for mating threats."`);
+    expect(labelText({ ...lost, label: 'blunder', labelReason: { winChance: 'blunder', allowedMate: { matedIn: 1, bestMatedIn: 6 } } }, S)).toMatchInlineSnapshot(`"Blunder ?? — this allows mate in one. Qxd7 would have lasted 6 moves."`);
+    expect(labelText({ ...base, label: 'miss', labelReason: { winChance: 'good', missedMate: { mateIn: 2 } } }, S)).toMatchInlineSnapshot(`"Miss — Nd5 was a forced mate in 2, and this move doesn't force mate (−2% winning chances)."`);
+  });
   it('win-chance labels', () => {
     const r = (label: 'best' | 'great' | 'good' | 'inaccuracy' | 'mistake' | 'miss' | 'blunder' | 'book' | 'forced', extra = {}) =>
       labelText({ ...base, color: 'black', evalBefore: { cp: -20 }, evalAfter: { cp: 250 }, winBefore: 52, winAfter: 27, winLoss: 25, label, labelReason: { winChance: label, ...extra } }, S);

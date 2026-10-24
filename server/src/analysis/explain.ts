@@ -10,7 +10,7 @@
 //  - `Level.facts` keeps every fact of the level (structured data for a later rephrasing step); `Level.text`
 //    holds the rendered sentences (not 1:1 with the facts).
 
-import type { AnalysisSettings, Color, Explanation, Fact, Label, Level, LineStep, MoveAnalysis, PieceRef, PieceRole, Score } from '@chess-coach/shared';
+import type { AnalysisSettings, Color, Explanation, Fact, Label, Level, LineStep, MaterialCheck, MoveAnalysis, PieceRef, PieceRole, Score } from '@chess-coach/shared';
 import { PIECE_VALUES } from '../chess/material';
 
 export const MAX_SENTENCES = 4;
@@ -472,6 +472,19 @@ export type LabelTextInput = Pick<MoveAnalysis, 'label' | 'labelReason' | 'color
   checkmate?: boolean;
 };
 
+const mateIn = (n: number): string => (n === 1 ? 'mate in one' : `a forced mate in ${n}`);
+
+/**
+ * Material lost in the follow-up rather than hanging right now (MaterialCheck.hung absent): name the first piece
+ * lost in the engine line and when (M3: never call a piece "hanging" that isn't en prise after the move).
+ */
+function lostLater(m: MaterialCheck): string {
+  const p = m.lostInLine?.[0];
+  if (!p) return `throws away material (${signed(-m.loss)})`;
+  const moves = Math.max(1, Math.ceil((p.ply - 1) / 2));
+  return `loses material in the follow-up (${signed(-m.loss)}): the ${p.role} falls on ${p.square} within ${moves} move${moves === 1 ? '' : 's'}`;
+}
+
 /** One or two sentences: label name + why (mover-neutral). */
 export function labelText(a: LabelTextInput, settings: AnalysisSettings): string {
   const me = colorName(a.color);
@@ -502,17 +515,27 @@ export function labelText(a: LabelTextInput, settings: AnalysisSettings): string
     case 'inaccuracy':
       return `${name} — ${a.bestSan} was better (${loss}).`;
     case 'miss':
+      if (a.labelReason.missedMate) return `${name} — ${a.bestSan} was ${mateIn(a.labelReason.missedMate.mateIn)}, and this move doesn't force mate (${loss}).`;
       return `${name} — ${opp}'s last move was a mistake, and ${a.bestSan} would have punished it (${loss}).`;
     case 'mistake':
     case 'blunder': {
+      const am = a.labelReason.allowedMate;
+      if (am && a.label === 'blunder') {
+        const avoid = am.bestMatedIn ? `${a.bestSan} would have lasted ${am.bestMatedIn} moves` : `${a.bestSan} would have avoided it`;
+        const already = a.labelReason.winChance !== 'blunder' ? ` ${me} was already losing, but ${avoid} — watch for mating threats.` : ` ${avoid}.`;
+        return `${name} — this allows ${am.matedIn === 1 ? 'mate in one' : `a forced mate in ${am.matedIn}`}.${already}`;
+      }
+      if (a.labelReason.missedMate && a.label === 'blunder') {
+        return `${name} — ${a.bestSan} was ${mateIn(a.labelReason.missedMate.mateIn)}. ${capitalize(chances)}.`;
+      }
       if (materialDecides && m) {
-        const what = m.hung ? `leaves ${the(m.hung)} hanging (${signed(-m.loss)})` : `throws away material (${signed(-m.loss)})`;
+        const what = m.hung ? `leaves ${the(m.hung)} hanging (${signed(-(m.hungLoss ?? m.loss))})` : lostLater(m);
         const still = a.winAfter >= settings.suggest.winningMin
           ? ` ${me} is still winning (${formatEval(a.evalBefore)} → ${formatEval(a.evalAfter)}), but this is the habit to fix.`
           : ` ${chances}.`;
         return `${name} — ${what}.${still}`;
       }
-      const hung = m?.hung && m.label ? `; it leaves ${the(m.hung)} hanging (${signed(-m.loss)})` : '';
+      const hung = m?.hung && m.label ? `; it leaves ${the(m.hung)} hanging (${signed(-(m.hungLoss ?? m.loss))})` : m?.label && m.lostInLine?.length ? `; it ${lostLater(m)}` : '';
       return `${name} — ${a.bestSan} was much better${hung}. ${capitalize(chances)}.`;
     }
   }
