@@ -113,12 +113,9 @@ function onBoardSquares(f: PositionalFact, fenAt: string, mover: Color): Positio
   return { ...f, squares };
 }
 
-/** Structure features that a pending recapture can undo at once (exd5 "doubles" pawns until cxd5). */
-const TRANSIENT: ReadonlySet<PositionalFeature> = new Set<PositionalFeature>(['isolated-pawn', 'doubled-pawn', 'passed-pawn', 'bishop-pair']);
-
 /** A move-level structure change still there at the end of the short line (same feature, side and direction). */
 function persists(f: PositionalFact, endFacts: readonly PositionalFact[] | null): boolean {
-  if (!endFacts || !TRANSIENT.has(f.feature)) return true;
+  if (!endFacts || f.feature === 'development') return true;
   return endFacts.some((e) => e.feature === f.feature && (e.side ?? '') === (f.side ?? '') && Math.sign(e.delta) === Math.sign(f.delta));
 }
 

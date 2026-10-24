@@ -29,6 +29,7 @@ import { type SearchParams, type Searcher, SearchCache } from './searchCache';
 import { type ReasonCode, lineDelta, suggest } from './suggest';
 import { legalMove as legalMoveAt, legalPrefix, normalizeFen, playMove, positionStatus, pvToSan, uciSquares } from '../chess/notation';
 import { seeMove } from '../chess/see';
+import { parseSquare } from 'chessops/util';
 import type { PvLine, SearchResult } from '../engine/uci';
 import { materialBalance, positionFromFen } from '../chess/material';
 import { immediateFacts } from '../facts/immediate';
@@ -184,7 +185,7 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
     }
     const tf = now();
     const immediate = verifyWithLine(pruneRefuted(immediateFacts(fen, p.uci, prevOpt), p.uci, pv[1]), fen, pv);
-    if (threat && !replyTakesMovedPiece(p.uci, pv[1]) && !threatExistedBefore(fen, threat)) immediate.push(threat);
+    if (threat && !replyTakesMovedPiece(p.uci, pv[1]) && !threatExistedBefore(fen, threat) && !targetHitsBack(p.fenAfter, threat)) immediate.push(threat);
     // "stops the threat" only if the engine line doesn't play it anyway
     if (defends && !opponentPlays(pv, (defends as { move: string }).move)) immediate.push(defends);
     // engine-verified forced mate against the mover that the best move avoids (board check only sees mate in 1)
@@ -257,6 +258,8 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
       // the best move allows the same reply with the same effect: that is not what makes this move worse
       const b = cands[0]!;
       const bestAllows = sameMoveUci(fen, b.uci, w.uci) ? null : refutationFact({ fenBefore: fen, uci: b.uci, pv: b.pv, line: b.narrated.line });
+      // the reply is exactly the opponent's verified threat from before the move: the move "doesn't stop" it
+      if (allows && oppThreat && allows.reply.uci === oppThreat.move) allows.already = true;
       if (allows && !(bestAllows && allowsSignature(bestAllows) === allowsSignature(allows))) immediate = [allows, ...immediate];
     }
     const short: Fact[] = [narrated.line, ...narrated.forcedReplies];
@@ -329,7 +332,7 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
     timings,
   };
   const better = BAD_LABELS.has(cr.label) && !playedIsBest
-    ? betterReasons([...bestWork.immediate, ...(shortFacts.get(bestWork.uci) ?? [])], playedWork.immediate, mover)
+    ? betterReasons([...bestWork.immediate, ...(shortFacts.get(bestWork.uci) ?? [])], [...playedWork.immediate, ...(shortFacts.get(playedWork.uci) ?? [])], mover)
     : [];
   const hangs = playedWork.immediate.filter((f): f is Extract<Fact, { type: 'hangs' }> => f.type === 'hangs').sort((a, b) => b.loss - a.loss);
   const hang = hangs.find((h) => h.piece.square === cr.labelReason.material?.hung?.square) ?? hangs[0];
@@ -369,7 +372,7 @@ function opponentPlays(pv: readonly string[], uci: string): boolean {
  * a 'hangs' piece must actually be captured on its square by the opponent within the first VERIFY_PLIES of the
  * move's PV — when the engine doesn't take it, it isn't hanging.
  */
-function verifyWithLine(facts: Fact[], fen: string, pv: readonly string[]): Fact[] {
+export function verifyWithLine(facts: Fact[], fen: string, pv: readonly string[]): Fact[] {
   const taken = new Set<string>();
   const pos = positionFromFen(fen);
   for (const [i, m] of pv.slice(0, VERIFY_PLIES).entries()) {
@@ -386,7 +389,7 @@ function verifyWithLine(facts: Fact[], fen: string, pv: readonly string[]): Fact
  * The move's null-move threat was already there before the move: the threat move is legal right now and wins the
  * same (a capture worth as much by SEE, or mate in one) — then it is not something the move created.
  */
-function threatExistedBefore(fen: string, threat: ThreatFact): boolean {
+export function threatExistedBefore(fen: string, threat: ThreatFact): boolean {
   const pos = positionFromFen(fen);
   const mv = legalMoveAt(pos, threat.move);
   if (!mv) return false;
@@ -397,6 +400,21 @@ function threatExistedBefore(fen: string, threat: ThreatFact): boolean {
   }
   if (threat.mateIn) return false;
   return !!pos.board.get(mv.to) && seeMove(pos, threat.move) >= Math.min(threat.gain, 1) && seeMove(pos, threat.move) >= seeMoveAfter(threat);
+}
+
+/**
+ * The threatened piece attacks the threatening piece and the opponent is to move (queens facing each other): the
+ * opponent can take first or simply step away — "Qf7 threatens Qxd5, winning a queen" is no threat.
+ */
+export function targetHitsBack(fenAfter: string, threat: ThreatFact): boolean {
+  if (threat.mateIn) return false;
+  const pos = positionFromFen(fenAfter); // opponent to move
+  const from = parseSquare(threat.move.slice(0, 2));
+  const to = parseSquare(threat.move.slice(2, 4));
+  if (from === undefined || to === undefined) return false;
+  const target = pos.board.get(to);
+  if (!target || target.color !== pos.turn) return false;
+  return legalMoveAt(pos, `${threat.move.slice(2, 4)}${threat.move.slice(0, 2)}`) !== undefined;
 }
 
 /** SEE value of the threat's own capture (from its facts), for comparing with the same capture now. */

@@ -106,7 +106,7 @@ function captureText(f: F<'capture'>): string {
   switch (f.outcome) {
     case 'wins-material':
       return f.net >= PIECE_VALUES[f.captured.role]
-        ? `Wins ${c} for free (${points(f.net)})`
+        ? `Wins ${c} (${points(f.net)})` // (no "for free": SEE can win a defended pawn too)
         : `Takes ${c} and comes out ahead in the exchange of pieces (${points(f.net)})`;
     case 'even-trade':
       return `Takes ${c} — an even trade`;
@@ -181,7 +181,7 @@ export function allowsText(f: F<'allows'>, ctx: ExplainContext): string {
   let s = `${verb} ${r}${direct.length ? '' : check}`;
   if (direct.length) s += `, ${joinList(direct.slice(0, 2))}${check ? ', with check' : ''}`;
   if (then.length) s += `: then ${joinList(then.slice(0, 2))}`;
-  if (f.mateIn !== undefined) s += `. After that ${opp} can force mate in ${f.mateIn}`;
+  if (f.mateIn !== undefined) s += ` — it starts a forced mate in ${f.mateIn} for ${opp}`;
   else if (!direct.length && !then.length && (f.gain ?? 0) >= 1) s += ` — in the engine line this costs ${colorName(ctx.mover)} ${points(f.gain!).replace(/^\+/, '')}`;
   return s;
 }
@@ -204,7 +204,8 @@ function immediateFactText(f: Fact, ctx: ExplainContext): string | null {
     case 'develop':
       return `Develops the ${f.piece.role} to ${f.piece.square}`;
     case 'attack':
-      return f.reason === 'undefended' ? `Attacks ${owned(f.target)}, which is undefended` : `Attacks ${owned(f.target)} with ${an(f.attacker.role)}`;
+      // a bigger piece attacked by a smaller one has to move whether defended or not: say so, not "undefended"
+      return f.reason === 'undefended' && PIECE_VALUES[f.target.role] <= PIECE_VALUES[f.attacker.role] ? `Attacks ${owned(f.target)}, which is undefended` : `Attacks ${owned(f.target)} with ${an(f.attacker.role)}`;
     case 'fork':
       return `Fork: ${the(f.attacker)} attacks ${targetsPhrase(f.targets)} at once`;
     case 'pin':
@@ -413,12 +414,14 @@ function materialResult(line: F<'line'>, mover: Color): string {
   const lost = line.lost ?? [];
   const d = `(${points(line.materialDelta)})`;
   const isExchange = (a: readonly PieceRole[], b: readonly PieceRole[]) => a.length === 1 && a[0] === 'rook' && b.length === 1 && (b[0] === 'knight' || b[0] === 'bishop');
-  // winning back (all of) what the opponent's last move took
-  const firstIsRecapture = (line.owed !== undefined && line.materialDelta <= line.owed) || line.steps[0]?.facts.some((f) => f.type === 'capture' && f.outcome === 'recapture');
+  // "wins back": the mover started behind and the gain only makes up (part of) that deficit
+  const start = line.balance !== undefined ? line.balance - line.materialDelta : null;
+  const firstIsRecapture = start !== null ? start < 0 && line.materialDelta <= -start : !!line.steps[0]?.facts.some((f) => f.type === 'capture' && f.outcome === 'recapture');
+  if (line.result === 'wins-material' && firstIsRecapture && !(won.length > 0 && won.length <= 2 && lost.length <= 2)) return `${who} wins back material ${d}`;
   if (line.result === 'wins-material') {
     if (isExchange(won, lost)) return `${who} wins the exchange — a rook for ${an(lost[0]!)} ${d}`;
     if (lost.length === 0 && won.length > 0 && won.length <= 2) return `${who} ${firstIsRecapture ? 'wins back' : 'wins'} ${piecesPhrase(won)} ${d}`;
-    if (won.length > 0 && won.length <= 2 && lost.length <= 2) return `${who} wins ${piecesPhrase(won)} for ${piecesPhrase(lost)} ${d}`;
+    if (won.length > 0 && won.length <= 2 && lost.length <= 2) return `${who} ${firstIsRecapture ? 'wins back' : 'wins'} ${piecesPhrase(won)} for ${piecesPhrase(lost)} ${d}`;
     return `${who} comes out ahead in material ${d}`;
   }
   if (isExchange(lost, won)) return `${who} loses the exchange — a rook for ${an(won[0]!)} ${d}`;
@@ -471,7 +474,9 @@ function storyUnits(steps: readonly LineStep[], result?: F<'line'>['result']): U
     const v = PIECE_VALUES[cap.captured.role];
     const side = s.color === mover ? bal : -bal;
     // a take-back: on the square of the previous capture, and only winning back what was lost (not more)
-    const back = cap.outcome === 'recapture' && (i === 0 || (side < 0 && side + v <= 0));
+    const prevCap = capOf(steps[i - 1]);
+    const sameKind = !!prevCap && prevCap.captured.role === cap.captured.role; // Qxc3 bxc3: the queens are traded
+    const back = cap.outcome === 'recapture' && (i === 0 || sameKind || (side < 0 && side + v <= 0));
     bal += s.color === mover ? v : -v;
     return back;
   });
@@ -648,7 +653,7 @@ function longFactText(f: Fact, ctx: ExplainContext, all: AllFacts): string | nul
     case 'deep-payoff':
       return 'The payoff is far away: a quick engine look rates this move lower — only a deep search sees why it works.';
     case 'necessary':
-      return f.onlyMove ? 'It was the only legal move.' : `${me} just had to play this — every other move is much worse.`;
+      return f.onlyMove ? 'It was the only legal move.' : 'The only good move here — every other move is much worse.';
     case 'nothing-notable':
       return 'No notable long-term change.';
     default:
@@ -756,7 +761,10 @@ export function betterReasons(better: readonly Fact[], played: readonly Fact[], 
         break;
     }
   }
-  if (line && !lineUsed && !out.some((r) => r.startsWith('wins'))) {
+  const playedLine = played.find((f): f is F<'line'> => f.type === 'line');
+  // a line result the played move matches is no reason ("leads to winning a pawn" when both win a pawn)
+  const playedAsGood = !!line && !!playedLine && playedLine.result === line.result && playedLine.materialDelta >= line.materialDelta;
+  if (line && !lineUsed && !playedAsGood && !out.some((r) => r.startsWith('wins'))) {
     if (line.result === 'mate' && line.mateIn) out.push(`forces mate in ${line.mateIn}`);
     else if (line.result === 'wins-material' && line.won?.length && !line.lost?.length) out.push(`leads to winning ${piecesPhrase(line.won)}`);
   }
@@ -829,7 +837,7 @@ export function labelText(a: LabelTextInput, settings: AnalysisSettings): string
       // the hung piece is named only from the move's own verified 'hangs' fact (a piece standing on that square
       // after the move, confirmed by the engine line), with that fact's number; otherwise the line's net loss
       const vh = a.verifiedHang;
-      const lossText = vh ? `leaves ${the(vh.piece)} hanging (${points(-vh.loss)})` : m ? `loses material in the engine line (${points(-m.loss)})` : '';
+      const lossText = vh ? `leaves ${the(vh.piece)} hanging (${points(-vh.loss)})` : m ? `loses material: the engine line ends ${Math.abs(m.loss)} ${Math.abs(m.loss) === 1 ? "point" : "points"} worse than after ${a.bestSan}` : '';
       if (materialDecides && m) {
         const still = a.winAfter >= settings.suggest.winningMin
           ? ` ${me} is still winning (engine eval ${formatEval(a.evalBefore)} → ${formatEval(a.evalAfter)}), but this is the habit to fix.`

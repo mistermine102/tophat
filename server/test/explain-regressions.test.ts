@@ -6,7 +6,8 @@ import { labelText, lineText, renderExplanation, verdictText } from '../src/anal
 import { concreteFacts } from '../src/analysis/suggest';
 import { immediateFacts } from '../src/facts/immediate';
 import { narrateLine, narrationPlies, refutationFact } from '../src/facts/line';
-import { longTermFacts } from '../src/facts/longterm';
+import { longTermFacts, positionalFacts } from '../src/facts/longterm';
+import { targetHitsBack, threatExistedBefore, verifyWithLine } from '../src/analysis/analyzeMove';
 import { legalFen, playUci } from './helpers/classifyHelpers';
 
 const S = DEFAULT_SETTINGS;
@@ -177,6 +178,74 @@ describe('5. pick: an attack whose line wins the target is concrete (6.Qb3 in th
     const facts = [...immediateFacts(BEFORE_6W, 'f3b3'), line];
     expect(concreteFacts(facts).map((f) => f.type)).toEqual(expect.arrayContaining(['attack', 'line']));
     expect(lineText(line, W)).toMatch(/Qxb7 wins the pawn → White wins a pawn \(\+1 point\)\.$/);
+  });
+});
+
+describe('review round 2: claims checked against the engine line', () => {
+  it('"hanging" only when the engine line takes the piece', () => {
+    const fen = legalFen('r5k1/ppp2pp1/7p/8/8/2N2N2/PPPQ1PPP/4R1K1 w - - 0 1');
+    const facts = immediateFacts(fen, 'd2g5');
+    expect(facts.some((f) => f.type === 'hangs')).toBe(true);
+    expect(verifyWithLine(facts, fen, pv('d2g5 h6g5 f3g5')).some((f) => f.type === 'hangs')).toBe(true);
+    expect(verifyWithLine(facts, fen, pv('d2g5 a8d8 g5d8')).some((f) => f.type === 'hangs')).toBe(false);
+  });
+
+  it('a threat that was already there before the move is not credited to it', () => {
+    const nxe5: Extract<Fact, { type: 'threat' }> = { type: 'threat', move: 'f3e5', san: 'Nxe5', gain: 1, facts: [{ type: 'capture', captured: { role: 'pawn', square: 'e5', color: 'black' }, outcome: 'wins-material', net: 1 }] };
+    // the knight already attacks the loose e5 pawn
+    expect(threatExistedBefore(legalFen('rnbqkbnr/pppp1ppp/8/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 0 3'), nxe5)).toBe(true);
+    // 2.Nf3 creates it
+    expect(threatExistedBefore(AFTER_1E5, nxe5)).toBe(false);
+  });
+
+  it('results state the resulting balance when material was not level (a gambit pawn given back)', () => {
+    const line: LineF = { type: 'line', steps: [{ ply: 1, san: 'Be6', uci: 'c8e6', color: 'black', facts: [] }, { ply: 2, san: 'cxd4', uci: 'c3d4', color: 'white', facts: [{ type: 'capture', captured: { role: 'pawn', square: 'd4', color: 'black' }, outcome: 'wins-material', net: 1 }] }], materialDelta: -1, result: 'loses-material', lost: ['pawn'], balance: 0 };
+    expect(lineText(line, B)).toBe('Be6 → cxd4 wins the pawn → Black loses a pawn (−1 point); material is level.');
+    const trade: LineF = { ...line, materialDelta: 0, result: 'trade', balance: 1, lost: undefined as never };
+    delete (trade as { lost?: unknown }).lost;
+    expect(lineText(trade, B)).toMatch(/the material balance doesn't change \(Black is a pawn up\)\.$/);
+  });
+
+  it('a capture of a bigger piece than was just lost is no "take-back"; a pawn grab elsewhere neither', () => {
+    // 7...Bg4 8.Qb3 Bxf3 9.Qxb7 (a pawn, not a take-back) ... gxf3
+    const fen = legalFen('rnbqkb1r/pp3ppp/5n2/3p4/3P4/2N2N2/PP3PPP/R1BQKB1R b KQkq - 3 7');
+    const { line } = narrateLine(fen, pv('c8g4 d1b3 g4f3 b3b7 b8d7 g2f3'), { settings: S, plies: 6 });
+    const t = lineText(line, B);
+    expect(t).not.toMatch(/Qxb7 takes back/);
+    expect(t).toMatch(/gxf3 (wins|takes) the bishop/);
+  });
+
+  it('move-level structure changes undone by the recapture are not reported; a mutual bishop trade is no "bishop pair" change', () => {
+    const fen = legalFen('rnbqkbnr/ppp1pppp/8/3p4/4P3/8/PPPP1PPP/RNBQKBNR w KQkq - 0 2');
+    const fs = positionalFacts({ fenBefore: fen, fenAfter: playUci(fen, ['e4d5']), lineEndFen: playUci(fen, ['e4d5', 'd8d5']), mover: 'white', immediate: [] });
+    expect(fs.some((f) => f.feature === 'doubled-pawn')).toBe(false);
+    const bb = legalFen('4k3/4bp2/4b3/8/2B5/8/3B4/4K3 w - - 0 1');
+    const fb = positionalFacts({ fenBefore: bb, fenAfter: playUci(bb, ['c4e6']), lineEndFen: playUci(bb, ['c4e6', 'f7e6']), mover: 'white', immediate: [] });
+    expect(fb.some((f) => f.feature === 'bishop-pair')).toBe(false);
+  });
+});
+
+describe('review round 3', () => {
+  const step = (san: string, color: 'white' | 'black', facts: Fact[] = []) => ({ ply: 1, san, uci: 'a1a2', color, facts });
+  it('"wins back" only when the mover started behind', () => {
+    // mcz8Z7Cr 27: White was 4 down, the line makes it level
+    const back: LineF = { type: 'line', steps: [step('Bxg5', 'white'), step('Qd8', 'black')], materialDelta: 4, result: 'wins-material', balance: 0 };
+    expect(lineText(back, W)).toMatch(/White wins back material \(\+4 points\); material is level\.$/);
+    // dmVsbMbS 19: material level before, the line wins a pawn — no "back"
+    const fresh: LineF = { type: 'line', steps: [step('Re1', 'white'), step('Qe7', 'black')], materialDelta: 1, result: 'wins-material', won: ['pawn'], balance: 1, owed: 1 };
+    expect(lineText(fresh, W)).toBe('Re1 → Qe7 → White wins a pawn (+1 point).');
+  });
+
+  it('no "threatens Qxd5, winning a queen" when the queens face each other', () => {
+    const q: Extract<Fact, { type: 'threat' }> = { type: 'threat', move: 'f7d5', san: 'Qxd5', gain: 9, facts: [] };
+    expect(targetHitsBack(legalFen('7k/5Q2/8/3q4/8/8/8/K7 b - - 0 1'), q)).toBe(true);
+    expect(targetHitsBack(legalFen('7k/5Q2/8/3r4/8/8/8/K7 b - - 0 1'), { ...q, gain: 5 })).toBe(false);
+  });
+
+  it('no "for free" (SEE also wins defended pawns); a queen attacked by a rook is not "undefended"', () => {
+    expect(renderExplanation({ immediate: immediateFacts(legalFen('4k3/8/8/3n4/8/8/8/3RK3 w - - 0 1'), 'd1d5'), short: [], long: [] }, W).immediate.text[0]).toBe("Wins Black's knight on d5 (+3 points).");
+    const att: Fact = { type: 'attack', attacker: { role: 'rook', square: 'f8', color: 'black' }, target: { role: 'queen', square: 'f7', color: 'white' }, reason: 'undefended' };
+    expect(renderExplanation({ immediate: [att], short: [], long: [] }, B).immediate.text[0]).toBe("Attacks White's queen on f7 with a rook.");
   });
 });
 

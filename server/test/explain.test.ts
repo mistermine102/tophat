@@ -38,12 +38,12 @@ describe('immediate level', () => {
   it('free capture; capture with check is one sentence', () => {
     expect(imm('4k3/8/8/3n4/8/8/8/3RK3 w - - 0 1', 'd1d5')).toMatchInlineSnapshot(`
       [
-        "Wins Black's knight on d5 for free (+3 points).",
+        "Wins Black's knight on d5 (+3 points).",
       ]
     `);
     expect(imm('4k3/8/8/8/8/8/8/R2qK3 w - - 0 1', 'a1d1')).toMatchInlineSnapshot(`
       [
-        "Wins Black's queen on d1 for free (+9 points).",
+        "Wins Black's queen on d1 (+9 points).",
       ]
     `);
   });
@@ -103,7 +103,7 @@ describe('immediate level', () => {
   it('attack on an undefended piece; threats (gain, fork, mate)', () => {
     expect(imm('4k3/8/8/1r6/8/8/8/1N2K3 w - - 0 1', 'b1c3')).toMatchInlineSnapshot(`
       [
-        "Attacks Black's rook on b5, which is undefended.",
+        "Attacks Black's rook on b5 with a knight.",
         "Saves the knight: it was under attack on b1 and is safe on c3.",
         "Develops the knight to c3.",
       ]
@@ -273,7 +273,7 @@ describe('long level', () => {
     `);
     expect(renderExplanation({ immediate: [], short: [], long: [{ type: 'necessary' }] }, B).long.text).toMatchInlineSnapshot(`
       [
-        "Black just had to play this — every other move is much worse.",
+        "The only good move here — every other move is much worse.",
       ]
     `);
   });
@@ -284,7 +284,7 @@ describe('label text', () => {
   it('material blunder while still winning', () => {
     const t = labelText({ ...base, label: 'blunder', labelReason: { winChance: 'excellent', material: { playedLine: 3, bestLine: 11, loss: 8, evalDropCp: 930, label: 'blunder', hung: { role: 'queen', square: 'g5', color: 'white' } } }, san: 'Qg5', verifiedHang: { piece: { role: 'queen', square: 'g5', color: 'white' }, loss: 8 } }, S);
     // without a verified hang on the board, the label doesn't name a piece
-    expect(labelText({ ...base, label: 'blunder', labelReason: { winChance: 'excellent', material: { playedLine: 3, bestLine: 11, loss: 8, evalDropCp: 930, label: 'blunder', hung: { role: 'rook', square: 'c1', color: 'white' } } }, san: 'Qg5' }, S)).toMatch(/^Blunder \?\? — Qg5 loses material in the engine line \(−8 points\)/);
+    expect(labelText({ ...base, label: 'blunder', labelReason: { winChance: 'excellent', material: { playedLine: 3, bestLine: 11, loss: 8, evalDropCp: 930, label: 'blunder', hung: { role: 'rook', square: 'c1', color: 'white' } } }, san: 'Qg5' }, S)).toMatch(/^Blunder \?\? — Qg5 loses material: the engine line ends 8 points worse than after Nd5\./);
     expect(t).toMatchInlineSnapshot(`"Blunder ?? — Qg5 leaves the queen on g5 hanging (−8 points). White is still winning (engine eval +17.8 → +8.5), but this is the habit to fix."`);
   });
   it('win-chance labels', () => {

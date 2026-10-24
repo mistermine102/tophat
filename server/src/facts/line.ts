@@ -584,9 +584,11 @@ export function refutationFact(input: RefutationInput): AllowsFact | null {
   fresh.sort((a, b) => PIECE_VALUES[b.role] - PIECE_VALUES[a.role]);
   // a single target counts only if the line really wins it (an opponent capture on that square)
   const lineTakes = (sq: string) => input.line.steps.some((s, i) => i >= 2 && s.color !== mover && s.uci.slice(2, 4) === sq && s.facts.some((f) => f.type === 'capture'));
-  const targets = fresh.length >= 2 ? fresh.slice(0, 3) : fresh.filter((t) => lineTakes(t.square) && input.line.result === 'loses-material');
+  // a reply piece the mover can simply win (…Qxf2+ Rbxf2) threatens nothing: no targets, no threat
+  const replyLoose = !after.isEnd() && hangingLoss(after, reply.to) > 0;
+  const targets = replyLoose ? [] : fresh.length >= 2 ? fresh.slice(0, 3) : fresh.filter((t) => lineTakes(t.square) && input.line.result === 'loses-material');
 
-  const threat = input.replyThreat ?? null;
+  const threat = replyLoose ? null : input.replyThreat ?? null;
   if (threat && !kept.some((f) => f.type === 'checkmate')) kept.push(threat);
 
   const out: AllowsFact = { type: 'allows', reply: { san, uci: standardUci(afterMove, reply) }, facts: kept };
@@ -610,6 +612,13 @@ function replyWasAlreadyThere(fenBefore: string, replyUci: string, facts: readon
   const pos = positionFromFen(nf);
   const m = legalMove(pos, replyUci);
   if (!m) return false;
+  // a mate-in-one threat the reply sets up that it would have set up before the move as well (…Qd6 hitting h2)
+  const mateThreat = facts.some((f) => f.type === 'threat' && f.mateIn === 1);
+  if (mateThreat) {
+    const p = pos.clone();
+    p.play(m);
+    if (threatensMateInOne(p)) return true;
+  }
   const cap = facts.find((f): f is Extract<Fact, { type: 'capture' }> => f.type === 'capture');
   if (cap && !(capturedBy(pos, m) && seeMove(pos, replyUci) >= cap.net)) return false;
   if (facts.some((f) => f.type === 'fork' || f.type === 'checkmate' || f.type === 'skewer' || f.type === 'discovered-attack')) return false;

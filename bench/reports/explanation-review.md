@@ -39,3 +39,40 @@ Categories: **FALSE** (wrong on the board / contradicts the line), **MISLEADING*
 | 28 | 14...Qe6 | Immediate vs label | "(−2 points)" vs label "(−3 points)" | MISLEADING | SEE of the hang vs material-rule loss | not fixed here (label number = classify.ts / M3) — reported |
 | 20 | 10...cxb5 | Immediate | "Allows Bxb5+, with check." | USELESS | says nothing | a check-only reply is no refutation (`refutationFact` returns null) |
 | 33 | 17.Rd8# | Long | "White just had to play this — every other move is much worse." | USELESS | after mate | "The game is over." |
+
+## Round 2 — all 7 games (r2), five independent reviewer agents
+
+180 entries. Totals: FALSE 22, MISLEADING 75, USELESS 80, WEAK 43; picks 47 good / 15 bad. Per game (F/M/U/W,
+picks good/bad): Opera 2/8/10/6, 3/2 · tM14SUiA 3/5/8/2, 5/3 · PuBQ0CoQ 2/5/9/3, 3/0 · mcz8Z7Cr 4/14/8/7, 8/4 ·
+lmnbpO0B 6/15/12/4, 8/2 · 5frUvyHl 2/15/15/11, 6/1 · dmVsbMbS 3/13/18/10, 14/3.
+
+Representative defects, grouped by root cause (all instances of a cause were fixed by one change):
+
+| Game, ply | Move | Level | Sentence | Cat. | Root cause → fix |
+|---|---|---|---|---|---|
+| lmnbpO0B 19 | h4 (best) | Imm | "Leaves the bishop on e5 hanging (−3)" | FALSE | SEE ignores the pin (Nxe5 Nxe5 drops the queen) → a `hangs` fact needs the engine line to actually take the piece within 6 plies (`analyzeMove.verifyWithLine`) |
+| lmnbpO0B 39 / 50 | Qxf6 / Nd3 | Imm | "Leaves the rook on h7 hanging" / "knight on d3 hanging" | FALSE | same |
+| dmVsbMbS 45 | Ne5 (pick) | Imm | "stops Black's threat Nxf2" | FALSE | the PV plays Nxf2 anyway → "stops the threat" only if the move's PV doesn't play it |
+| mcz8Z7Cr 10 | Be6 / Nf6 | Imm | "Stops White's threat cxd4" | FALSE | same |
+| 5frUvyHl 32 | Rdf8 | Imm | "Nothing special happens right away." | FALSE | the threat sentence was dropped (line loses a pawn) after its attack sentence had been removed as "covered" → filter order fixed: "Attacks White's queen on f7, which is undefended." |
+| 5frUvyHl 33, mcz8Z7Cr 43, tM14SUiA 29/46, Opera 28 | label | Label | "leaves the pawn on h3 hanging (−2)" (no pawn on h3) | FALSE | label used the material rule's best-effort `hung` (a capture square later in the PV) → the label names a piece only from the move's own verified `hangs` fact (with its number), else "loses material in the engine line (−N points)" |
+| dmVsbMbS 57 | Rg8+ | Imm | "Allows Kh7, attacking … rook on g8 and pawn on a7" | FALSE | the en-prise pieces were told as the reply piece's attack → "then White's rook on g8 and pawn on a7 are both under attack" |
+| Opera 27, tM14SUiA 31 | Rd1 / g4 | Imm | "Threatens Bxd7+, winning material (+8)" | FALSE | threat gain summed the null-move line → net gain (capture: its SEE; fork: best target) and threats that already existed before the move are dropped (`threatExistedBefore`) |
+| PuBQ0CoQ 23, lmnbpO0B 40 | Qxf3 / Nxf6 | Imm | "Sacrifices … — the follow-up wins it back with interest" | FALSE | the "gain" was winning back the opponent's capture → `line.owed`; "with interest" only if the line gains more than what was owed |
+| mcz8Z7Cr 10, 32; dmVsbMbS 36; lmnbpO0B 19, 43 | various | Short | "material stays level" / "Black loses a pawn" while a side is a pawn up | MISLEADING | change vs balance mixed → result = change + resulting balance when material wasn't level ("Black loses a pawn (−1 point); material is level"; trades: "the material balance doesn't change (White is a pawn up)") |
+| tM14SUiA 5, PuBQ0CoQ 14, Opera 8 | various | Short | "dxc4 wins the pawn → White loses a pawn" (Bxc4 regains) | MISLEADING | a quiet/settled stop point before a regain → stop points must agree with the line's eval direction (Berlin 4...Nxe4 is quiet but no payoff); real gambits fall back to the first quiet point |
+| PuBQ0CoQ 5/9, mcz8Z7Cr 6/20, tM14SUiA 5/6/15, dmVsbMbS 17, Opera 19 | exd5, cxd5, … | Long | "White gets doubled pawns on the d-file" | MISLEADING | measured before the pending recapture → move-level structure / bishop-pair facts must persist to the end of the short line |
+| 5frUvyHl 14–16, tM14SUiA 23 | Be7, Bxe7, Ne5 | Long | "Black gives up the bishop pair… White loses the bishop pair" | USELESS | each side traded one bishop → only reported when one side keeps the pair and the other doesn't |
+| 5frUvyHl 39 | Rf5 | Short | "Rf5 (forced)" | MISLEADING | an attacking reply (mate threat) called forced → "(forced)" only for defensive replies: no check, winning capture, fork, attack on a piece (unless escaping check) or mate threat |
+| mcz8Z7Cr 32, 5frUvyHl 27, dmVsbMbS 22 | Kh8 / Kg2 / O-O | Imm | "Allows Qxb7 …" (already possible) | MISLEADING | refutation not created by the move → `allows.already` ("Doesn't stop Qb6 …"); a refutation the best move allows the same way is dropped |
+| lmnbpO0B 38/39, Opera 21/23 | various | Short | "bxc3 wins the queen" / "Bxd7+ takes back" (takes the queen) | MISLEADING | "takes back" by square only → by running balance and square: only winning back what was lost |
+| PuBQ0CoQ 44, mcz8Z7Cr 43, dmVsbMbS 53/55 | Qxa2, Rxf2, a6 | Imm | "Allows Rxd8+ … mate in 3. Allows White a forced mate in 3. Wins … for free" | USELESS + MISLEADING | mate not dominant → one mate sentence; no gains / attacks told when the line gets mated; "Starts a forced mate in N" for mating moves; Long: "There is a forced mate, so long-term features don't matter here." |
+| 5frUvyHl 39, dmVsbMbS 31/36/40 | Kg1, Rd1+, … | Long | "improves development", "gains space", "more room to move" | USELESS | filler → no development note for king/rook moves, centre/space only for pawn moves, no mobility notes |
+| tM14SUiA 13/40, lmnbpO0B 46–48, dmVsbMbS 4 | Bh4, Ra8, Nc6 | Imm | "Stops threat … Saves the bishop …" | WEAK | same fact twice → escape/defend dropped when a defends-threat names the same square |
+| 5frUvyHl 37 | h3 | Imm | "Saves the pawn … safe on h3" (Rxh3 follows) | MISLEADING | escape contradicted by the line → dropped when the opponent captures there later in the line |
+| 5frUvyHl 38/42, 40/44 | Qf3+ etc. | Imm | "Gives check." on a Blunder | USELESS | check-only refutations were dropped → kept when the line then costs material: "allows Nf4+ (check) — in the engine line this costs White 2 points" |
+| mcz8Z7Cr 43/44 | Rc1, Rf1 | Short | "attacks the rook" (blocks a check) | WEAK | new step clause "blocks the check" |
+
+Not fixed in this round (outside these files or too deep): pre-existing pins reported as new (immediate.ts),
+"defends" for a blocking move (immediate.ts), Great moves explained only by their own line (no "what the 2nd best
+allows" fact), picks whose story equals the played move's, positional mistakes with no concrete fact.
