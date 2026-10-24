@@ -11,7 +11,10 @@ Coordinator keeps this updated. Each milestone is done by a subagent; its report
     dedupe, bump, FIFO), `/api/health`. `npm run setup:engine` is idempotent.
   - 58 tests (engine integration tests auto-skip without the binary). Deep d18 MultiPV5 ≈ 1.4–6.8 s/move
     (Threads 10) — ≥95 % of per-move cost; see ARCHITECTURE.md "Analysis budget".
-- [ ] **M1a Classification** — material/SEE helpers, classify.ts (all labels + material rule + Miss + Great + Forced), book.ts, tests.
+- [x] **M1a Classification** — material/SEE helpers, classify.ts (all labels + material rule + Miss + Great + Forced), book.ts, tests.
+  - material.ts (lineMaterial to quiet point), classify.ts (ClassifyInput/classifyMove/materialCheck, mover-POV scores), book.ts (Lichess TSVs vendored, 0.3 s load).
+  - Interpretations: material reference capped at current/pre-opponent-move material (so missed free pieces are Miss, not material Blunder); mating best line never flags a still-mating move; recapture on last-move square is never Great; book traps (Fool's mate) keep Miss/Blunder.
+  - Material guard uses unclamped cp (mate = ±(100000−100n)) so hanging a queen at +17.8→+8.5 is a Blunder. 153 server tests.
 - [ ] **M1b Facts** — immediate.ts, positional.ts (+ deltas), tests.
 - [ ] **M1c Client UI** — full v1 screen against fixture data (no server dependency), component tests.
 - [ ] **M2 Integration** — line.ts (short-term narration + forcedness), suggest.ts, explain.ts, analyzeMove.ts, games/cache/routes/SSE, client wired to API.
