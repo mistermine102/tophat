@@ -1,0 +1,15 @@
+{
+  "fork": "20/20 real forks (K+R, K+Q, Q+B, …; Lichess left them untagged)",
+  "pin": "20/20 real pins (several are side effects of back-rank checks, e.g. Qe8+ pinning Bc8 to Ra8)",
+  "skewer": "20/20 real skewers (K→R, K→Q, Q→B)",
+  "discoveredAttack": "20/20 real discovered attacks / discovered checks",
+  "doubleCheck": "no firings (rule-based)",
+  "hangingPiece": "20/20 SEE-correct winning captures (most puzzle first moves win material)",
+  "hangingPiece (opp move hangs)": "20/20 real SEE losses (after the counter-capture filter; 1/20 was moot by a counter-attack before it)",
+  "mateIn1": "100 % (rule-based; the rare firings are mates in puzzles tagged otherwise)",
+  "mateIn1 (opp move allows)": "100 % (brute force)",
+  "mate (last move)": "100 % (rule-based)",
+  "promotion": "no firings (rule-based)",
+  "enPassant": "no firings (rule-based)",
+  "castling": "no firings (rule-based)"
+}
