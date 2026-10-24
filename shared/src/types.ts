@@ -13,7 +13,7 @@ export interface PieceRef { role: PieceRole; square: string; color: Color }
 // Facts: discriminated union. Data only; `explain.ts` renders text.
 export type Fact =
   | { type: 'check'; double?: boolean; discovered?: boolean }
-  | { type: 'checkmate' }
+  | { type: 'checkmate'; double?: boolean; discovered?: boolean }
   | { type: 'capture'; captured: PieceRef; outcome: 'wins-material' | 'even-trade' | 'recapture' | 'loses-material'; net: number }
   | { type: 'promotion'; to: PieceRole }
   | { type: 'castle'; side: 'king' | 'queen' }
@@ -26,12 +26,12 @@ export type Fact =
   | { type: 'escape'; piece: PieceRef; from: string }               // piece was en prise, now safe
   | { type: 'defend'; defender: PieceRef; piece: PieceRef }          // newly defends an attacked piece
   | { type: 'block-check' } | { type: 'escape-check' }
-  | { type: 'hangs'; piece: PieceRef; loss: number }                 // negative: leaves material en prise
+  | { type: 'hangs'; piece: PieceRef; loss: number; already?: boolean }  // negative: leaves material en prise; already = was en prise before the move and still is
   | { type: 'allows-mate'; inMoves: number }                         // negative
   | { type: 'threat'; move: string; san: string; gain: number; mateIn?: number; facts: Fact[] }
   | { type: 'line'; steps: LineStep[]; materialDelta: number; mateIn?: number; result: 'wins-material' | 'loses-material' | 'mate' | 'mated' | 'trade' | 'quiet' }
   | { type: 'forced-reply'; san: string; alternatives: number }      // opponent's reply was (nearly) the only move
-  | { type: 'positional'; feature: PositionalFeature; delta: number; detail?: string }
+  | { type: 'positional'; feature: PositionalFeature; delta: number; detail?: string; side?: 'own' | 'opponent'; squares?: string[] }  // delta: + = good for mover; side: whose pieces changed
   | { type: 'positional-gain'; cp: number }                          // eval gain not explained by material
   | { type: 'deep-payoff' }                                          // only deep search likes it
   | { type: 'necessary' }                                            // all alternatives much worse
