@@ -2,23 +2,22 @@
 
 Hoogovens · Wijk aan Zee NED · 1999.01.20
 
-Engine Stockfish 19, 10 threads; deep d18 MultiPV 5, shallow d8, threat d12, forcedness d12.
-Wall time 414.3 s for 87 plies (4.76 s/ply); engine searches run 947 (412.1 s engine time), served from cache 253.
+Engine Stockfish 19, 5 threads; deep d18 MultiPV 5, shallow d8, threat d12, forcedness d12.
+Wall time 2.7 s for 87 plies (0.03 s/ply); engine searches run 0 (0.0 s engine time), served from cache 1003.
 
 ## Summary
 
 | | White (Garry Kasparov) | Black (Veselin Topalov) |
 |---|---|---|
-| Accuracy | 93.5 | 87.2 |
+| Accuracy | 97.4 | 93.0 |
 | Forced | 0 | 1 |
 | Book | 4 | 3 |
-| Best | 18 | 20 |
-| Great ! | 11 | 8 |
-| Excellent | 3 | 6 |
+| Best | 19 | 21 |
+| Great ! | 12 | 7 |
+| Excellent | 2 | 6 |
 | Good | 6 | 3 |
 | Inaccuracy ?! | 1 | 1 |
 | Mistake ? | 0 | 1 |
-| Blunder ?? | 1 | 0 |
 
 ## Moves
 
@@ -26,549 +25,548 @@ Wall time 414.3 s for 87 plies (4.76 s/ply); engine searches run 947 (412.1 s en
 
 Book — a known opening move (King's Pawn Game, B00).
 
-Eval +0.2 → +0.2 · White's win% 52 → 52 · winLoss 0.0 · accuracy 99
+Eval +0.3 → +0.3 · White's win% 53 → 53 · winLoss 0.0 · accuracy 99
 
 - *Immediate:* Nothing special happens right away.
-- *Short term:* No forcing follow-up; material stays level (engine line: e4 e5 Nf3 Nc6).
-- *Long term:* White gains control of the centre.
+- *Short term:* No forcing follow-up.
+- *Long term:* No notable long-term change.
 
-Good — this was the move.
+Opening theory.
 
-<sub>Candidates: e4 +0.2 ✗(no-concrete-fact) · Nf3 +0.2 ✗(no-concrete-fact) · d4 +0.2 ✗(no-concrete-fact) · c4 +0.2 ✗(no-concrete-fact) · e3 +0.1 ✗(no-concrete-fact)</sub>
-<sub>Timings: total 3.80s, deep 1.78s, deepAfter 1.69s, shallow 0.01s, threat 0.17s, forcedness 0.12s, facts 0.01s; cached searches 0</sub>
+<sub>Candidates: e4 +0.3 ✗(no-concrete-fact) · d4 +0.2 ✗(no-concrete-fact) · Nf3 +0.2 ✗(no-concrete-fact) · e3 +0.1 ✗(no-concrete-fact) · c4 +0.1 ✗(no-concrete-fact)</sub>
+<sub>Timings: total 0.04s, facts 0.03s; cached searches 9</sub>
 
 ### 1... d6 — Book
 
 Book — a known opening move (Pirc Defense, B00).
 
-Eval +0.2 → +0.6 · Black's win% 48 → 45 · winLoss 3.1 · accuracy 87
+Eval +0.3 → +0.5 · Black's win% 47 → 46 · winLoss 1.6 · accuracy 93
 
 - *Immediate:* Nothing special happens right away.
-- *Short term:* No forcing follow-up; material stays level (engine line: d6 d4 Nf6 Nc3).
+- *Short term:* No forcing follow-up.
 - *Long term:* No notable long-term change.
 
-Good — this was the move.
+Opening theory.
 
-<sub>Candidates: e5 +0.2 ✗(no-concrete-fact) · c6 +0.3 ✗(no-concrete-fact) · c5 +0.3 ✗(no-concrete-fact) · e6 +0.5 ✗(no-concrete-fact) · d6 +0.5 ✗(no-concrete-fact)</sub>
-<sub>Timings: total 1.37s, deepAfter 1.25s, forcedness 0.10s, facts 0.01s; cached searches 10</sub>
+<sub>Candidates: e5 +0.3 ✗(no-concrete-fact) · e6 +0.3 ✗(no-concrete-fact) · c5 +0.4 ✗(no-concrete-fact) · c6 +0.4 ✗(no-concrete-fact) · Nc6 +0.5 ✗(no-concrete-fact)</sub>
+<sub>Timings: total 0.04s, facts 0.03s; cached searches 12</sub>
 
 ### 2. d4 — Book
 
 Book — a known opening move (Pirc Defense, B00).
 
-Eval +0.6 → +0.5 · White's win% 55 → 55 · winLoss 0.0 · accuracy 100
+Eval +0.5 → +0.5 · White's win% 54 → 54 · winLoss 0.0 · accuracy 100
 
 - *Immediate:* Nothing special happens right away.
-- *Short term:* No forcing follow-up; material stays level (engine line: d4 Nf6 Nc3 e5).
+- *Short term:* No forcing follow-up.
 - *Long term:* White gains control of the centre.
 
-Good — this was the move.
+Opening theory.
 
-<sub>Candidates: d4 +0.6 ✗(no-concrete-fact) · Nf3 +0.4 ✗(no-concrete-fact) · Nc3 +0.4 ✗(no-concrete-fact) · Ne2 +0.3 ✗(no-concrete-fact) · g3 +0.3 ✗(no-concrete-fact)</sub>
-<sub>Timings: total 2.39s, deepAfter 2.10s, shallow 0.01s, threat 0.12s, forcedness 0.16s, facts 0.01s; cached searches 2</sub>
+<sub>Candidates: d4 +0.5 ✗(no-concrete-fact) · Nc3 +0.3 ✗(no-concrete-fact) · Ne2 +0.3 ✗(no-concrete-fact) · g3 +0.3 ✗(no-concrete-fact) · Nf3 +0.3 ✗(no-concrete-fact)</sub>
+<sub>Timings: total 0.03s, facts 0.02s; cached searches 9</sub>
 
 ### 2... Nf6 — Book
 
 Book — a known opening move (Pirc Defense, B00).
 
-Eval +0.5 → +0.6 · Black's win% 45 → 45 · winLoss 0.0 · accuracy 99
+Eval +0.5 → +0.5 · Black's win% 46 → 46 · winLoss 0.0 · accuracy 100
 
-- *Immediate:* Threatens Nxe4, winning a pawn (+1). Develops the knight to f6.
-- *Short term:* No forcing follow-up; material stays level (engine line: Nf6 Nc3 e5 Nf3 Nbd7).
-- *Long term:* Black gains control of the centre.
+- *Immediate:* Threatens Nxe4, winning a pawn (+1 point). Develops the knight to f6.
+- *Short term:* No forcing follow-up.
+- *Long term:* No notable long-term change.
 
-Good — this was the move.
+Opening theory.
 
-<sub>Candidates: Nf6 +0.5 ✓ · e5 +0.6 ✗(no-concrete-fact) · g6 +0.7 ✗(no-concrete-fact) · a6 +0.7 ✗(no-concrete-fact) · c6 +0.8 ✗(no-concrete-fact)</sub>
-<sub>Timings: total 1.97s, deepAfter 1.72s, shallow 0.01s, threat 0.17s, forcedness 0.06s, facts 0.01s; cached searches 3</sub>
+<sub>Candidates: Nf6 +0.5 ✓ · g6 +0.7 ✗(no-concrete-fact) · a6 +0.7 ✗(no-concrete-fact) · e5 +0.8 ✗(no-concrete-fact) · Nd7 +0.8 ✗(no-concrete-fact)</sub>
+<sub>Timings: total 0.02s, facts 0.02s; cached searches 12</sub>
 
 ### 3. Nc3 — Book
 
 Book — a known opening move (Pirc Defense, B00).
 
-Eval +0.6 → +0.5 · White's win% 55 → 55 · winLoss 0.0 · accuracy 99
+Eval +0.5 → +0.5 · White's win% 54 → 55 · winLoss 0.0 · accuracy 100
 
-- *Immediate:* Stops Black's threat Nxe4, which would win a pawn (+1 for Black). Defends the pawn on e4, which was under attack. Develops the knight to c3.
-- *Short term:* No forcing follow-up; material stays level (engine line: Nc3 e5 Nf3 Nbd7).
-- *Long term:* White gains control of the centre.
+- *Immediate:* Stops Black's threat Nxe4, which would win a pawn (+1 point for Black). Develops the knight to c3.
+- *Short term:* No forcing follow-up.
+- *Long term:* No notable long-term change.
 
-Good — this was the move.
+Opening theory.
 
-<sub>Candidates: Nc3 +0.6 ✓ · f3 +0.4 ✓ · Bd3 +0.3 ✓ · Nd2 +0.3 ✓ · Bb5+ +0.1 ✓</sub>
-<sub>Timings: total 3.15s, deepAfter 2.60s, shallow 0.01s, threat 0.47s, forcedness 0.05s, facts 0.02s; cached searches 3</sub>
+<sub>Candidates: Nc3 +0.5 ✓ · Bd3 +0.4 ✓ · f3 +0.4 ✓ · Nd2 +0.3 ✓ · Bb5+ +0.3 ✓</sub>
+<sub>Timings: total 0.03s, facts 0.02s; cached searches 12</sub>
 
 ### 3... g6 — Book
 
 Book — a known opening move (Pirc Defense, B07).
 
-Eval +0.5 → +0.7 · Black's win% 45 → 44 · winLoss 1.9 · accuracy 95
+Eval +0.5 → +0.7 · Black's win% 45 → 44 · winLoss 1.7 · accuracy 95
 
 - *Immediate:* Nothing special happens right away.
-- *Short term:* No forcing follow-up; material stays level (engine line: g6 Be3 a6 Nf3).
+- *Short term:* No forcing follow-up.
 - *Long term:* No notable long-term change.
 
-Good — this was the move.
+Opening theory.
 
-<sub>Candidates: e5 +0.5 ✗(no-concrete-fact) · e6 +0.7 ✗(no-concrete-fact) · g6 +0.7 ✗(no-concrete-fact) · Nbd7 +0.8 ✗(no-concrete-fact) · a6 +0.9 ✗(no-concrete-fact)</sub>
-<sub>Timings: total 3.40s, deepAfter 2.86s, shallow 0.02s, threat 0.29s, forcedness 0.20s, facts 0.02s; cached searches 3</sub>
+<sub>Candidates: e5 +0.5 ✗(no-concrete-fact) · e6 +0.6 ✗(no-concrete-fact) · Nbd7 +0.7 ✗(no-concrete-fact) · g6 +0.7 ✗(no-concrete-fact) · Nc6 +0.9 ✗(no-concrete-fact)</sub>
+<sub>Timings: total 0.03s, facts 0.02s; cached searches 10</sub>
 
 ### 4. Be3 — Book
 
 Book — a known opening move (Pirc Defense, B07).
 
-Eval +0.7 → +0.5 · White's win% 56 → 55 · winLoss 0.0 · accuracy 95
+Eval +0.7 → +0.7 · White's win% 56 → 56 · winLoss 0.0 · accuracy 100
 
 - *Immediate:* Develops the bishop to e3.
-- *Short term:* No forcing follow-up; material stays level (engine line: Be3 Bg7 Qd2 c6).
+- *Short term:* No forcing follow-up.
 - *Long term:* No notable long-term change.
 
-Good — this was the move.
+Opening theory.
 
-<sub>Candidates: Be3 +0.7 ✗(no-concrete-fact) · Bg5 +0.6 ✗(no-concrete-fact) · Bf4 +0.6 ✗(no-concrete-fact) · Nf3 +0.6 ✗(no-concrete-fact) · f3 +0.6 ✗(no-concrete-fact)</sub>
-<sub>Timings: total 3.15s, deepAfter 2.82s, shallow 0.01s, threat 0.19s, forcedness 0.10s, facts 0.01s; cached searches 2</sub>
+<sub>Candidates: Be3 +0.7 ✗(no-concrete-fact) · Bf4 +0.6 ✗(no-concrete-fact) · Bg5 +0.5 ✗(no-concrete-fact) · f4 +0.5 ✗(no-concrete-fact) · f3 +0.5 ✗(no-concrete-fact)</sub>
+<sub>Timings: total 0.02s, facts 0.02s; cached searches 10</sub>
 
 ### 4... Bg7 — Best
 
 Best — the engine's top choice.
 
-Eval +0.5 → +0.6 · Black's win% 45 → 45 · winLoss 0.0 · accuracy 100
+Eval +0.7 → +0.7 · Black's win% 44 → 44 · winLoss 0.0 · accuracy 100
 
 - *Immediate:* Develops the bishop to g7.
-- *Short term:* No forcing follow-up; material stays level (engine line: Bg7 Qd2 c6 Nf3).
+- *Short term:* No forcing follow-up.
 - *Long term:* No notable long-term change.
 
-Good — this was the move.
+This was the best move.
 
-<sub>Candidates: Bg7 +0.5 ✗(no-concrete-fact) · c6 +0.8 ✗(no-concrete-fact) · a6 +0.8 ✗(no-concrete-fact) · e5 +0.9 ✗(no-concrete-fact) · Nc6 +1.0 ✗(no-concrete-fact)</sub>
-<sub>Timings: total 4.42s, deepAfter 4.00s, shallow 0.04s, threat 0.19s, forcedness 0.18s, facts 0.01s; cached searches 2</sub>
+<sub>Candidates: Bg7 +0.7 ✗(no-concrete-fact) · a6 +0.8 ✗(no-concrete-fact) · c6 +0.8 ✗(no-concrete-fact) · e5 +0.9 ✗(no-concrete-fact) · Nc6 +0.9 ✗(no-concrete-fact)</sub>
+<sub>Timings: total 0.02s, facts 0.02s; cached searches 10</sub>
 
 ### 5. Qd2 — Best
 
 Best — the engine's top choice.
 
-Eval +0.6 → +0.7 · White's win% 55 → 56 · winLoss 0.0 · accuracy 100
+Eval +0.7 → +0.7 · White's win% 56 → 56 · winLoss 0.0 · accuracy 100
 
 - *Immediate:* Nothing special happens right away.
-- *Short term:* No forcing follow-up; material stays level (engine line: Qd2 c6 a4 O-O).
+- *Short term:* No forcing follow-up.
 - *Long term:* No notable long-term change.
 
-Good — this was the move.
+This was the best move.
 
-<sub>Candidates: Qd2 +0.6 ✗(no-concrete-fact) · f3 +0.5 ✗(no-concrete-fact) · Nf3 +0.5 ✓ · Be2 +0.5 ✗(no-concrete-fact) · f4 +0.4 ✗(no-concrete-fact)</sub>
-<sub>Timings: total 3.43s, deepAfter 2.93s, shallow 0.01s, threat 0.20s, forcedness 0.27s, facts 0.02s; cached searches 3</sub>
+<sub>Candidates: Qd2 +0.7 ✗(no-concrete-fact) · f3 +0.6 ✗(no-concrete-fact) · Nf3 +0.5 ✗(no-concrete-fact) · h3 +0.4 ✗(no-concrete-fact) · Be2 +0.4 ✗(no-concrete-fact)</sub>
+<sub>Timings: total 0.02s, facts 0.01s; cached searches 9</sub>
 
-### 5... c6 — Best
+### 5... c6 — Excellent
 
-Best — the engine's top choice.
+Excellent — almost as good as the best move a6 (−1% winning chances).
 
-Eval +0.7 → +0.6 · Black's win% 44 → 44 · winLoss 0.0 · accuracy 100
+Eval +0.7 → +0.7 · Black's win% 44 → 43 · winLoss 0.7 · accuracy 100
 
 - *Immediate:* Nothing special happens right away.
-- *Short term:* No forcing follow-up; material stays level (engine line: c6 a4 O-O f3).
-- *Long term:* After the line, Black's king is safer (it is tucked away behind its pawns).
+- *Short term:* No forcing follow-up.
+- *Long term:* No notable long-term change.
 
-Good — this was the move.
+**Engine's top:** a6 — deep engine move — hard to explain (a6 Bh6 Bxh6 Qxh6 e5 dxe5)
+  - *Immediate:* Nothing special happens right away.
+  - *Short term:* a6 → Bh6 attacks the bishop → Bxh6 Qxh6 (bishops are traded) → material stays level.
+  - *Long term:* No notable long-term change.
 
-<sub>Candidates: c6 +0.7 ✗(no-concrete-fact) · Nbd7 +0.7 ✗(no-concrete-fact) · a6 +0.8 ✗(no-concrete-fact) · O-O +0.9 ✗(no-concrete-fact) · Ng4 +1.0 ✗(no-concrete-fact)</sub>
-<sub>Timings: total 2.44s, deepAfter 2.19s, shallow 0.02s, threat 0.18s, forcedness 0.03s, facts 0.01s; cached searches 3</sub>
+<sub>Candidates: a6 +0.7 ✗(no-concrete-fact) · c6 +0.8 ✗(no-concrete-fact) · Nbd7 +0.8 ✗(no-concrete-fact) · Nc6 +1.0 ✗(no-concrete-fact) · O-O +1.1 ✗(no-concrete-fact)</sub>
+<sub>Timings: total 0.04s, facts 0.03s; cached searches 10</sub>
 
 ### 6. f3 — Good
 
-Good — a little weaker than a4 (−4% winning chances).
+Good — a little weaker than Nf3 (−4% winning chances).
 
-Eval +0.6 → +0.2 · White's win% 56 → 52 · winLoss 3.7 · accuracy 86
+Eval +0.7 → +0.3 · White's win% 57 → 52 · winLoss 4.0 · accuracy 83
 
 - *Immediate:* Nothing special happens right away.
-- *Short term:* f3 → b5 → Bh6 attacks the bishop → Bxh6 takes the bishop → Qxh6 takes back → Nbd7 → material stays level.
+- *Short term:* No forcing follow-up.
 - *Long term:* No notable long-term change.
 
-**Engine's top:** a4 — deep engine move — hard to explain (a4 O-O f3 e5 O-O-O exd4)
-  - *Immediate:* Nothing special happens right away.
-  - *Short term:* No forcing follow-up; material stays level (engine line: a4 O-O f3 e5).
+**Engine's top:** Nf3 — deep engine move — hard to explain (Nf3 Nbd7 Bh6 Bxh6 Qxh6 e5)
+  - *Immediate:* Develops the knight to f3.
+  - *Short term:* No forcing follow-up.
   - *Long term:* No notable long-term change.
 
-<sub>Candidates: a4 +0.6 ✗(no-concrete-fact) · Bh6 +0.5 ✗(no-concrete-fact) · Nf3 +0.5 ✗(no-concrete-fact) · h3 +0.5 ✗(no-concrete-fact) · Be2 +0.4 ✗(no-concrete-fact)</sub>
-<sub>Timings: total 4.68s, deepAfter 3.25s, searchmoves 0.92s, shallow 0.02s, threat 0.23s, forcedness 0.25s, facts 0.01s; cached searches 3</sub>
+<sub>Candidates: Nf3 +0.7 ✗(no-concrete-fact) · a4 +0.6 ✗(no-concrete-fact) · Bh6 +0.6 ✗(no-concrete-fact) · a3 +0.5 ✗(no-concrete-fact) · Be2 +0.4 ✗(no-concrete-fact)</sub>
+<sub>Timings: total 0.03s, facts 0.02s; cached searches 12</sub>
 
 ### 6... b5 — Best
 
 Best — the engine's top choice.
 
-Eval +0.2 → +0.3 · Black's win% 48 → 48 · winLoss 0.0 · accuracy 100
+Eval +0.3 → +0.2 · Black's win% 48 → 48 · winLoss 0.0 · accuracy 100
 
 - *Immediate:* Nothing special happens right away.
-- *Short term:* b5 → Bh6 attacks the bishop → Bxh6 takes the bishop → Qxh6 takes back (forced) → Nbd7 → material stays level.
+- *Short term:* No forcing follow-up.
 - *Long term:* No notable long-term change.
 
-Good — this was the move.
+This was the best move.
 
-<sub>Candidates: b5 +0.2 ✗(no-concrete-fact) · Nbd7 +0.6 ✗(no-concrete-fact) · h5 +0.7 ✗(no-concrete-fact) · a6 +0.7 ✗(no-concrete-fact) · Qa5 +0.8 ✗(too-much-loss,no-concrete-fact)</sub>
-<sub>Timings: total 2.83s, deepAfter 2.46s, shallow 0.01s, threat 0.24s, forcedness 0.10s, facts 0.01s; cached searches 2</sub>
+<sub>Candidates: b5 +0.3 ✗(no-concrete-fact) · Nbd7 +0.6 ✗(no-concrete-fact) · h5 +0.7 ✗(no-concrete-fact) · Qa5 +0.7 ✗(no-concrete-fact) · a6 +0.7 ✗(no-concrete-fact)</sub>
+<sub>Timings: total 0.02s, facts 0.02s; cached searches 9</sub>
 
 ### 7. Nge2 — Best
 
-Best — the engine's top choice.
+Best — as good as the engine's top move (a3).
 
-Eval +0.3 → +0.2 · White's win% 52 → 52 · winLoss 0.0 · accuracy 100
+Eval +0.2 → +0.2 · White's win% 52 → 52 · winLoss 0.4 · accuracy 100
 
 - *Immediate:* Develops the knight to e2.
-- *Short term:* Nge2 → Nbd7 → Bh6 attacks the bishop → Bxh6 takes the bishop → Qxh6 takes back → Bb7 → material stays level.
+- *Short term:* No forcing follow-up.
 - *Long term:* No notable long-term change.
 
-Good — this was the move.
+As good as the engine's top move.
 
-<sub>Candidates: Nge2 +0.3 ✗(no-concrete-fact) · g4 +0.2 ✗(no-concrete-fact) · a3 +0.2 ✗(no-concrete-fact) · Bh6 +0.2 ✗(no-concrete-fact) · a4 +0.2 ✓</sub>
-<sub>Timings: total 4.09s, deepAfter 3.30s, shallow 0.03s, threat 0.16s, forcedness 0.60s, facts 0.01s; cached searches 2</sub>
+<sub>Candidates: a3 +0.2 ✗(no-concrete-fact) · Bh6 +0.2 ✗(no-concrete-fact) · Nge2 +0.2 ✗(no-concrete-fact) · Nd1 +0.2 ✗(no-concrete-fact) · Be2 +0.1 ✗(no-concrete-fact)</sub>
+<sub>Timings: total 0.02s, facts 0.01s; cached searches 10</sub>
 
 ### 7... Nbd7 — Best
 
 Best — the engine's top choice.
 
-Eval +0.2 → +0.2 · Black's win% 48 → 49 · winLoss 0.0 · accuracy 100
+Eval +0.2 → +0.2 · Black's win% 48 → 48 · winLoss 0.0 · accuracy 100
 
 - *Immediate:* Develops the knight to d7.
-- *Short term:* No forcing follow-up; material stays level (engine line: Nbd7 Nd1 O-O h4).
-- *Long term:* After the line, Black's king is safer (it is tucked away behind its pawns).
+- *Short term:* Nbd7 → Bh6 attacks the bishop → Bxh6 Qxh6 (bishops are traded) → material stays level.
+- *Long term:* No notable long-term change.
 
-Good — this was the move.
+This was the best move.
 
-<sub>Candidates: Nbd7 +0.2 ✗(no-concrete-fact) · a5 +0.3 ✗(no-concrete-fact) · Qc7 +0.3 ✗(no-concrete-fact) · h5 +0.5 ✗(no-concrete-fact) · Bb7 +0.6 ✗(no-concrete-fact)</sub>
-<sub>Timings: total 3.09s, deepAfter 2.74s, shallow 0.02s, threat 0.21s, forcedness 0.10s, facts 0.01s; cached searches 2</sub>
+<sub>Candidates: Nbd7 +0.2 ✗(no-concrete-fact) · Qc7 +0.2 ✗(no-concrete-fact) · a5 +0.4 ✗(no-concrete-fact) · h5 +0.5 ✗(no-concrete-fact) · Bb7 +0.6 ✗(no-concrete-fact)</sub>
+<sub>Timings: total 0.02s, facts 0.02s; cached searches 10</sub>
 
 ### 8. Bh6 — Best
 
-Best — the engine's top choice.
+Best — as good as the engine's top move (g4).
 
-Eval +0.2 → +0.2 · White's win% 51 → 52 · winLoss 0.0 · accuracy 100
+Eval +0.2 → +0.2 · White's win% 52 → 52 · winLoss 0.2 · accuracy 100
 
 - *Immediate:* Attacks Black's bishop on g7, which is undefended.
-- *Short term:* Bh6 attacks the bishop → Bxh6 takes the bishop → Qxh6 takes back → Bb7 → material stays level.
+- *Short term:* Bh6 attacks the bishop → Bxh6 Qxh6 (bishops are traded) → material stays level.
 - *Long term:* No notable long-term change.
 
-Good — this was the move.
+As good as the engine's top move.
 
-<sub>Candidates: Bh6 +0.2 ✗(no-concrete-fact) · g4 +0.2 ✗(no-concrete-fact) · a3 +0.1 ✗(no-concrete-fact) · b3 +0.1 ✗(no-concrete-fact) · h4 +0.1 ✗(no-concrete-fact)</sub>
-<sub>Timings: total 2.74s, deepAfter 2.51s, shallow 0.02s, threat 0.20s, facts 0.01s; cached searches 4</sub>
+<sub>Candidates: g4 +0.2 ✗(no-concrete-fact) · Bh6 +0.2 ✗(no-concrete-fact) · b3 +0.1 ✗(no-concrete-fact) · a3 +0.1 ✗(no-concrete-fact) · h4 0.0 ✗(no-concrete-fact)</sub>
+<sub>Timings: total 0.03s, facts 0.02s; cached searches 10</sub>
 
 ### 8... Bxh6 — Best
 
 Best — the engine's top choice.
 
-Eval +0.2 → +0.2 · Black's win% 48 → 49 · winLoss 0.0 · accuracy 100
+Eval +0.2 → +0.2 · Black's win% 48 → 48 · winLoss 0.0 · accuracy 100
 
 - *Immediate:* Takes White's bishop on h6 — an even trade.
-- *Short term:* Bxh6 takes the bishop → Qxh6 takes back (forced) → Bb7 → h4 → material stays level.
-- *Long term:* White loses the bishop pair. Black's pieces get more room to move than White's.
+- *Short term:* Bxh6 takes the bishop → Qxh6 takes back (forced) → material stays level.
+- *Long term:* No notable long-term change.
 
-Good — this was the move.
+This was the best move.
 
-<sub>Candidates: Bxh6 +0.2 ✗(no-concrete-fact) · O-O +0.6 ✓ · Bf8 +0.9 ✗(too-much-loss,shallow-disagrees) · Nh5 +1.0 ✗(too-much-loss,shallow-disagrees) · Kf8 +1.0 ✗(too-much-loss,shallow-disagrees)</sub>
-<sub>Timings: total 2.18s, deepAfter 1.58s, shallow 0.01s, threat 0.34s, forcedness 0.23s, facts 0.01s; cached searches 2</sub>
+<sub>Candidates: Bxh6 +0.2 ✗(no-concrete-fact) · O-O +0.5 ✓ · Bf8 +0.9 ✗(too-much-loss,shallow-disagrees) · Nh5 +1.1 ✗(too-much-loss,shallow-disagrees,no-concrete-fact) · Kf8 +1.2 ✗(too-much-loss,shallow-disagrees)</sub>
+<sub>Timings: total 0.03s, facts 0.02s; cached searches 15</sub>
 
 ### 9. Qxh6 — Best
 
 Best — the engine's top choice.
 
-Eval +0.2 → +0.2 · White's win% 51 → 52 · winLoss 0.0 · accuracy 100
+Eval +0.2 → +0.2 · White's win% 52 → 52 · winLoss 0.0 · accuracy 100
 
-- *Immediate:* Recaptures: takes Black's bishop on h6.
-- *Short term:* Qxh6 takes back → Bb7 → h4 → Qc7 → White wins back a bishop (+3).
-- *Long term:* Black loses the bishop pair. White's pieces get more room to move than Black's.
+- *Immediate:* Takes back: captures Black's bishop on h6.
+- *Short term:* Qxh6 takes back → Bb7 → White wins back a bishop (+3 points); material is level.
+- *Long term:* The only good move here — every other move is much worse.
 
-Good — this was the move.
+This was the best move.
 
-<sub>Candidates: Qxh6 +0.2 ✓ · Qd3 −7.8 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees) · Qd1 −8.0 ✗(too-much-loss,loses-result,shallow-disagrees) · f4 −8.6 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees) · Nf4 −8.8 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees)</sub>
-<sub>Timings: total 2.38s, deepAfter 2.13s, shallow 0.01s, threat 0.15s, forcedness 0.08s, facts 0.01s; cached searches 3</sub>
+<sub>Candidates: Qxh6 +0.2 ✓ · Qd3 −8.0 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees) · Qd1 −8.2 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees) · Nf4 −8.5 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees) · f4 −8.5 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees)</sub>
+<sub>Timings: total 0.02s, facts 0.02s; cached searches 11</sub>
 
 ### 9... Bb7 — Best
 
-Best — the engine's top choice.
+Best — as good as the engine's top move (Qc7).
 
-Eval +0.2 → +0.2 · Black's win% 48 → 48 · winLoss 0.0 · accuracy 100
+Eval +0.2 → +0.3 · Black's win% 48 → 48 · winLoss 0.1 · accuracy 100
 
 - *Immediate:* Develops the bishop to b7.
-- *Short term:* Bb7 → g4 → b4 attacks the knight → Na4.
+- *Short term:* No forcing follow-up.
 - *Long term:* No notable long-term change.
 
-Good — this was the move.
+As good as the engine's top move.
 
-<sub>Candidates: Bb7 +0.2 ✗(no-concrete-fact) · a5 +0.2 ✗(no-concrete-fact) · b4 +0.3 ✓ · Qc7 +0.3 ✗(no-concrete-fact) · Qb6 +0.3 ✗(no-concrete-fact)</sub>
-<sub>Timings: total 3.18s, deepAfter 2.63s, shallow 0.02s, threat 0.21s, forcedness 0.31s, facts 0.01s; cached searches 3</sub>
+<sub>Candidates: Qc7 +0.2 ✗(no-concrete-fact) · Bb7 +0.3 ✗(no-concrete-fact) · Qb6 +0.3 ✗(no-concrete-fact) · a5 +0.3 ✗(no-concrete-fact) · b4 +0.3 ✓</sub>
+<sub>Timings: total 0.03s, facts 0.02s; cached searches 10</sub>
 
 ### 10. a3 — Excellent
 
-Excellent — almost as good as the best move h4 (−1% winning chances).
+Excellent — almost as good as the best move a4 (−1% winning chances).
 
-Eval +0.2 → +0.1 · White's win% 52 → 51 · winLoss 0.7 · accuracy 98
+Eval +0.3 → +0.1 · White's win% 52 → 51 · winLoss 1.3 · accuracy 95
 
 - *Immediate:* Nothing special happens right away.
-- *Short term:* No forcing follow-up; material stays level (engine line: a3 a5 g4 e5).
+- *Short term:* No forcing follow-up.
 - *Long term:* No notable long-term change.
 
-**Try this:** a4 (a4 a6 h4 Qb6 b3 e5; −1.0% winning chances vs the engine's top)
-  - *Immediate:* Threatens axb5, winning a pawn (+1).
-  - *Short term:* No forcing follow-up; material stays level (engine line: a4 a6 h4 Qb6).
-  - *Long term:* No notable long-term change.
-**Engine's top:** h4 (h4 Qc7 a3 a6 O-O-O a5)
+**Engine's top:** a4 — deep engine move — hard to explain (a4 a6 h4 Qb6 Nd1 O-O-O)
   - *Immediate:* Nothing special happens right away.
-  - *Short term:* No forcing follow-up; material stays level (engine line: h4 Qc7 a3 a6).
+  - *Short term:* No forcing follow-up.
   - *Long term:* No notable long-term change.
 
-<sub>Candidates: h4 +0.2 ✗(no-concrete-fact) · g4 +0.1 ✗(no-concrete-fact) · a4 +0.1 ✓ · b3 +0.1 ✗(no-concrete-fact) · Qd2 +0.1 ✗(no-concrete-fact)</sub>
-<sub>Timings: total 4.04s, deepAfter 2.74s, searchmoves 0.50s, shallow 0.02s, threat 0.27s, forcedness 0.49s, facts 0.01s; cached searches 3</sub>
+<sub>Candidates: a4 +0.3 ✗(no-concrete-fact) · h4 +0.2 ✗(no-concrete-fact) · g4 +0.1 ✗(no-concrete-fact) · Nd1 +0.1 ✗(no-concrete-fact) · b3 +0.0 ✗(no-concrete-fact)</sub>
+<sub>Timings: total 0.03s, facts 0.02s; cached searches 13</sub>
 
 ### 10... e5 — Excellent
 
 Excellent — almost as good as the best move a6 (−2% winning chances).
 
-Eval +0.1 → +0.4 · Black's win% 49 → 46 · winLoss 1.9 · accuracy 90
+Eval +0.1 → +0.4 · Black's win% 49 → 47 · winLoss 1.7 · accuracy 90
 
 - *Immediate:* Nothing special happens right away.
-- *Short term:* No forcing follow-up; material stays level (engine line: e5 O-O-O Qe7 g4).
-- *Long term:* Black gains control of the centre.
+- *Short term:* No forcing follow-up.
+- *Long term:* No notable long-term change.
 
-**Try this:** Qa5 (Qa5 h4 c5 Qd2 a6 g4; −1.9% winning chances vs the engine's top)
-  - *Immediate:* Pins White's knight on c3 to the king.
-  - *Short term:* Qa5 pins the knight → h4 → c5 → Qd2.
+**Try this:** Qa5 (Qa5 h4 c5 Qd2 h5 d5; −2.8% winning chances vs the engine's top)
+  - *Immediate:* Pins White's knight on c3 to the king — it is not allowed to move.
+  - *Short term:* Qa5 pins the knight to the king → h4.
   - *Long term:* No notable long-term change.
-**Engine's top:** a6 (a6 h4 Qc7 h5 Rg8 Qd2)
+**Engine's top:** a6 (a6 O-O-O Qc7 h4 c5 h5)
   - *Immediate:* Nothing special happens right away.
-  - *Short term:* No forcing follow-up; material stays level (engine line: a6 h4 Qc7 h5 Rg8 Qd2 c5 O-O-O).
+  - *Short term:* No forcing follow-up.
   - *Long term:* No notable long-term change.
 
-<sub>Candidates: a6 +0.1 ✗(no-concrete-fact) · Qb6 +0.1 ✗(no-concrete-fact) · a5 +0.2 ✗(no-concrete-fact) · Qc7 +0.2 ✗(no-concrete-fact) · Qa5 +0.3 ✓</sub>
-<sub>Timings: total 3.28s, deepAfter 2.05s, searchmoves 0.50s, shallow 0.02s, threat 0.28s, forcedness 0.41s, facts 0.01s; cached searches 2</sub>
+<sub>Candidates: a6 +0.1 ✗(no-concrete-fact) · a5 +0.1 ✗(no-concrete-fact) · Qb6 +0.2 ✗(no-concrete-fact) · Qc7 +0.2 ✗(no-concrete-fact) · Qa5 +0.4 ✓</sub>
+<sub>Timings: total 0.03s, facts 0.02s; cached searches 12</sub>
 
 ### 11. O-O-O — Best
 
 Best — the engine's top choice.
 
-Eval +0.4 → +0.3 · White's win% 54 → 53 · winLoss 0.0 · accuracy 99
+Eval +0.4 → +0.4 · White's win% 53 → 54 · winLoss 0.0 · accuracy 100
 
 - *Immediate:* Castles queenside.
-- *Short term:* O-O-O → a5 → Kb1 → b4 attacks the knight → dxe5 takes the pawn → dxe5 takes back → Na4 → material stays level.
+- *Short term:* No forcing follow-up.
 - *Long term:* White's king is safer (it is tucked away behind its pawns).
 
-Good — this was the move.
+This was the best move.
 
-<sub>Candidates: O-O-O +0.4 ✗(no-concrete-fact) · dxe5 +0.3 ✗(no-concrete-fact) · g4 +0.3 ✗(no-concrete-fact) · h4 +0.1 ✗(no-concrete-fact) · Rd1 +0.1 ✗(no-concrete-fact)</sub>
-<sub>Timings: total 4.22s, deepAfter 3.67s, shallow 0.01s, threat 0.12s, forcedness 0.40s, facts 0.01s; cached searches 2</sub>
+<sub>Candidates: O-O-O +0.4 ✗(no-concrete-fact) · dxe5 +0.3 ✗(no-concrete-fact) · g4 +0.3 ✗(no-concrete-fact) · Rd1 +0.1 ✗(no-concrete-fact) · h4 +0.1 ✗(no-concrete-fact)</sub>
+<sub>Timings: total 0.03s, facts 0.02s; cached searches 10</sub>
 
 ### 11... Qe7 — Best
 
 Best — as good as the engine's top move (a5).
 
-Eval +0.3 → +0.3 · Black's win% 47 → 47 · winLoss 0.1 · accuracy 100
+Eval +0.4 → +0.4 · Black's win% 46 → 46 · winLoss 0.0 · accuracy 100
 
 - *Immediate:* Nothing special happens right away.
-- *Short term:* Qe7 → Kb1 → a5 → dxe5 takes the pawn → dxe5 takes back → Nc1 → material stays level.
+- *Short term:* No forcing follow-up.
 - *Long term:* No notable long-term change.
 
-Good — this was the move.
+As good as the engine's top move.
 
-<sub>Candidates: a5 +0.3 ✗(no-concrete-fact) · Qe7 +0.4 ✗(no-concrete-fact) · Qc7 +0.4 ✗(no-concrete-fact) · Ng8 +0.8 ✓ · Rf8 +0.9 ✗(no-concrete-fact)</sub>
-<sub>Timings: total 3.51s, deepAfter 2.69s, shallow 0.03s, threat 0.18s, forcedness 0.60s, facts 0.01s; cached searches 5</sub>
+<sub>Candidates: a5 +0.4 ✗(no-concrete-fact) · Qc7 +0.4 ✗(no-concrete-fact) · Qe7 +0.4 ✗(no-concrete-fact) · a6 +0.7 ✗(no-concrete-fact) · Ng8 +0.8 ✓</sub>
+<sub>Timings: total 0.04s, facts 0.02s; cached searches 10</sub>
 
 ### 12. Kb1 — Best
 
 Best — the engine's top choice.
 
-Eval +0.3 → +0.3 · White's win% 53 → 53 · winLoss 0.0 · accuracy 100
+Eval +0.4 → +0.3 · White's win% 54 → 52 · winLoss 0.0 · accuracy 95
 
 - *Immediate:* Nothing special happens right away.
-- *Short term:* Kb1 → a5 → dxe5 takes the pawn → dxe5 takes back → Nc1 → material stays level.
+- *Short term:* Kb1 → Nb6 → dxe5 takes the pawn → dxe5 takes back → material stays level.
 - *Long term:* White's king is safer (more pawns in front of it).
 
-Good — this was the move.
+This was the best move.
 
-<sub>Candidates: Kb1 +0.3 ✗(no-concrete-fact) · g4 +0.3 ✗(no-concrete-fact) · dxe5 +0.3 ✗(no-concrete-fact) · d5 +0.1 ✗(no-concrete-fact) · Na2 +0.1 ✗(no-concrete-fact)</sub>
-<sub>Timings: total 3.55s, deepAfter 3.24s, shallow 0.02s, threat 0.11s, forcedness 0.17s, facts 0.01s; cached searches 2</sub>
+<sub>Candidates: Kb1 +0.4 ✗(no-concrete-fact) · g4 +0.3 ✗(no-concrete-fact) · dxe5 +0.3 ✗(no-concrete-fact) · d5 +0.2 ✗(no-concrete-fact) · Na2 0.0 ✗(no-concrete-fact)</sub>
+<sub>Timings: total 0.03s, facts 0.02s; cached searches 11</sub>
 
 ### 12... a6 — Good
 
-Good — a little weaker than Nb6 (−3% winning chances).
+Good — a little weaker than Nb6 (−2% winning chances).
 
-Eval +0.3 → +0.6 · Black's win% 47 → 44 · winLoss 2.9 · accuracy 89
+Eval +0.3 → +0.6 · Black's win% 48 → 44 · winLoss 2.4 · accuracy 88
 
 - *Immediate:* Nothing special happens right away.
-- *Short term:* a6 → dxe5 takes the pawn → dxe5 takes back → Nc1 → material stays level.
+- *Short term:* a6 → dxe5 takes the pawn → dxe5 takes back → material stays level.
 - *Long term:* No notable long-term change.
 
-**Engine's top:** Nb6 — deep engine move — hard to explain (Nb6 h4 a5 Nc1 b4 dxe5)
+**Engine's top:** Nb6 — deep engine move — hard to explain (Nb6 h4 a5 Na2 d5 dxe5)
   - *Immediate:* Nothing special happens right away.
-  - *Short term:* No forcing follow-up; material stays level (engine line: Nb6 h4 a5 Nc1).
+  - *Short term:* No forcing follow-up.
   - *Long term:* No notable long-term change.
 
-<sub>Candidates: Nb6 +0.3 ✗(no-concrete-fact) · O-O-O +0.4 ✗(no-concrete-fact) · a5 +0.5 ✗(no-concrete-fact) · a6 +0.6 ✗(no-concrete-fact) · exd4 +0.7 ✗(no-concrete-fact)</sub>
-<sub>Timings: total 2.90s, deepAfter 2.44s, shallow 0.01s, threat 0.13s, forcedness 0.29s, facts 0.01s; cached searches 2</sub>
+<sub>Candidates: Nb6 +0.3 ✗(no-concrete-fact) · a5 +0.4 ✗(no-concrete-fact) · O-O-O +0.5 ✗(no-concrete-fact) · a6 +0.5 ✗(no-concrete-fact) · exd4 +0.7 ✗(no-concrete-fact)</sub>
+<sub>Timings: total 0.03s, facts 0.02s; cached searches 9</sub>
 
 ### 13. Nc1 — Good
 
 Good — a little weaker than dxe5 (−2% winning chances).
 
-Eval +0.6 → +0.4 · White's win% 56 → 54 · winLoss 2.3 · accuracy 93
+Eval +0.6 → +0.3 · White's win% 56 → 53 · winLoss 2.0 · accuracy 91
 
 - *Immediate:* Nothing special happens right away.
-- *Short term:* Nc1 → exd4 takes the pawn → Rxd4 takes back → c5 attacks the rook → Rd1 → material stays level.
+- *Short term:* Nc1 → exd4 takes the pawn → Rxd4 takes back → material stays level.
 - *Long term:* No notable long-term change.
 
-**Engine's top:** dxe5 — deep engine move — hard to explain (dxe5 dxe5 Nc1 O-O-O g3 Kc7)
+**Engine's top:** dxe5 — deep engine move — hard to explain (dxe5 dxe5 Nc1 O-O-O Qe3 Nc5)
   - *Immediate:* Takes Black's pawn on e5 — an even trade.
-  - *Short term:* dxe5 takes the pawn → dxe5 takes back → Nc1 → O-O-O → material stays level.
-  - *Long term:* White gets doubled pawns on the e-file. White's rook on d1 gets an open file.
+  - *Short term:* dxe5 takes the pawn → dxe5 takes back → material stays level.
+  - *Long term:* White's rook on d1 gets a file without its own pawns in the way.
 
-<sub>Candidates: dxe5 +0.6 ✗(no-concrete-fact) · h4 +0.6 ✗(no-concrete-fact) · g4 +0.6 ✗(no-concrete-fact) · Qd2 +0.4 ✗(no-concrete-fact) · Nc1 +0.3 ✗(no-concrete-fact)</sub>
-<sub>Timings: total 3.05s, deepAfter 2.55s, shallow 0.01s, threat 0.21s, forcedness 0.26s, facts 0.01s; cached searches 2</sub>
+<sub>Candidates: dxe5 +0.6 ✗(no-concrete-fact) · g4 +0.5 ✗(no-concrete-fact) · h4 +0.5 ✗(no-concrete-fact) · Nc1 +0.4 ✗(no-concrete-fact) · g3 +0.4 ✗(no-concrete-fact)</sub>
+<sub>Timings: total 0.03s, facts 0.02s; cached searches 10</sub>
 
-### 13... O-O-O — Excellent
+### 13... O-O-O — Good
 
-Excellent — almost as good as the best move exd4 (−2% winning chances).
+Good — a little weaker than exd4 (−2% winning chances).
 
-Eval +0.4 → +0.6 · Black's win% 46 → 45 · winLoss 1.9 · accuracy 93
+Eval +0.3 → +0.6 · Black's win% 47 → 44 · winLoss 2.2 · accuracy 90
 
 - *Immediate:* Castles queenside.
-- *Short term:* O-O-O → dxe5 takes the pawn → dxe5 takes back → Nb3 → material stays level.
+- *Short term:* No forcing follow-up.
 - *Long term:* Black's king is safer (it is tucked away behind its pawns).
 
-**Engine's top:** exd4 — deep engine move — hard to explain (exd4 Rxd4 c5 Rd1 Nb6 Be2)
+**Engine's top:** exd4 — deep engine move — hard to explain (exd4 Rxd4 c5 Rd1 O-O-O Be2)
   - *Immediate:* Takes White's pawn on d4 — an even trade.
-  - *Short term:* exd4 takes the pawn → Rxd4 takes back (forced) → c5 attacks the rook → Rd1 → material stays level.
-  - *Long term:* Black gets doubled pawns on the d-file. White's rook on d1 gets an open file.
+  - *Short term:* exd4 takes the pawn → Rxd4 takes back (forced) → material stays level.
+  - *Long term:* White's rook on d1 gets a file without its own pawns in the way.
 
-<sub>Candidates: exd4 +0.4 ✗(no-concrete-fact) · O-O-O +0.6 ✗(no-concrete-fact) · Nb6 +0.8 ✗(no-concrete-fact) · Rg8 +1.0 ✗(too-much-loss,shallow-disagrees,no-concrete-fact) · a5 +1.1 ✗(too-much-loss,shallow-disagrees,no-concrete-fact)</sub>
-<sub>Timings: total 2.20s, deepAfter 1.88s, shallow 0.01s, threat 0.13s, forcedness 0.17s, facts 0.01s; cached searches 2</sub>
+<sub>Candidates: exd4 +0.3 ✗(no-concrete-fact) · O-O-O +0.6 ✗(no-concrete-fact) · Nb6 +0.9 ✗(too-much-loss,no-concrete-fact) · a5 +0.9 ✗(too-much-loss,shallow-disagrees,no-concrete-fact) · Rg8 +1.0 ✗(too-much-loss,shallow-disagrees,no-concrete-fact)</sub>
+<sub>Timings: total 0.04s, facts 0.02s; cached searches 10</sub>
 
 ### 14. Nb3 — Good
 
-Good — a little weaker than Qe3 (−2% winning chances).
+Good — a little weaker than dxe5 (−3% winning chances).
 
-Eval +0.6 → +0.3 · White's win% 55 → 53 · winLoss 2.3 · accuracy 90
+Eval +0.6 → +0.3 · White's win% 56 → 53 · winLoss 3.3 · accuracy 88
 
 - *Immediate:* Develops the knight to b3.
-- *Short term:* Nb3 → exd4 takes the pawn → Rxd4 takes back → Nc5 → Nxc5 takes the knight → dxc5 uncovers an attack on the rook (forced) → Rxd8+ takes the rook → Rxd8 takes back → a few moves later, material stays level.
-- *Long term:* After the line, Black's king is more exposed (fewer pawns in front of it and more open files next to it). After the line, Black gets doubled pawns on the c-file.
+- *Short term:* Nb3 → exd4 takes the pawn → Rxd4 takes back → material stays level.
+- *Long term:* No notable long-term change.
 
-**Engine's top:** Qe3 — deep engine move — hard to explain (Qe3 exd4 Qxd4 Rhe8 Be2 Nc5)
-  - *Immediate:* Nothing special happens right away.
-  - *Short term:* Qe3 → exd4 takes the pawn → Qxd4 takes back → Rhe8 → Be2 → Nc5 → material stays level.
-  - *Long term:* White gains control of the centre.
+**Engine's top:** dxe5 — deep engine move — hard to explain (dxe5 dxe5 g3 Kc7 Be2 Nc5)
+  - *Immediate:* Takes Black's pawn on e5 — an even trade.
+  - *Short term:* dxe5 takes the pawn → dxe5 takes back → material stays level.
+  - *Long term:* White's rook on d1 gets a file without its own pawns in the way. After these moves, Black's king is more exposed (fewer pawns in front of it and more open files next to it).
 
-<sub>Candidates: Qe3 +0.6 ✗(no-concrete-fact) · dxe5 +0.5 ✗(no-concrete-fact) · Qd2 +0.4 ✗(no-concrete-fact) · Nb3 +0.3 ✗(no-concrete-fact) · Be2 +0.3 ✗(no-concrete-fact)</sub>
-<sub>Timings: total 3.16s, deepAfter 2.64s, shallow 0.01s, threat 0.10s, forcedness 0.39s, facts 0.01s; cached searches 2</sub>
+<sub>Candidates: dxe5 +0.6 ✗(no-concrete-fact) · Qe3 +0.6 ✗(no-concrete-fact) · Qd2 +0.5 ✗(no-concrete-fact) · Be2 +0.3 ✗(no-concrete-fact) · Nb3 +0.3 ✗(no-concrete-fact)</sub>
+<sub>Timings: total 0.03s, facts 0.02s; cached searches 11</sub>
 
 ### 14... exd4 — Best
 
 Best — the engine's top choice.
 
-Eval +0.3 → +0.4 · Black's win% 47 → 47 · winLoss 0.0 · accuracy 98
+Eval +0.3 → +0.3 · Black's win% 47 → 47 · winLoss 0.0 · accuracy 100
 
 - *Immediate:* Takes White's pawn on d4 — an even trade.
-- *Short term:* exd4 takes the pawn → Nxd4 takes back → c5 attacks the knight → Nb3 → material stays level.
-- *Long term:* Black gets doubled pawns on the d-file. White's rook on d1 gets an open file. After the line, Black's king is more exposed (fewer pawns in front of it).
+- *Short term:* exd4 takes the pawn → Rxd4 takes back → material stays level.
+- *Long term:* White's rook on d1 gets a file without its own pawns in the way.
 
-Good — this was the move.
+This was the best move.
 
-<sub>Candidates: exd4 +0.3 ✗(no-concrete-fact) · Rhe8 +0.7 ✗(no-concrete-fact) · Nb6 +0.8 ✗(no-concrete-fact) · Kc7 +0.8 ✗(no-concrete-fact) · Kb8 +0.8 ✗(no-concrete-fact)</sub>
-<sub>Timings: total 4.93s, deepAfter 4.57s, shallow 0.04s, threat 0.17s, forcedness 0.14s, facts 0.01s; cached searches 2</sub>
+<sub>Candidates: exd4 +0.3 ✗(no-concrete-fact) · Rhe8 +0.7 ✗(no-concrete-fact) · Kb8 +0.8 ✗(no-concrete-fact) · Kc7 +0.8 ✗(no-concrete-fact) · Nb6 +0.8 ✗(no-concrete-fact)</sub>
+<sub>Timings: total 0.03s, facts 0.02s; cached searches 10</sub>
 
 ### 15. Rxd4 — Best
 
 Best — the engine's top choice.
 
-Eval +0.4 → +0.3 · White's win% 53 → 53 · winLoss 0.0 · accuracy 99
+Eval +0.3 → +0.3 · White's win% 53 → 53 · winLoss 0.0 · accuracy 100
 
-- *Immediate:* Recaptures: takes Black's pawn on d4.
-- *Short term:* Rxd4 takes back → c5 attacks the rook → Rd1 → d5 → exd5 wins the pawn → c4 attacks the knight → d6 attacks the queen → Qe5 → a few moves later, White wins back two pawns (+2).
-- *Long term:* Black's doubled pawns on the d-file are gone. After the line, Black's king is more exposed (fewer pawns in front of it and more open files next to it). After the line, White gets a passed pawn on d6.
+- *Immediate:* Takes back: captures Black's pawn on d4.
+- *Short term:* Rxd4 takes back → c5 attacks the rook → Rd1 → White wins back a pawn (+1 point); material is level.
+- *Long term:* No notable long-term change.
 
-Good — this was the move.
+This was the best move.
 
-<sub>Candidates: Rxd4 +0.4 ✓ · Nxd4 +0.3 ✓ · Na2 −1.9 ✗(too-much-loss,material-rule,shallow-disagrees) · Ne2 −3.4 ✗(too-much-loss,loses-result,shallow-disagrees) · Nxb5 −5.3 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees)</sub>
-<sub>Timings: total 4.70s, deepAfter 4.19s, shallow 0.01s, threat 0.17s, forcedness 0.32s, facts 0.01s; cached searches 3</sub>
+<sub>Candidates: Rxd4 +0.3 ✓ · Nxd4 +0.3 ✓ · Na2 −1.6 ✗(too-much-loss,material-rule,shallow-disagrees) · Ne2 −3.3 ✗(too-much-loss,loses-result,shallow-disagrees) · Nxb5 −5.2 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees)</sub>
+<sub>Timings: total 0.03s, facts 0.02s; cached searches 9</sub>
 
 ### 15... c5 — Best
 
-Best — the engine's top choice.
+Best — as good as the engine's top move (Rhe8).
 
-Eval +0.3 → +0.2 · Black's win% 47 → 48 · winLoss 0.0 · accuracy 100
+Eval +0.3 → +0.3 · Black's win% 47 → 47 · winLoss 0.0 · accuracy 100
 
-- *Immediate:* Threatens cxd4, winning material (+4).
-- *Short term:* c5 attacks the rook → Rd1 → Rhe8 → Na5.
-- *Long term:* Black's king is more exposed (fewer pawns in front of it). Black gains control of the centre.
+- *Immediate:* Threatens cxd4, winning material (+4 points).
+- *Short term:* c5 attacks the rook → Rd1.
+- *Long term:* Black's king is more exposed (fewer pawns in front of it).
 
-Good — this was the move.
+As good as the engine's top move.
 
-<sub>Candidates: c5 +0.3 ✓ · Rhe8 +0.4 ✗(no-concrete-fact) · Nc5 +0.4 ✗(no-concrete-fact) · Nb6 +0.4 ✗(no-concrete-fact) · d5 +0.4 ✗(no-concrete-fact)</sub>
-<sub>Timings: total 5.47s, deepAfter 5.00s, shallow 0.02s, threat 0.26s, forcedness 0.17s, facts 0.01s; cached searches 2</sub>
+<sub>Candidates: Rhe8 +0.3 ✗(no-concrete-fact) · c5 +0.3 ✓ · Nb6 +0.3 ✗(no-concrete-fact) · Nc5 +0.4 ✗(no-concrete-fact) · d5 +0.5 ✗(no-concrete-fact)</sub>
+<sub>Timings: total 0.04s, facts 0.03s; cached searches 10</sub>
 
 ### 16. Rd1 — Best
 
 Best — the engine's top choice.
 
-Eval +0.2 → +0.2 · White's win% 52 → 52 · winLoss 0.0 · accuracy 100
+Eval +0.3 → +0.3 · White's win% 53 → 52 · winLoss 0.0 · accuracy 100
 
-- *Immediate:* Stops Black's threat cxd4, which would win material (+4 for Black). Saves the rook: it was under attack on d4 and is safe on d1.
-- *Short term:* Rd1 → Rhe8 → g4 → d5 → g5 attacks the knight → Nh5 → exd5 wins the pawn → Nb6 → a few moves later, White wins a pawn (+1).
-- *Long term:* After the line, Black's king is more exposed (fewer pawns in front of it and more open files next to it). After the line, White gets a passed pawn on d5.
+- *Immediate:* Stops Black's threat cxd4, which would win material (+4 points for Black).
+- *Short term:* No forcing follow-up.
+- *Long term:* No notable long-term change.
 
-Good — this was the move.
+This was the best move.
 
-<sub>Candidates: Rd1 +0.2 ✓ · Rd2 +0.2 ✓ · Rd3 −4.5 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees) · Nxb5 −5.3 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees) · Qd2 −5.6 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees)</sub>
-<sub>Timings: total 4.08s, deepAfter 3.46s, shallow 0.01s, threat 0.41s, forcedness 0.18s, facts 0.01s; cached searches 3</sub>
+<sub>Candidates: Rd1 +0.3 ✓ · Rd2 +0.1 ✓ · Rd3 −4.6 ✗(too-much-loss,hangs-material,loses-result,shallow-disagrees) · Nxb5 −5.0 ✗(too-much-loss,hangs-material,loses-result,shallow-disagrees)</sub>
+<sub>Timings: total 0.02s, facts 0.02s; cached searches 9</sub>
 
 ### 16... Nb6 — Excellent
 
 Excellent — almost as good as the best move Rhe8 (−1% winning chances).
 
-Eval +0.2 → +0.4 · Black's win% 48 → 47 · winLoss 1.0 · accuracy 95
+Eval +0.3 → +0.3 · Black's win% 48 → 47 · winLoss 1.3 · accuracy 97
 
 - *Immediate:* Nothing special happens right away.
-- *Short term:* Nb6 → Qh4 pins the knight to the queen → Kb8 → Qf2.
+- *Short term:* Nb6 → Qh4 pins the knight to the queen.
 - *Long term:* No notable long-term change.
 
-**Engine's top:** Rhe8 — deep engine move — hard to explain (Rhe8 Na5 Nb6 g4 Ba8 a4)
+**Engine's top:** Rhe8 — deep engine move — hard to explain (Rhe8 Be2 Nb6 Rhe1 d5 Qh3+)
   - *Immediate:* Nothing special happens right away.
-  - *Short term:* No forcing follow-up; material stays level (engine line: Rhe8 Na5 Nb6 g4).
-  - *Long term:* Black's rook on e8 gets an open file.
+  - *Short term:* No forcing follow-up.
+  - *Long term:* Black's rook on e8 gets a file without its own pawns in the way.
 
-<sub>Candidates: Rhe8 +0.2 ✗(no-concrete-fact) · d5 +0.3 ✗(hangs-material,no-concrete-fact) · Nb6 +0.3 ✗(no-concrete-fact) · Kb8 +0.6 ✗(no-concrete-fact) · Rhg8 +0.6 ✗(no-concrete-fact)</sub>
-<sub>Timings: total 3.63s, deepAfter 3.12s, shallow 0.02s, threat 0.22s, forcedness 0.25s, facts 0.01s; cached searches 3</sub>
+<sub>Candidates: Rhe8 +0.3 ✗(no-concrete-fact) · Nb6 +0.4 ✗(no-concrete-fact) · d5 +0.4 ✗(hangs-material,no-concrete-fact) · Kb8 +0.6 ✗(no-concrete-fact) · Rhg8 +0.7 ✗(no-concrete-fact)</sub>
+<sub>Timings: total 0.03s, facts 0.02s; cached searches 9</sub>
 
-### 17. g3 — Good
+### 17. g3 — Excellent
 
-Good — a little weaker than Qh4 (−2% winning chances).
+Excellent — almost as good as the best move Qh4 (−2% winning chances).
 
-Eval +0.4 → +0.2 · White's win% 53 → 52 · winLoss 2.2 · accuracy 93
+Eval +0.3 → +0.1 · White's win% 53 → 51 · winLoss 1.8 · accuracy 92
 
 - *Immediate:* Nothing special happens right away.
-- *Short term:* g3 → d5 → Qf4 → d4 attacks the knight (forced) → Bh3+ → Nfd7 → Nd5 attacks the queen → Bxd5 takes the knight → a few moves later, White gives a knight and a pawn for a bishop (−1).
-- *Long term:* After the line, Black's king is more exposed (fewer pawns in front of it).
+- *Short term:* g3 → d5 → Bh3+ → Kb8 (forced) → … → d4 attacks the knight → … → Ka7.
+- *Long term:* No notable long-term change.
 
-**Engine's top:** Qh4 (Qh4 Rhe8 Qf2 Qc7 g4 Kb8)
-  - *Immediate:* Pins Black's knight on f6 to the queen on e7.
-  - *Short term:* Qh4 pins the knight to the queen → Rhe8 → Qf2 → Qc7.
+**Engine's top:** Qh4 (Qh4 Kb8 Qf2 Qc7 g4 Rhe8)
+  - *Immediate:* Pins Black's knight on f6 to the queen on e7 — if it moves, the queen can be taken.
+  - *Short term:* Qh4 pins the knight to the queen → Kb8.
   - *Long term:* No notable long-term change.
 
-<sub>Candidates: Qh4 +0.4 ✓ · Qf4 +0.3 ✗(no-concrete-fact) · Qe3 +0.2 ✗(no-concrete-fact) · g3 +0.1 ✗(no-concrete-fact) · Qh3+ +0.1 ✓</sub>
-<sub>Timings: total 4.76s, deepAfter 4.16s, shallow 0.02s, threat 0.10s, forcedness 0.45s, facts 0.01s; cached searches 2</sub>
+<sub>Candidates: Qh4 +0.3 ✓ · Qf4 +0.3 ✗(no-concrete-fact) · Qe3 +0.2 ✗(no-concrete-fact) · g3 +0.1 ✗(no-concrete-fact) · Qh3+ +0.1 ✓</sub>
+<sub>Timings: total 0.04s, facts 0.02s; cached searches 9</sub>
 
 ### 17... Kb8 — Excellent
 
 Excellent — almost as good as the best move d5 (−1% winning chances).
 
-Eval +0.2 → +0.3 · Black's win% 48 → 48 · winLoss 1.2 · accuracy 98
+Eval +0.1 → +0.3 · Black's win% 49 → 48 · winLoss 1.1 · accuracy 96
 
 - *Immediate:* Nothing special happens right away.
-- *Short term:* Kb8 → Qf4 → Nh5 attacks the queen → Qc1.
+- *Short term:* No forcing follow-up.
 - *Long term:* No notable long-term change.
 
-**Engine's top:** d5 — deep engine move — hard to explain (d5 Bh3+ Kb8 e5 Ne8 Rhe1)
+**Engine's top:** d5 — deep engine move — hard to explain (d5 Bh3+ Kb8 Rhe1 d4 Qf4+)
   - *Immediate:* Nothing special happens right away.
-  - *Short term:* d5 → Bh3+ → Kb8 → e5 attacks the knight → Ne8 → Rhe1.
-  - *Long term:* Black's king is more exposed (fewer pawns in front of it).
+  - *Short term:* d5 → Bh3+ → … → d4 attacks the knight → Qf4+ → … → Nd5 attacks the queen.
+  - *Long term:* No notable long-term change.
 
-<sub>Candidates: d5 +0.2 ✗(no-concrete-fact) · Kb8 +0.3 ✗(no-concrete-fact) · Rhe8 +0.3 ✗(no-concrete-fact) · Rhg8 +0.6 ✗(no-concrete-fact) · Rhf8 +0.6 ✗(no-concrete-fact)</sub>
-<sub>Timings: total 3.94s, deepAfter 3.21s, shallow 0.02s, threat 0.32s, forcedness 0.38s, facts 0.01s; cached searches 2</sub>
+<sub>Candidates: d5 +0.1 ✗(no-concrete-fact) · Kb8 +0.3 ✗(no-concrete-fact) · Rhe8 +0.3 ✗(no-concrete-fact) · Rhg8 +0.6 ✗(no-concrete-fact) · Nfd7 +0.6 ✗(shallow-disagrees,no-concrete-fact)</sub>
+<sub>Timings: total 0.04s, facts 0.03s; cached searches 13</sub>
 
 ### 18. Na5 — Good
 
@@ -577,20 +575,20 @@ Good — a little weaker than Qf4 (−2% winning chances).
 Eval +0.3 → 0.0 · White's win% 52 → 50 · winLoss 2.4 · accuracy 91
 
 - *Immediate:* Nothing special happens right away.
-- *Short term:* No forcing follow-up; material stays level (engine line: Na5 Ba8 Qf4 Ka7).
+- *Short term:* No forcing follow-up.
 - *Long term:* No notable long-term change.
 
-**Try this:** Qh4 (Qh4 Rhg8 Qf4 Nh5 Qe3 f5; −0.8% winning chances vs the engine's top)
-  - *Immediate:* Pins Black's knight on f6 to the queen on e7.
-  - *Short term:* Qh4 pins the knight to the queen → Rhg8 → Qf4 → Nh5 attacks the queen → Qe3.
+**Try this:** Qh4 (Qh4 Rhe8 Bg2 Nc4 Rhe1 Qe5; −1.7% winning chances vs the engine's top)
+  - *Immediate:* Pins Black's knight on f6 to the queen on e7 — if it moves, the queen can be taken.
+  - *Short term:* Qh4 pins the knight to the queen → Rhe8.
   - *Long term:* No notable long-term change.
-**Engine's top:** Qf4 (Qf4 Nh5 Qh6 Nf6 g4 Nfd7)
+**Engine's top:** Qf4 (Qf4 Nh5 Qd2 Rhe8 Na5 Ba8)
   - *Immediate:* Nothing special happens right away.
-  - *Short term:* Qf4 → Nh5 attacks the queen → Qh6 → Nf6.
-  - *Long term:* White gains control of the centre.
+  - *Short term:* Qf4 → Nh5 attacks the queen → Qd2.
+  - *Long term:* No notable long-term change.
 
-<sub>Candidates: Qf4 +0.3 ✗(no-concrete-fact) · Qe3 +0.2 ✗(no-concrete-fact) · g4 +0.2 ✗(no-concrete-fact) · Qh4 +0.2 ✓ · Bh3 +0.1 ✗(no-concrete-fact)</sub>
-<sub>Timings: total 3.14s, deepAfter 2.26s, searchmoves 0.07s, shallow 0.02s, threat 0.19s, forcedness 0.58s, facts 0.01s; cached searches 2</sub>
+<sub>Candidates: Qf4 +0.3 ✗(no-concrete-fact) · g4 +0.2 ✗(no-concrete-fact) · Qe3 +0.2 ✗(no-concrete-fact) · Qh4 +0.1 ✓ · Bh3 +0.0 ✗(no-concrete-fact)</sub>
+<sub>Timings: total 0.04s, facts 0.03s; cached searches 14</sub>
 
 ### 18... Ba8 — Best
 
@@ -599,113 +597,106 @@ Best — the engine's top choice.
 Eval 0.0 → 0.0 · Black's win% 50 → 50 · winLoss 0.0 · accuracy 100
 
 - *Immediate:* Nothing special happens right away.
-- *Short term:* No forcing follow-up; material stays level (engine line: Ba8 Qf4 Ka7 g4).
+- *Short term:* No forcing follow-up.
 - *Long term:* No notable long-term change.
 
-Good — this was the move.
+This was the best move.
 
-<sub>Candidates: Ba8 0.0 ✗(no-concrete-fact) · d5 +0.1 ✗(no-concrete-fact) · Ne8 +0.8 ✗(too-much-loss,shallow-disagrees,no-concrete-fact) · Kc7 +0.9 ✗(too-much-loss,shallow-disagrees,no-concrete-fact) · Ka7 +1.0 ✗(too-much-loss,shallow-disagrees,no-concrete-fact)</sub>
-<sub>Timings: total 3.28s, deepAfter 2.95s, shallow 0.01s, threat 0.25s, forcedness 0.05s, facts 0.01s; cached searches 2</sub>
+<sub>Candidates: Ba8 0.0 ✗(no-concrete-fact) · d5 +0.1 ✗(no-concrete-fact) · Ne8 +0.7 ✗(too-much-loss,shallow-disagrees,no-concrete-fact) · Rhg8 +0.8 ✗(too-much-loss,shallow-disagrees,no-concrete-fact) · Ka7 +0.9 ✗(too-much-loss,shallow-disagrees,no-concrete-fact)</sub>
+<sub>Timings: total 0.03s, facts 0.02s; cached searches 9</sub>
 
 ### 19. Bh3 — Good
 
-Good — a little weaker than Qf4 (−3% winning chances).
+Good — a little weaker than Qf4 (−4% winning chances).
 
-Eval 0.0 → −0.3 · White's win% 50 → 47 · winLoss 2.9 · accuracy 88
+Eval 0.0 → −0.3 · White's win% 50 → 48 · winLoss 3.7 · accuracy 90
 
 - *Immediate:* Nothing special happens right away.
-- *Short term:* Bh3 → d5 → exd5 takes the pawn → Nfxd5 takes back → Nxd5 takes back → Rxd5 takes back → Rhe1 attacks the queen → Rxd1+ takes the rook → a few moves later, material stays level.
+- *Short term:* Bh3 → d5 → exd5 takes the pawn → Nfxd5 takes back → Nxd5 Nxd5 (knights are traded) → material stays level.
 - *Long term:* White improves development.
 
-**Engine's top:** Qf4 — deep engine move — hard to explain (Qf4 Ka7 g4 h6 h4 d5)
+**Engine's top:** Qf4 — deep engine move — hard to explain (Qf4 Ka7 g4 d5 Bxb5 axb5)
   - *Immediate:* Nothing special happens right away.
-  - *Short term:* No forcing follow-up; material stays level (engine line: Qf4 Ka7 g4 h6).
-  - *Long term:* White gains control of the centre.
+  - *Short term:* No forcing follow-up.
+  - *Long term:* No notable long-term change.
 
-<sub>Candidates: Qf4 0.0 ✗(no-concrete-fact) · g4 0.0 ✗(no-concrete-fact) · Qe3 −0.1 ✗(no-concrete-fact) · Qc1 −0.1 ✗(no-concrete-fact) · Qd2 −0.2 ✗(no-concrete-fact)</sub>
-<sub>Timings: total 2.95s, deepAfter 1.96s, searchmoves 0.55s, shallow 0.04s, threat 0.20s, forcedness 0.17s, facts 0.02s; cached searches 3</sub>
+<sub>Candidates: Qf4 0.0 ✗(no-concrete-fact) · g4 0.0 ✗(no-concrete-fact) · Re1 −0.3 ✗(no-concrete-fact) · Bd3 −0.3 ✗(no-concrete-fact) · Be2 −0.3 ✗(no-concrete-fact)</sub>
+<sub>Timings: total 0.04s, facts 0.03s; cached searches 13</sub>
 
 ### 19... d5 — Best
 
 Best — the engine's top choice.
 
-Eval −0.3 → −0.2 · Black's win% 53 → 52 · winLoss 0.0 · accuracy 97
+Eval −0.3 → −0.3 · Black's win% 52 → 52 · winLoss 0.0 · accuracy 100
 
 - *Immediate:* Nothing special happens right away.
-- *Short term:* d5 → Qf4+ → Ka7 → Rhe1.
-- *Long term:* After the line, Black's king is safer (more pawns in front of it).
+- *Short term:* d5 → Nxd5 takes the pawn → Nfxd5 exd5 (knights are traded) → Rxd5 takes back → material stays level.
+- *Long term:* No notable long-term change.
 
-Good — this was the move.
+This was the best move.
 
-<sub>Candidates: d5 −0.3 ✗(no-concrete-fact) · Rhe8 0.0 ✗(no-concrete-fact) · Qc7 +0.3 ✗(too-much-loss,shallow-disagrees,no-concrete-fact) · Nfd7 +0.4 ✗(too-much-loss,shallow-disagrees,no-concrete-fact) · Rhf8 +0.6 ✗(too-much-loss,shallow-disagrees,no-concrete-fact)</sub>
-<sub>Timings: total 2.82s, deepAfter 2.33s, shallow 0.03s, threat 0.25s, forcedness 0.19s, facts 0.01s; cached searches 2</sub>
+<sub>Candidates: d5 −0.3 ✗(no-concrete-fact) · Rhe8 0.0 ✗(no-concrete-fact) · Qc7 +0.2 ✗(shallow-disagrees,no-concrete-fact) · Nfd7 +0.3 ✗(too-much-loss,shallow-disagrees,no-concrete-fact) · Rhg8 +0.6 ✗(too-much-loss,shallow-disagrees,no-concrete-fact)</sub>
+<sub>Timings: total 0.03s, facts 0.02s; cached searches 11</sub>
 
-### 20. Qf4+ — Excellent
+### 20. Qf4+ — Best
 
-Excellent — almost as good as the best move Rhe1 (−1% winning chances).
+Best — the engine's top choice.
 
-Eval −0.2 → −0.2 · White's win% 48 → 48 · winLoss 0.6 · accuracy 100
+Eval −0.3 → −0.2 · White's win% 48 → 48 · winLoss 0.0 · accuracy 100
 
 - *Immediate:* Gives check.
-- *Short term:* Qf4+ → Ka7 (forced) → Rhe1 → d4 attacks the knight (forced) → Nd5 attacks the queen → Nbxd5 takes the knight (forced) → exd5 uncovers an attack on the queen → Qd6 → a few moves later, White wins a pawn (+1).
-- *Long term:* After the line, White gets a passed pawn on d5. White gains control of the centre.
+- *Short term:* Qf4+ → Ka7 (forced) → Rhe1.
+- *Long term:* No notable long-term change.
 
-**Try this:** Qf4+ (Qf4+ Ka7 Rhe1 d4 Nd5 Nbxd5; −0.6% winning chances vs the engine's top)
-  - *Immediate:* Gives check.
-  - *Short term:* Qf4+ → Ka7 (forced) → Rhe1 → d4 attacks the knight (forced) → Nd5 attacks the queen → Nbxd5 takes the knight (forced) → exd5 uncovers an attack on the queen → Qd6 → a few moves later, White wins a pawn (+1).
-  - *Long term:* After the line, White gets a passed pawn on d5. White gains control of the centre.
-**Engine's top:** Rhe1 (Rhe1 d4 Qf4+ Ka7 Nd5 Nbxd5)
-  - *Immediate:* Nothing special happens right away.
-  - *Short term:* Rhe1 → d4 attacks the knight → Qf4+ → Ka7 → Nd5 attacks the queen → Nbxd5 takes the knight (forced) → exd5 uncovers an attack on the queen → Qd6 → a few moves later, White wins a pawn (+1).
-  - *Long term:* After the line, White gets a passed pawn on d5.
+This was the best move.
 
-<sub>Candidates: Rhe1 −0.2 ✗(no-concrete-fact) · Nxd5 −0.3 ✗(no-concrete-fact) · Qf4+ −0.3 ✓ · exd5 −0.3 ✗(no-concrete-fact) · Ka1 −0.8 ✗(shallow-disagrees,no-concrete-fact)</sub>
-<sub>Timings: total 5.58s, deepAfter 5.00s, shallow 0.03s, threat 0.18s, forcedness 0.35s, facts 0.02s; cached searches 3</sub>
+<sub>Candidates: Qf4+ −0.3 ✓ · Rhe1 −0.3 ✗(no-concrete-fact) · Nxd5 −0.3 ✗(no-concrete-fact) · exd5 −0.3 ✗(no-concrete-fact) · Rde1 −1.0 ✗(too-much-loss,shallow-disagrees,no-concrete-fact)</sub>
+<sub>Timings: total 0.03s, facts 0.03s; cached searches 9</sub>
 
 ### 20... Ka7 — Great !
 
-Great ! — the only good move here: the next best loses 32% winning chances.
+Great ! — the only good move here: the next best loses 31% winning chances.
 
-Eval −0.2 → −0.3 · Black's win% 52 → 53 · winLoss 0.0 · accuracy 100
+Eval −0.2 → −0.2 · Black's win% 52 → 52 · winLoss 0.0 · accuracy 100
 
 - *Immediate:* Steps out of check with the king.
-- *Short term:* Ka7 → Rhe1 → d4 attacks the knight → Nd5 attacks the queen → Nbxd5 takes the knight → exd5 uncovers an attack on the queen → Qd6 → Rxd4 takes the pawn → a few moves later, material stays level.
+- *Short term:* No forcing follow-up.
 - *Long term:* Black's king is safer (more pawns in front of it).
 
-Good — this was the move.
+Great find — the only good move here.
 
-<sub>Candidates: Ka7 −0.2 ✗(no-concrete-fact) · Qd6 +3.7 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees,no-concrete-fact) · Qc7 +5.0 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees,no-concrete-fact) · Rd6 +6.5 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees,no-concrete-fact) · Qe5 #4 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees,no-concrete-fact)</sub>
-<sub>Timings: total 5.33s, deepAfter 4.99s, shallow 0.02s, threat 0.16s, forcedness 0.14s, facts 0.01s; cached searches 2</sub>
+<sub>Candidates: Ka7 −0.2 ✗(no-concrete-fact) · Qd6 +3.6 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees,no-concrete-fact) · Qc7 +5.0 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees,no-concrete-fact) · Rd6 +6.4 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees,no-concrete-fact) · Qe5 #4 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees,no-concrete-fact)</sub>
+<sub>Timings: total 0.03s, facts 0.02s; cached searches 9</sub>
 
 ### 21. Rhe1 — Best
 
 Best — the engine's top choice.
 
-Eval −0.3 → −0.3 · White's win% 47 → 47 · winLoss 0.0 · accuracy 100
+Eval −0.2 → −0.2 · White's win% 48 → 48 · winLoss 0.0 · accuracy 100
 
-- *Immediate:* Threatens exd5, uncovering an attack on Black's queen on e7 (+1). Defends the pawn on e4, which was under attack.
-- *Short term:* Rhe1 → d4 attacks the knight (forced) → Nd5 attacks the queen → Nbxd5 takes the knight (forced) → exd5 uncovers an attack on the queen → Qd6 (forced) → Rxd4 takes the pawn → Kb6 attacks the knight → a few moves later, material stays level.
-- *Long term:* After the line, White gets a passed pawn on d5.
+- *Immediate:* Defends the pawn on e4, which was under attack.
+- *Short term:* Rhe1 → d4 attacks the knight → … → Nbxd5 exd5 (knights are traded) → Qd6 (forced) → Rxd4 takes the pawn → Kb6 attacks the knight.
+- *Long term:* After these moves, White gets a passed pawn on d5 (no enemy pawn stands in its way).
 
-Good — this was the move.
+This was the best move.
 
-<sub>Candidates: Rhe1 −0.3 ✓ · Ka1 −0.7 ✗(no-concrete-fact) · Bg2 −1.1 ✗(too-much-loss,shallow-disagrees,no-concrete-fact) · b3 −1.1 ✗(too-much-loss,shallow-disagrees,no-concrete-fact) · Ka2 −1.2 ✗(too-much-loss,shallow-disagrees,no-concrete-fact)</sub>
-<sub>Timings: total 4.70s, deepAfter 3.97s, shallow 0.03s, threat 0.67s, forcedness 0.01s, facts 0.01s; cached searches 4</sub>
+<sub>Candidates: Rhe1 −0.2 ✗(no-concrete-fact) · Ka1 −0.7 ✗(shallow-disagrees,no-concrete-fact) · b3 −1.0 ✗(too-much-loss,shallow-disagrees,no-concrete-fact) · Nb3 −1.2 ✗(too-much-loss,shallow-disagrees,no-concrete-fact) · Rhg1 −1.2 ✗(too-much-loss,shallow-disagrees,no-concrete-fact)</sub>
+<sub>Timings: total 0.04s, facts 0.03s; cached searches 12</sub>
 
-### 21... d4 — Great !
+### 21... d4 — Best
 
-Great ! — the only good move here: the next best loses 11% winning chances.
+Best — the engine's top choice.
 
-Eval −0.3 → −0.2 · Black's win% 53 → 52 · winLoss 0.0 · accuracy 96
+Eval −0.2 → −0.2 · Black's win% 52 → 52 · winLoss 0.0 · accuracy 100
 
-- *Immediate:* Stops White's threat exd5, which would uncover an attack on Black's queen on e7 (+1 for White). Threatens dxc3, winning a knight (+3).
-- *Short term:* d4 attacks the knight → Nd5 attacks the queen → Nbxd5 takes the knight → exd5 uncovers an attack on the queen → Qd6 → Rxd4 takes the pawn → Kb6 attacks the knight → b4 → a few moves later, material stays level.
-- *Long term:* After the line, White's king is more exposed (fewer pawns in front of it). Black gains control of the centre.
+- *Immediate:* Threatens dxc3, winning material (+2 points).
+- *Short term:* d4 attacks the knight → Nd5 attacks the queen → Nbxd5 exd5 (knights are traded) → … → Rxd4 takes the pawn → Kb6 attacks the knight → b4.
+- *Long term:* No notable long-term change.
 
-Good — this was the move.
+This was the best move.
 
-<sub>Candidates: d4 −0.3 ✓ · dxe4 +0.9 ✗(too-much-loss,shallow-disagrees,no-concrete-fact) · h5 +3.5 ✗(too-much-loss,loses-result,shallow-disagrees,no-concrete-fact) · h6 +3.8 ✗(too-much-loss,loses-result,shallow-disagrees,no-concrete-fact) · Rhf8 +3.8 ✗(too-much-loss,loses-result,shallow-disagrees,no-concrete-fact)</sub>
-<sub>Timings: total 5.44s, deepAfter 5.00s, shallow 0.01s, threat 0.38s, forcedness 0.03s, facts 0.02s; cached searches 4</sub>
+<sub>Candidates: d4 −0.2 ✓ · dxe4 +0.9 ✗(too-much-loss,shallow-disagrees,no-concrete-fact) · h5 +3.2 ✗(too-much-loss,loses-result,shallow-disagrees,no-concrete-fact) · h6 +3.3 ✗(too-much-loss,loses-result,shallow-disagrees,no-concrete-fact) · Rhf8 +3.4 ✗(too-much-loss,loses-result,shallow-disagrees,no-concrete-fact)</sub>
+<sub>Timings: total 0.04s, facts 0.03s; cached searches 13</sub>
 
 ### 22. Nd5 — Best
 
@@ -713,14 +704,14 @@ Best — the engine's top choice.
 
 Eval −0.2 → −0.2 · White's win% 48 → 48 · winLoss 0.0 · accuracy 100
 
-- *Immediate:* Sacrifices the knight on d5 (−1) — the follow-up wins it back with interest. Stops Black's threat dxc3, which would win a knight (+3 for Black).
-- *Short term:* Nd5 attacks the queen → Nbxd5 takes the knight (forced) → exd5 uncovers an attack on the queen → Qd6 (forced) → Rxd4 takes the pawn → Kb6 attacks the knight → b4 → Qxf4 takes the queen → a few moves later, White wins a pawn (+1).
-- *Long term:* After the line, White's king is more exposed (fewer pawns in front of it). After the line, White gets a passed pawn on d5.
+- *Immediate:* Leaves the knight on d5 hanging: Black can win it (−1 point). Stops Black's threat dxc3, which would win material (+2 points for Black). Attacks Black's queen on e7 with a knight.
+- *Short term:* Nd5 attacks the queen → Nbxd5 exd5 (knights are traded) → … → Rxd4 takes the pawn → … → Nxd5 takes the pawn → Rxf7 takes the pawn → cxb4 takes the pawn → material stays level.
+- *Long term:* After these moves, White's king is more exposed (fewer pawns in front of it and more open files next to it).
 
-Good — this was the move.
+This was the best move.
 
-<sub>Candidates: Nd5 −0.2 ✓ · Na2 −0.3 ✓ · Ne2 −1.1 ✗(too-much-loss,shallow-disagrees) · e5 −5.2 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees) · b4 −5.3 ✗(too-much-loss,hangs-material,loses-result,shallow-disagrees,no-concrete-fact)</sub>
-<sub>Timings: total 5.65s, deepAfter 5.00s, shallow 0.02s, threat 0.56s, forcedness 0.04s, facts 0.01s; cached searches 4</sub>
+<sub>Candidates: Nd5 −0.2 ✗(hangs-material) · Na2 −0.4 ✓ · Ne2 −1.1 ✗(too-much-loss,shallow-disagrees) · e5 −5.0 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees) · Nxb5+ −5.2 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees)</sub>
+<sub>Timings: total 0.04s, facts 0.03s; cached searches 12</sub>
 
 ### 22... Nbxd5 — Best
 
@@ -728,14 +719,14 @@ Best — the engine's top choice.
 
 Eval −0.2 → −0.2 · Black's win% 52 → 52 · winLoss 0.0 · accuracy 100
 
-- *Immediate:* Takes White's knight on d5 and comes out ahead in the exchange (+1). Defends the queen on e7, which was under attack. Defends the knight on f6, which was under attack.
-- *Short term:* Nbxd5 takes the knight → exd5 uncovers an attack on the queen → Qd6 → Rxd4 takes the pawn → Kb6 attacks the knight → b4 → Qxf4 takes the queen → Rxf4 takes back → a few moves later, material stays level.
-- *Long term:* After the line, White's king is more exposed (fewer pawns in front of it).
+- *Immediate:* Takes White's knight on d5 and comes out ahead in the exchange of pieces (+1 point). Defends the queen on e7, which was under attack. Defends the knight on f6, which was under attack.
+- *Short term:* Nbxd5 takes the knight → exd5 takes back → … → Rxd4 takes the pawn → Kb6 attacks the knight → b4.
+- *Long term:* The only good move here — every other move is much worse.
 
-Good — this was the move.
+This was the best move.
 
-<sub>Candidates: Nbxd5 −0.2 ✓ · Rxd5 +3.9 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees,no-concrete-fact) · g5 +4.2 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees) · Qd6 +6.3 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees) · Nh5 +6.8 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees)</sub>
-<sub>Timings: total 5.12s, deepAfter 4.73s, shallow 0.01s, threat 0.24s, forcedness 0.11s, facts 0.01s; cached searches 4</sub>
+<sub>Candidates: Nbxd5 −0.2 ✓ · Rxd5 +3.8 ✗(too-much-loss,hangs-material,loses-result,shallow-disagrees,no-concrete-fact) · g5 +4.1 ✗(too-much-loss,loses-result,shallow-disagrees,no-concrete-fact) · Qd6 +6.3 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees) · Nfxd5 +7.1 ✗(too-much-loss,loses-result,shallow-disagrees)</sub>
+<sub>Timings: total 0.03s, facts 0.02s; cached searches 15</sub>
 
 ### 23. exd5 — Best
 
@@ -743,387 +734,384 @@ Best — the engine's top choice.
 
 Eval −0.2 → −0.1 · White's win% 48 → 49 · winLoss 0.0 · accuracy 100
 
-- *Immediate:* Discovered attack: moving the pawn lets the rook on e1 attack Black's queen on e7. Recaptures: takes Black's knight on d5. Threatens Rxe7+, winning material (+14).
-- *Short term:* exd5 uncovers an attack on the queen → Qd6 (forced) → Rxd4 takes the pawn → Kb6 attacks the knight → b4 → Qxf4 takes the queen → Rxf4 takes back → Nxd5 wins the pawn → a few moves later, White wins back a knight (+3).
-- *Long term:* White gets a passed pawn on d5. White's rook on e1 now stands on a fully open file. After the line, White's king is more exposed (fewer pawns in front of it).
+- *Immediate:* Discovered attack: moving the pawn lets the rook on e1 attack Black's queen on e7. Takes back: captures Black's knight on d5.
+- *Short term:* exd5 takes back → Qd6 (forced) → … → Nxd5 takes the pawn → Rxf7 wins the pawn → cxb4 takes the pawn → … → Nxb4 takes back → White wins back a knight (+3 points); material is level.
+- *Long term:* White's rook on e1 now stands on a fully open file (no pawns on it). After these moves, White's king is more exposed (fewer pawns in front of it and more open files next to it).
 
-Good — this was the move.
+This was the best move.
 
-<sub>Candidates: exd5 −0.2 ✓ · Nc6+ −1.0 ✗(too-much-loss,shallow-disagrees) · Qd2 −6.8 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees) · Qh6 −7.1 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees) · Qc1 −7.1 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees)</sub>
-<sub>Timings: total 5.50s, deepAfter 5.00s, shallow 0.01s, threat 0.41s, forcedness 0.06s, facts 0.01s; cached searches 4</sub>
+<sub>Candidates: exd5 −0.2 ✓ · Nc6+ −0.8 ✗(too-much-loss,shallow-disagrees) · Qd2 −6.6 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees) · Qc1 −6.8 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees) · Qh6 −7.0 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees)</sub>
+<sub>Timings: total 0.04s, facts 0.04s; cached searches 14</sub>
 
 ### 23... Qd6 — Great !
 
-Great ! — the only good move here: the next best loses 48% winning chances.
+Great ! — the only good move here: the next best loses 47% winning chances.
 
 Eval −0.1 → −0.2 · Black's win% 51 → 52 · winLoss 0.0 · accuracy 100
 
-- *Immediate:* Stops White's threat Rxe7+, which would win material (+14 for White). Attacks White's pawn on d5, which is undefended. Saves the queen: it was under attack on e7 and is safe on d6.
-- *Short term:* Qd6 → Rxd4 takes the pawn → Kb6 attacks the knight → b4 → Qxf4 takes the queen → Rxf4 takes back (forced) → Nxd5 wins the pawn → Rxf7 wins the pawn → a few moves later, Black loses a pawn (−1).
-- *Long term:* After the line, White's king is more exposed (fewer pawns in front of it). After the line, White no longer has a passed pawn on d5.
+- *Immediate:* Stops White's threat Rxe7+, which would win a queen (+9 points for White). Attacks White's pawn on d5, which is undefended.
+- *Short term:* Qd6 → Rxd4 takes the pawn → Kb6 attacks the knight → b4.
+- *Long term:* No notable long-term change.
 
-Good — this was the move.
+Great find — the only good move here.
 
-<sub>Candidates: Qd6 −0.1 ✓ · Ne4 +8.8 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees) · Qb7 +10.2 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees) · Nxd5 +12.1 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees)</sub>
-<sub>Timings: total 4.35s, deepAfter 3.70s, shallow 0.01s, threat 0.59s, forcedness 0.03s, facts 0.01s; cached searches 4</sub>
+<sub>Candidates: Qd6 −0.1 ✓ · Ne4 +8.4 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees) · Qb7 +11.1 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees) · Kb6 +11.2 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees,no-concrete-fact) · Nxd5 +11.2 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees)</sub>
+<sub>Timings: total 0.03s, facts 0.02s; cached searches 15</sub>
 
 ### 24. Rxd4 — Best
 
 Best — the engine's top choice.
 
-Eval −0.2 → −0.1 · White's win% 48 → 49 · winLoss 0.0 · accuracy 100
+Eval −0.2 → −0.2 · White's win% 48 → 48 · winLoss 0.0 · accuracy 100
 
-- *Immediate:* Takes Black's pawn on d4 as a sacrifice (−3) — the follow-up wins it back with interest.
-- *Short term:* Rxd4 takes the pawn → Kb6 attacks the knight → b4 → Qxf4 takes the queen → Rxf4 takes back → Nxd5 wins the pawn (forced) → Rxf7 wins the pawn → Rhe8 attacks the rook → a few moves later, White wins a pawn (+1).
-- *Long term:* Black's rook on d8 gets an open file. After the line, White's king is more exposed (fewer pawns in front of it). After the line, White no longer has a passed pawn on d5.
+- *Immediate:* Takes Black's pawn on d4, but loses material when the pieces are traded off (−3 points).
+- *Short term:* Rxd4 takes the pawn → Kb6 attacks the knight → … → Qxf4 Rxf4 (queens are traded) → Nxd5 takes the pawn → Rxf7 takes the pawn → Rhe8 attacks the rook.
+- *Long term:* Black's rook on d8 gets a file without its own pawns in the way.
 
-Good — this was the move.
+This was the best move.
 
-<sub>Candidates: Rxd4 −0.2 ✗(no-concrete-fact) · Nc6+ −0.9 ✗(too-much-loss,hangs-material,shallow-disagrees) · Qxd6 −1.2 ✗(too-much-loss,shallow-disagrees,no-concrete-fact) · c4 −2.2 ✗(too-much-loss,material-rule,shallow-disagrees,no-concrete-fact) · Qd2 −3.5 ✗(too-much-loss,loses-result,shallow-disagrees,no-concrete-fact)</sub>
-<sub>Timings: total 0.79s, deepAfter 0.66s, shallow 0.01s, threat 0.05s, forcedness 0.06s, facts 0.01s; cached searches 4</sub>
+<sub>Candidates: Rxd4 −0.2 ✗(hangs-material,no-concrete-fact) · Nc6+ −1.0 ✗(too-much-loss,hangs-material) · Qxd6 −1.2 ✗(too-much-loss,shallow-disagrees,no-concrete-fact) · c4 −2.2 ✗(too-much-loss,material-rule,shallow-disagrees,no-concrete-fact) · Qd2 −2.9 ✗(too-much-loss,loses-result,shallow-disagrees,no-concrete-fact)</sub>
+<sub>Timings: total 0.03s, facts 0.02s; cached searches 9</sub>
 
 ### 24... cxd4 — Mistake ?
 
-Mistake ? — Kb6 was much better. Black's winning chances go from 51% to 41%.
+Mistake ? — Kb6 was much better. Black's winning chances go from 52% to 42%.
 
-Eval −0.1 → +1.4 · Black's win% 51 → 38 · winLoss 10.6 · accuracy 55
+Eval −0.2 → +2.0 · Black's win% 52 → 32 · winLoss 10.4 · accuracy 42
 
-- *Immediate:* Recaptures: takes White's rook on d4.
-- *Short term:* cxd4 takes back → Re7+ (forced) → Kb6 attacks the knight → Qxd4+ wins the pawn (forced) → Kxa5 wins the knight → b4+ → Ka4 → Re6 attacks the queen → a few moves later, Black comes out ahead in material (+5).
-- *Long term:* Black gets an isolated pawn on d4. Black's rook on d8 no longer has an open file. After the line, Black's king is more exposed (fewer pawns in front of it).
+- *Immediate:* Takes back: captures White's rook on d4.
+- *Short term:* cxd4 takes back → Re7+ → Kb6 attacks the knight → Qxd4+ takes the pawn → Kxa5 takes the knight → … → Qc3.
+- *Long term:* After these moves, Black's king is more exposed (fewer pawns in front of it).
 
-**Try this:** Rhg8 (Rhg8 c4 cxd4 Qxd4+ Kb8 c5; −1.3% winning chances vs the engine's top)
-  - *Immediate:* Threatens cxd4, winning material (+4).
-  - *Short term:* Rhg8 → c4 → cxd4 takes the rook → Qxd4+ takes back → Kb8 → Black wins a rook for a pawn (+4).
-  - *Long term:* After the line, Black's king is more exposed (fewer pawns in front of it, more open files next to it and more enemy pieces aim at it). After the line, White's king is more exposed (fewer pawns in front of it).
+**Try this:** Rhg8 (Rhg8 c4 cxd4 Qxd4+ Kb8 c5; −2.1% winning chances vs the engine's top)
+  - *Immediate:* Nothing special happens right away.
+  - *Short term:* Rhg8 → c4 → cxd4 takes the rook → Qxd4+ takes back → Kb8 → Black wins a rook for a pawn (+4 points); Black is 3 points up.
+  - *Long term:* After these moves, Black's king is more exposed (fewer pawns in front of it, more open files next to it and more enemy pieces aim at it).
 **Engine's top:** Kb6 (Kb6 b4 Qxf4 Rxf4 Nxd5 Rxf7)
-  - *Immediate:* Attacks White's knight on a5, which is undefended.
-  - *Short term:* Kb6 attacks the knight → b4 → Qxf4 takes the queen → Rxf4 takes back (forced) → Nxd5 wins the pawn → Rxf7 wins the pawn (forced) → Rhe8 attacks the rook → Rxe8 takes the rook → a few moves later, material stays level.
-  - *Long term:* After the line, White's king is more exposed (fewer pawns in front of it). After the line, White no longer has a passed pawn on d5.
+  - *Immediate:* Attacks White's knight on a5 with a king.
+  - *Short term:* Kb6 attacks the knight → b4 → Qxf4 Rxf4 (queens are traded) → Nxd5 takes the pawn → Rxf7 takes the pawn → Rhe8 attacks the rook.
+  - *Long term:* No notable long-term change.
 
-<sub>Candidates: Kb6 −0.1 ✗(no-concrete-fact) · Rhe8 0.0 ✗(no-concrete-fact) · Rhg8 0.0 ✓ · Rhf8 0.0 ✓ · Bxd5 +0.1 ✓</sub>
-<sub>Timings: total 6.98s, deepAfter 5.00s, searchmoves 0.56s, shallow 0.07s, threat 0.16s, forcedness 1.16s, facts 0.02s; cached searches 4</sub>
+<sub>Candidates: Kb6 −0.2 ✗(no-concrete-fact) · Rhe8 0.0 ✗(no-concrete-fact) · Rhg8 0.0 ✓ · Bxd5 +0.1 ✗(shallow-disagrees) · g5 +0.1 ✗(no-concrete-fact)</sub>
+<sub>Timings: total 0.04s, facts 0.03s; cached searches 20</sub>
 
 ### 25. Re7+ — Great !
 
-Great ! — the only good move here: the next best loses 44% winning chances.
+Great ! — the only good move here: the next best loses 49% winning chances.
 
-Eval +1.4 → +1.6 · White's win% 62 → 65 · winLoss 0.0 · accuracy 100
+Eval +2.0 → +2.7 · White's win% 68 → 73 · winLoss 0.0 · accuracy 100
 
-- *Immediate:* Leaves the rook on e7 hanging (−5). Gives check. Attacks Black's pawn on f7, which is undefended.
-- *Short term:* Re7+ → Kb6 attacks the knight (forced) → Qxd4+ wins the pawn → Kxa5 wins the knight (forced) → Re6 attacks the queen → fxe6 takes the rook (forced) → b4+ → Ka4 → a few moves later, material stays level.
-- *Long term:* After the line, White's king is more exposed (fewer pawns in front of it). After the line, Black's king is more exposed (fewer pawns in front of it). After the line, White no longer has a passed pawn on d5.
+- *Immediate:* Gives check. Attacks Black's pawn on f7, which is undefended.
+- *Short term:* Re7+ → Kb6 attacks the knight (forced) → Qxd4+ takes the pawn → Kxa5 takes the knight → … → Ka4 (forced) → Qc3.
+- *Long term:* After these moves, Black's king is more exposed (fewer pawns in front of it).
 
-Good — this was the move.
+Great find — the only good move here.
 
-<sub>Candidates: Re7+ +1.4 ✗(hangs-material) · Qxd4+ −4.1 ✗(too-much-loss,loses-result,shallow-disagrees) · Nc6+ −7.3 ✗(too-much-loss,loses-result,shallow-disagrees) · Qd2 −7.3 ✗(too-much-loss,loses-result,shallow-disagrees,no-concrete-fact) · c4 −7.4 ✗(too-much-loss,loses-result,shallow-disagrees,no-concrete-fact)</sub>
-<sub>Timings: total 6.02s, deepAfter 5.00s, shallow 0.01s, threat 0.03s, forcedness 0.96s, facts 0.01s; cached searches 2</sub>
+<sub>Candidates: Re7+ +2.0 ✓ · Qxd4+ −4.0 ✗(too-much-loss,loses-result,shallow-disagrees) · Nc6+ −7.0 ✗(too-much-loss,loses-result,shallow-disagrees) · Qxd6 −7.1 ✗(too-much-loss,loses-result,shallow-disagrees,no-concrete-fact) · Re4 −7.2 ✗(too-much-loss,loses-result,shallow-disagrees,no-concrete-fact)</sub>
+<sub>Timings: total 0.03s, facts 0.02s; cached searches 11</sub>
 
 ### 25... Kb6 — Great !
 
-Great ! — the only good move here: the next best loses 21% winning chances.
+Great ! — the only good move here: the next best loses 11% winning chances.
 
-Eval +1.6 → +1.6 · Black's win% 35 → 36 · winLoss 0.0 · accuracy 100
+Eval +2.7 → +2.7 · Black's win% 27 → 27 · winLoss 0.0 · accuracy 100
 
-- *Immediate:* Attacks White's knight on a5, which is undefended. Steps out of check with the king.
-- *Short term:* Kb6 attacks the knight → Qxd4+ wins the pawn (forced) → Kxa5 wins the knight → Re6 attacks the queen → fxe6 takes the rook → b4+ (forced) → Ka4 → Qe3 → a few moves later, material stays level.
-- *Long term:* Black's king is more exposed (fewer pawns in front of it and more open files next to it). After the line, White's king is more exposed (fewer pawns in front of it). After the line, White no longer has a passed pawn on d5.
+- *Immediate:* Attacks White's knight on a5 with a king. Steps out of check with the king.
+- *Short term:* Kb6 attacks the knight → Qxd4+ takes the pawn → Kxa5 takes the knight → b4+ → … → Qxd5 takes the pawn → Ra7.
+- *Long term:* Black's king is more exposed (fewer pawns in front of it and more open files next to it).
 
-Good — this was the move.
+Great find — the only good move here.
 
-<sub>Candidates: Kb6 +1.6 ✗(no-concrete-fact) · Kb8 +4.9 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees,no-concrete-fact) · Bb7 #12 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees,no-concrete-fact) · Qd7 #9 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees,no-concrete-fact) · Rd7 #8 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees,no-concrete-fact)</sub>
-<sub>Timings: total 5.30s, deepAfter 5.00s, shallow 0.01s, threat 0.05s, forcedness 0.23s, facts 0.02s; cached searches 3</sub>
+<sub>Candidates: Kb6 +2.7 ✗(no-concrete-fact) · Kb8 +4.6 ✗(too-much-loss,shallow-disagrees,no-concrete-fact) · Bb7 +15.0 ✗(too-much-loss,material-rule,hangs-material,shallow-disagrees,no-concrete-fact) · Nd7 +19.3 ✗(too-much-loss,material-rule,shallow-disagrees) · Qd7 +20.8 ✗(too-much-loss,material-rule,hangs-material,shallow-disagrees,no-concrete-fact)</sub>
+<sub>Timings: total 0.03s, facts 0.02s; cached searches 12</sub>
 
 ### 26. Qxd4+ — Great !
 
-Great ! — the only good move here: the next best loses 54% winning chances.
+Great ! — the only good move here: the next best loses 62% winning chances.
 
-Eval +1.6 → +1.7 · White's win% 64 → 65 · winLoss 0.0 · accuracy 100
+Eval +2.7 → +3.0 · White's win% 73 → 75 · winLoss 0.0 · accuracy 100
 
-- *Immediate:* Leaves the knight on a5 hanging — it was already attacked and Black can still win it (−3). Wins Black's pawn on d4 for free (+1), with check.
-- *Short term:* Qxd4+ wins the pawn → Kxa5 wins the knight (forced) → b4+ → Ka4 (forced) → Re6 attacks the queen → fxe6 takes the rook (forced) → Qe3 → Qxb4+ takes the pawn → a few moves later, material stays level.
-- *Long term:* Black's pawn on d4 is no longer isolated. Black's rook on d8 gets an open file. After the line, White's king is more exposed (fewer pawns in front of it and more open files next to it).
+- *Immediate:* Leaves the knight on a5 hanging — it was already attacked and Black can still win it (−3 points). Wins Black's pawn on d4 (+1 point), with check.
+- *Short term:* Qxd4+ takes the pawn → Kxa5 takes the knight → b4+ → Ka4 (forced) → … → Qxd5 takes the pawn → … → Bb7.
+- *Long term:* Black's rook on d8 gets a file without its own pawns in the way.
 
-Good — this was the move.
+Great find — the only good move here.
 
-<sub>Candidates: Qxd4+ +1.6 ✓ · Nc4+ −6.1 ✗(too-much-loss,loses-result,shallow-disagrees) · Nc6 −7.3 ✗(too-much-loss,loses-result,shallow-disagrees) · Re5 −7.5 ✗(too-much-loss,loses-result,shallow-disagrees) · Rxf7 −7.5 ✗(too-much-loss,loses-result,shallow-disagrees)</sub>
-<sub>Timings: total 5.25s, deepAfter 5.00s, shallow 0.01s, threat 0.13s, forcedness 0.10s, facts 0.01s; cached searches 3</sub>
+<sub>Candidates: Qxd4+ +2.7 ✓ · Nc4+ −5.7 ✗(too-much-loss,hangs-material,loses-result,shallow-disagrees) · Re5 −6.8 ✗(too-much-loss,loses-result,shallow-disagrees) · Nc6 −7.2 ✗(too-much-loss,loses-result,shallow-disagrees)</sub>
+<sub>Timings: total 0.02s, facts 0.02s; cached searches 9</sub>
 
 ### 26... Kxa5 — Great !
 
-Great ! — the only good move here: the next best loses 29% winning chances.
+Great ! — the only good move here: the next best loses 18% winning chances.
 
-Eval +1.7 → +1.4 · Black's win% 35 → 37 · winLoss 0.0 · accuracy 100
+Eval +3.0 → +2.7 · Black's win% 25 → 27 · winLoss 0.0 · accuracy 100
 
-- *Immediate:* Wins White's knight on a5 for free (+3). Threatens Nxd5, winning a pawn (+1). Steps out of check with the king.
-- *Short term:* Kxa5 wins the knight → b4+ → Ka4 → Re6 attacks the queen → fxe6 takes the rook → Qe3 (forced) → Qxb4+ takes the pawn → axb4 takes back → a few moves later, Black comes out ahead in material (+1).
-- *Long term:* Black's king is safer (fewer open files next to it and fewer enemy pieces aim at it). After the line, White's king is more exposed (fewer pawns in front of it and more open files next to it). After the line, White no longer has a passed pawn on d5.
+- *Immediate:* Wins White's knight on a5 (+3 points). Threatens Nxd5, winning a pawn (+1 point). Steps out of check with the king.
+- *Short term:* Kxa5 takes the knight → b4+ → … → Qxd5 takes the pawn → … → Bb7.
+- *Long term:* Black's king is safer (fewer open files next to it and fewer enemy pieces aim at it).
 
-Good — this was the move.
+Great find — the only good move here.
 
-<sub>Candidates: Kxa5 +1.7 ✓ · Qc5 +7.5 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees)</sub>
-<sub>Timings: total 5.27s, deepAfter 5.00s, shallow 0.00s, threat 0.01s, forcedness 0.25s, facts 0.01s; cached searches 2</sub>
+<sub>Candidates: Kxa5 +3.0 ✓ · Qc5 +7.2 ✗(too-much-loss,shallow-disagrees,no-concrete-fact)</sub>
+<sub>Timings: total 0.01s, facts 0.01s; cached searches 8</sub>
 
-### 27. b4+ — Best
+### 27. b4+ — Great !
 
-Best — the engine's top choice.
+Great ! — the only good move here: the next best loses 23% winning chances.
 
-Eval +1.4 → +1.3 · White's win% 63 → 62 · winLoss 0.0 · accuracy 96
+Eval +2.7 → +3.1 · White's win% 73 → 76 · winLoss 0.0 · accuracy 100
 
 - *Immediate:* Gives check.
-- *Short term:* b4+ → Ka4 (forced) → Re6 attacks the queen → fxe6 takes the rook (forced) → Qe3 → Qxb4+ takes the pawn (forced) → axb4 takes back → Kxb4 takes back → a few moves later, White comes out ahead in material (+2).
-- *Long term:* White's king is more exposed (fewer pawns in front of it). After the line, Black's king is more exposed (more open files next to it). After the line, White no longer has a passed pawn on d5.
+- *Short term:* b4+ → Ka4 (forced) → … → Qxd5 takes the pawn → … → Bb7 (forced) → Rxb7 takes the bishop → Qc4 attacks the queen.
+- *Long term:* White's king is more exposed (fewer pawns in front of it).
 
-Good — this was the move.
+Great find — the only good move here.
 
-<sub>Candidates: b4+ +1.4 ✓ · Re6 +1.4 ✓ · Qc3+ −3.0 ✗(too-much-loss,loses-result,shallow-disagrees) · Ra7 −6.1 ✗(too-much-loss,loses-result,shallow-disagrees)</sub>
-<sub>Timings: total 0.89s, deepAfter 0.48s, shallow 0.03s, threat 0.04s, forcedness 0.32s, facts 0.01s; cached searches 4</sub>
+<sub>Candidates: b4+ +2.7 ✓ · Re6 −0.0 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees) · Qc3+ −2.4 ✗(too-much-loss,loses-result,shallow-disagrees) · Rb7 −3.5 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees) · Rxf7 −5.0 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees)</sub>
+<sub>Timings: total 0.03s, facts 0.02s; cached searches 15</sub>
 
 ### 27... Ka4 — Great !
 
-Great ! — the only good move here: the next best loses 36% winning chances.
+Great ! — the only good move here: the next best loses 22% winning chances.
 
-Eval +1.3 → +3.2 · Black's win% 38 → 23 · winLoss 0.0 · accuracy 52
+Eval +3.1 → +3.5 · Black's win% 24 → 22 · winLoss 0.0 · accuracy 90
 
-- *Immediate:* Threatens Nxd5, winning a pawn (+1). Attacks White's pawn on a3, which is undefended. Steps out of check with the king.
-- *Short term:* Ka4 → Re6 attacks the queen → fxe6 takes the rook → Qe3 (forced) → Qxb4+ takes the pawn → axb4 takes back (forced) → Kxb4 takes back → Qd4+ forks the king and knight → a few moves later, Black gives a queen for a rook and a pawn (−3).
-- *Long term:* After the line, Black's king is more exposed (more open files next to it). After the line, White's king is more exposed (fewer pawns in front of it and more open files next to it). After the line, Black gets a passed pawn on a6. The payoff is far away: a quick engine look rates this move lower — only a deep search sees why it works.
+- *Immediate:* Attacks White's pawn on a3 with a king. Steps out of check with the king.
+- *Short term:* Ka4 → Qc3 → Qxd5 takes the pawn → … → Rxb7 takes the bishop (forced) → … → Qxf6 wins the knight → … → Qb6 → Black gives a bishop and a knight for a pawn (−5 points); Black is a pawn up.
+- *Long term:* No notable long-term change.
 
-Good — this was the move.
+Great find — the only good move here.
 
-<sub>Candidates: Ka4 +1.3 ✗(shallow-disagrees) · Qxb4+ #4 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees)</sub>
-<sub>Timings: total 5.50s, deepAfter 5.00s, shallow 0.00s, threat 0.34s, forcedness 0.15s, facts 0.01s; cached searches 3</sub>
+<sub>Candidates: Ka4 +3.1 ✓ · Qxb4+ #4 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees)</sub>
+<sub>Timings: total 0.01s, facts 0.01s; cached searches 7</sub>
 
-### 28. Qc3 — Blunder ??
+### 28. Qc3 — Best
 
-Blunder ?? — Ra7 was much better. White's winning chances go from 77% to 54%.
+Best — as good as the engine's top move (Ra7).
 
-Eval +3.2 → +1.0 · White's win% 77 → 59 · winLoss 22.7 · accuracy 46
+Eval +3.5 → +3.5 · White's win% 78 → 79 · winLoss 0.0 · accuracy 100
 
-- *Immediate:* Leaves the rook on e7 hanging — it was already attacked and Black can still win it (−5). Threatens checkmate with Qb3#. Defends the pawn on a3, which was under attack.
-- *Short term:* Qc3 → Qxd5 wins the pawn (forced) → Ra7 → Bb7 (forced) → Rxb7 takes the bishop → Qc4 attacks the queen (forced) → Qxf6 wins the knight → Kxa3 wins the pawn → a few moves later, White wins a rook and a knight for two pawns (+6).
-- *Long term:* After the line, White's king is more exposed (fewer pawns in front of it and more open files next to it). After the line, White no longer has a passed pawn on d5.
+- *Immediate:* Threatens checkmate with Qb3#. Defends the pawn on a3, which was under attack.
+- *Short term:* Qc3 → Qxd5 takes the pawn → … → Bb7 (forced) → Rxb7 takes the bishop → … → Qxf6 takes the knight → Rd1+.
+- *Long term:* No notable long-term change.
 
-**Engine's top:** Ra7 — deep engine move — hard to explain (Ra7 Nxd5 Bd7 Bb7 Rxb7 Rxd7)
-  - *Immediate:* Saves the rook: it was under attack on e7 and is safe on a7.
-  - *Short term:* Ra7 → Nxd5 wins the pawn → Bd7 → Bb7 → Rxb7 wins the bishop → Rxd7 wins the bishop → Rxd7 takes back → Qxd7 takes back → a few moves later, White loses a pawn (−1).
-  - *Long term:* White's rook on e7 no longer has an open file. After the line, White no longer has a passed pawn on d5. The payoff is far away: a quick engine look rates this move lower — only a deep search sees why it works.
+As good as the engine's top move.
 
-<sub>Candidates: Ra7 +3.2 ✗(shallow-disagrees) · Re6 +1.2 ✗(too-much-loss,loses-result,shallow-disagrees) · Qc3 +0.4 ✗(too-much-loss,loses-result,shallow-disagrees) · Qe3 −5.3 ✗(too-much-loss,loses-result,shallow-disagrees) · Rb7 −6.3 ✗(too-much-loss,hangs-material,loses-result,shallow-disagrees)</sub>
-<sub>Timings: total 3.98s, deepAfter 0.64s, shallow 0.06s, threat 0.53s, forcedness 2.72s, facts 0.02s; cached searches 2</sub>
+<sub>Candidates: Ra7 +3.5 ✓ · Qc3 +3.5 ✓ · Re6 0.0 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees) · Qe3 −1.4 ✗(too-much-loss,loses-result,shallow-disagrees) · Rb7 −3.6 ✗(too-much-loss,hangs-material,loses-result,shallow-disagrees,no-concrete-fact)</sub>
+<sub>Timings: total 0.03s, facts 0.02s; cached searches 21</sub>
 
 ### 28... Qxd5 — Great !
 
-Great ! — the only good move here: the next best loses 38% winning chances.
+Great ! — the only good move here: the next best loses 19% winning chances.
 
-Eval +1.0 → +2.6 · Black's win% 41 → 28 · winLoss 0.0 · accuracy 56
+Eval +3.5 → +3.7 · Black's win% 21 → 20 · winLoss 0.0 · accuracy 97
 
-- *Immediate:* Leaves the knight on f6 hanging (−3). Wins White's pawn on d5 for free (+1). Stops White's threat of checkmate with Qb3#. Threatens Qxf3, winning a pawn (+1).
-- *Short term:* Qxd5 wins the pawn → Ra7 (forced) → Bb7 → Rxb7 takes the bishop (forced) → Qc4 attacks the queen → Qxf6 wins the knight (forced) → Rd1+ → Kb2 → a few moves later, Black gives a bishop and a knight for a pawn (−5).
-- *Long term:* White no longer has a passed pawn on d5. Black's rook on d8 now stands on a fully open file. After the line, White's king is more exposed (more enemy pieces aim at it). Black gives up material, but the engine sees about 5.0 pawns of compensation in the position.
+- *Immediate:* Leaves the knight on f6 hanging: White can win it (−3 points). Wins White's pawn on d5 (+1 point). Stops White's threat of checkmate with Qb3#. Threatens Qxf3, winning a pawn (+1 point).
+- *Short term:* Qxd5 takes the pawn → Ra7 → … → Rxb7 takes the bishop (forced) → Qc4 attacks the queen → Qxf6 takes the knight → … → Kb2.
+- *Long term:* White no longer has a passed pawn on d5. Black's rook on d8 now stands on a fully open file (no pawns on it).
 
-Good — this was the move.
+Great find — the only good move here.
 
-<sub>Candidates: Qxd5 +1.0 ✗(hangs-material,shallow-disagrees) · Bxd5 #4 ✗(too-much-loss,hangs-material,loses-result,shallow-disagrees) · Qc5 #1 ✗(too-much-loss,hangs-material,loses-result,shallow-disagrees) · Qc7 #1 ✗(too-much-loss,hangs-material,loses-result,shallow-disagrees) · Qe5 #1 ✗(too-much-loss,hangs-material,loses-result,shallow-disagrees)</sub>
-<sub>Timings: total 3.77s, deepAfter 3.03s, shallow 0.03s, threat 0.36s, forcedness 0.35s, facts 0.01s; cached searches 2</sub>
+<sub>Candidates: Qxd5 +3.5 ✗(hangs-material) · Bxd5 #4 ✗(too-much-loss,hangs-material,loses-result,shallow-disagrees) · Qc7 #1 ✗(too-much-loss,hangs-material,loses-result,shallow-disagrees,no-concrete-fact) · Qc6 #1 ✗(too-much-loss,hangs-material,loses-result,shallow-disagrees,no-concrete-fact) · Qxg3 #1 ✗(too-much-loss,hangs-material,loses-result,shallow-disagrees)</sub>
+<sub>Timings: total 0.01s, facts 0.01s; cached searches 20</sub>
 
 ### 29. Ra7 — Great !
 
-Great ! — the only good move here: the next best loses 22% winning chances.
+Great ! — the only good move here: the next best loses 30% winning chances.
 
-Eval +2.6 → +1.6 · White's win% 72 → 64 · winLoss 0.0 · accuracy 70
+Eval +3.7 → +3.9 · White's win% 80 → 81 · winLoss 0.0 · accuracy 100
 
-- *Immediate:* Stops Black's threat Qxf3, which would win a pawn (+1 for Black). Threatens checkmate with Rxa6#. Attacks Black's pawn on a6, which is undefended.
-- *Short term:* Ra7 → Bb7 (forced) → Rxb7 takes the bishop → Qc4 attacks the queen (forced) → Qxf6 wins the knight → Rd1+ → Kb2 → Ra8 → a few moves later, White wins a bishop and a knight (+6).
-- *Long term:* White's rook on e7 no longer has an open file. White gives up some control of the centre.
+- *Immediate:* Stops Black's threat Qxf3, which would win a pawn (+1 point for Black). Threatens checkmate with Rxa6#. Attacks Black's pawn on a6, which is undefended.
+- *Short term:* Ra7 → Bb7 (forced) → Rxb7 takes the bishop → Qc4 attacks the queen → Qxf6 takes the knight → … → Ra8.
+- *Long term:* No notable long-term change.
 
-Good — this was the move.
+Great find — the only good move here.
 
-<sub>Candidates: Ra7 +2.6 ✓ · Be6 0.0 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees,no-concrete-fact) · Qc7 0.0 ✗(too-much-loss,loses-result,shallow-disagrees) · Re6 −0.4 ✗(too-much-loss,loses-result,shallow-disagrees) · Bf1 −2.4 ✗(too-much-loss,loses-result,shallow-disagrees,no-concrete-fact)</sub>
-<sub>Timings: total 5.59s, deepAfter 5.00s, shallow 0.02s, threat 0.05s, forcedness 0.50s, facts 0.01s; cached searches 4</sub>
+<sub>Candidates: Ra7 +3.7 ✓ · Qc7 0.0 ✗(too-much-loss,loses-result,shallow-disagrees) · Be6 0.0 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees) · Re6 0.0 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees) · Bf1 −1.4 ✗(too-much-loss,loses-result,shallow-disagrees)</sub>
+<sub>Timings: total 0.02s, facts 0.02s; cached searches 18</sub>
 
 ### 29... Bb7 — Great !
 
-Great ! — the only good move here: the next best loses 33% winning chances.
+Great ! — the only good move here: the next best loses 17% winning chances.
 
-Eval +1.6 → +3.8 · Black's win% 36 → 20 · winLoss 0.0 · accuracy 49
+Eval +3.9 → +3.9 · Black's win% 19 → 19 · winLoss 0.0 · accuracy 100
 
-- *Immediate:* Leaves the knight on f6 hanging — it was already attacked and White can still win it (−3). Stops White's threat of checkmate with Rxa6#. Defends the pawn on a6, which was under attack.
-- *Short term:* Bb7 → Rxb7 takes the bishop (forced) → Rhe8 → Rb6 attacks the knight (forced) → Ra8 → Rc6 → Re2 → Bc8 → a few moves later, Black gives a rook and a bishop for a pawn (−7).
-- *Long term:* The payoff is far away: a quick engine look rates this move lower — only a deep search sees why it works.
+- *Immediate:* Leaves the knight on f6 hanging — it was already attacked and White can still win it (−3 points). Stops White's threat of checkmate with Rxa6#.
+- *Short term:* Bb7 → Rxb7 takes the bishop (forced) → Qc4 attacks the queen → Qxf6 wins the knight → … → Qxd4 Rxd4 (queens are traded) → Bd7 → Black loses a bishop and a knight (−6 points); Black is a pawn up.
+- *Long term:* No notable long-term change.
 
-Good — this was the move.
+Great find — the only good move here.
 
-<sub>Candidates: Bb7 +1.6 ✗(shallow-disagrees) · Rd6 #6 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees) · Qd1+ #5 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees) · Qa2+ #3 ✗(too-much-loss,hangs-material,loses-result,shallow-disagrees) · Qe6 #2 ✗(too-much-loss,hangs-material,loses-result,shallow-disagrees)</sub>
-<sub>Timings: total 5.28s, deepAfter 5.00s, shallow 0.01s, threat 0.09s, forcedness 0.17s, facts 0.01s; cached searches 3</sub>
+<sub>Candidates: Bb7 +3.9 ✓ · Rd6 #8 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees) · Qd1+ #5 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees) · Qa2+ #3 ✗(too-much-loss,hangs-material,loses-result,shallow-disagrees) · Qe6 #2 ✗(too-much-loss,hangs-material,loses-result,shallow-disagrees,no-concrete-fact)</sub>
+<sub>Timings: total 0.03s, facts 0.02s; cached searches 12</sub>
 
 ### 30. Rxb7 — Best
 
 Best — the engine's top choice.
 
-Eval +3.8 → +3.4 · White's win% 80 → 78 · winLoss 0.0 · accuracy 90
+Eval +3.9 → +3.8 · White's win% 81 → 80 · winLoss 0.0 · accuracy 99
 
-- *Immediate:* Takes Black's bishop on b7 as a sacrifice (−2) — the follow-up wins it back with interest.
-- *Short term:* Rxb7 takes the bishop → Qc4 attacks the queen (forced) → Qxf6 wins the knight → Rd1+ → Kb2 → Ra8 (forced) → Qb6 → White wins a bishop and a knight (+6).
-- *Long term:* White just had to play this — every other move is much worse. White's pieces get more room to move than Black's.
+- *Immediate:* Takes Black's bishop on b7 as a sacrifice (−2 points) — the follow-up wins it back with interest.
+- *Short term:* Rxb7 takes the bishop → Qc4 attacks the queen → Qxf6 wins the knight → Rd1+ → … → Qxd4 Rxd4 (queens are traded) → Bd7 → White wins back a bishop and a knight (+6 points); Black is a pawn up.
+- *Long term:* The only good move here — every other move is much worse.
 
-Good — this was the move.
+This was the best move.
 
-<sub>Candidates: Rxb7 +3.8 ✓ · Rxa6+ 0.0 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees) · Qc7 0.0 ✗(too-much-loss,loses-result,shallow-disagrees) · Be6 −4.4 ✗(too-much-loss,loses-result,shallow-disagrees) · Kb2 −5.3 ✗(too-much-loss,loses-result,shallow-disagrees)</sub>
-<sub>Timings: total 5.61s, deepAfter 5.00s, shallow 0.01s, threat 0.08s, forcedness 0.50s, facts 0.01s; cached searches 4</sub>
+<sub>Candidates: Rxb7 +3.9 ✓ · Qc7 0.0 ✗(too-much-loss,loses-result,shallow-disagrees) · Rxa6+ 0.0 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees) · Be6 −3.8 ✗(too-much-loss,loses-result,shallow-disagrees) · Kb2 −4.3 ✗(too-much-loss,hangs-material,loses-result,shallow-disagrees)</sub>
+<sub>Timings: total 0.03s, facts 0.02s; cached searches 11</sub>
 
 ### 30... Qc4 — Best
 
 Best — the engine's top choice.
 
-Eval +3.4 → +4.0 · Black's win% 22 → 19 · winLoss 0.0 · accuracy 87
+Eval +3.8 → +3.7 · Black's win% 20 → 21 · winLoss 0.0 · accuracy 100
 
-- *Immediate:* Leaves the knight on f6 hanging — it was already attacked and White can still win it (−3). Threatens Qxc3, winning material (+14).
-- *Short term:* Qc4 attacks the queen → Qxf6 wins the knight (forced) → Rd1+ → Kb2 (forced) → Ra8 → Qb6 (forced) → Black loses a knight (−3).
+- *Immediate:* Leaves the knight on f6 hanging — it was already attacked and White can still win it (−3 points). Attacks White's queen on c3, which is undefended.
+- *Short term:* Qc4 attacks the queen → Qxf6 wins the knight → Rd1+ → … → Qd4+ → Qxd4 Rxd4 (queens are traded) → Bd7 → Black loses a knight (−3 points); Black is a pawn up.
 - *Long term:* No notable long-term change.
 
-Good — this was the move.
+This was the best move.
 
-<sub>Candidates: Qc4 +3.4 ✓ · Rhe8 +5.3 ✗(too-much-loss,material-rule,shallow-disagrees,no-concrete-fact) · Ne4 +6.2 ✗(too-much-loss,material-rule,shallow-disagrees,no-concrete-fact) · Ng4 +6.8 ✗(too-much-loss,material-rule,shallow-disagrees,no-concrete-fact) · Rc8 +8.1 ✗(too-much-loss,material-rule,hangs-material,shallow-disagrees,no-concrete-fact)</sub>
-<sub>Timings: total 5.34s, deepAfter 5.00s, shallow 0.03s, threat 0.11s, forcedness 0.18s, facts 0.01s; cached searches 3</sub>
+<sub>Candidates: Qc4 +3.8 ✗(no-concrete-fact) · Rhe8 +5.2 ✗(too-much-loss,no-concrete-fact) · Ne4 +6.3 ✗(too-much-loss,no-concrete-fact) · Ng4 +7.2 ✗(too-much-loss,material-rule,shallow-disagrees,no-concrete-fact) · Rc8 +8.2 ✗(too-much-loss,material-rule,hangs-material,shallow-disagrees,no-concrete-fact)</sub>
+<sub>Timings: total 0.03s, facts 0.02s; cached searches 10</sub>
 
 ### 31. Qxf6 — Great !
 
-Great ! — the only good move here: the next best loses 72% winning chances.
+Great ! — the only good move here: the next best loses 66% winning chances.
 
-Eval +4.0 → +4.0 · White's win% 81 → 81 · winLoss 0.0 · accuracy 100
+Eval +3.7 → +4.1 · White's win% 79 → 82 · winLoss 0.0 · accuracy 100
 
-- *Immediate:* Wins Black's knight on f6 for free (+3). Stops Black's threat Qxc3, which would win material (+14 for Black). Threatens checkmate with Qxa6#. Attacks Black's pawn on a6, which is undefended.
-- *Short term:* Qxf6 wins the knight → Rd1+ → Kb2 → Ra8 (forced) → Qb6 → White wins a knight (+3).
-- *Long term:* White gains control of the centre. The payoff is far away: a quick engine look rates this move lower — only a deep search sees why it works.
+- *Immediate:* Wins Black's knight on f6 (+3 points). Stops Black's threat Qxc3, which would win a queen (+9 points for Black). Threatens checkmate with Qxa6#. Attacks Black's pawn on a6, which is undefended.
+- *Short term:* Qxf6 wins the knight → Rd1+ → … → Qd4+ → Qxd4 Rxd4 (queens are traded) → Bd7 → White wins back a knight (+3 points); Black is a pawn up.
+- *Long term:* The payoff is far away: a quick engine look rates this move lower — only a deep search sees why it works.
 
-Good — this was the move.
+Great find — the only good move here.
 
-<sub>Candidates: Qxf6 +4.0 ✗(shallow-disagrees) · Qxc4 −6.2 ✗(too-much-loss,loses-result,shallow-disagrees,no-concrete-fact) · Ra7 −6.1 ✗(too-much-loss,loses-result,shallow-disagrees) · Rc7 −7.8 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees) · Qe3 −8.5 ✗(too-much-loss,loses-result,shallow-disagrees)</sub>
-<sub>Timings: total 5.09s, deepAfter 5.00s, shallow 0.01s, threat 0.07s, facts 0.01s; cached searches 4</sub>
+<sub>Candidates: Qxf6 +3.7 ✗(shallow-disagrees) · Ra7 −5.0 ✗(too-much-loss,loses-result,shallow-disagrees) · Qxc4 −6.2 ✗(too-much-loss,loses-result,shallow-disagrees,no-concrete-fact) · Rc7 −6.9 ✗(too-much-loss,hangs-material,loses-result,shallow-disagrees,no-concrete-fact) · Qe5 −8.0 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees)</sub>
+<sub>Timings: total 0.03s, facts 0.02s; cached searches 16</sub>
 
-### 31... Kxa3 — Good
+### 31... Kxa3 — Excellent
 
-Good — a little weaker than Rd1+ (−3% winning chances).
+Excellent — almost as good as the best move Rd1+ (−2% winning chances).
 
-Eval +4.0 → +5.0 · Black's win% 19 → 14 · winLoss 2.6 · accuracy 81
+Eval +4.1 → +4.8 · Black's win% 18 → 14 · winLoss 1.9 · accuracy 86
 
-- *Immediate:* Wins White's pawn on a3 for free (+1). Stops White's threat of checkmate with Qxa6#. Threatens checkmate with Rd1#.
-- *Short term:* Kxa3 wins the pawn → Qxa6+ wins the pawn (forced) → Kxb4 wins the pawn → c3+ (forced) → Kxc3 wins the pawn → Qa1+ (forced) → Kd2 → Black wins two pawns (+2).
-- *Long term:* White's king is more exposed (fewer pawns in front of it and more open files next to it). After the line, Black gets a passed pawn on b5. After the line, Black gets an isolated pawn on b5.
+- *Immediate:* Wins White's pawn on a3 (+1 point). Stops White's threat of checkmate with Qxa6#. Threatens checkmate with Rd1#.
+- *Short term:* Kxa3 takes the pawn → Qxa6+ takes the pawn → Kxb4 takes the pawn → c3+ → Kxc3 takes the pawn → … → Qb2+.
+- *Long term:* White's king is more exposed (fewer pawns in front of it and more open files next to it). After these moves, Black gets a passed pawn on b5 (no enemy pawn stands in its way).
 
 **Engine's top:** Rd1+ (Rd1+ Kb2 Ra8 Qb6 Qd4+ Qxd4)
   - *Immediate:* Gives check.
-  - *Short term:* Rd1+ → Kb2 (forced) → Ra8 → Qb6 (forced).
-  - *Long term:* Black gains space.
+  - *Short term:* Rd1+ → Kb2 → … → Qd4+ → Qxd4 Rxd4 (queens are traded) → Bd7 → the material balance doesn't change (Black is a pawn up).
+  - *Long term:* No notable long-term change.
 
-<sub>Candidates: Rd1+ +4.0 ✓ · Kxa3 +4.5 ✓ · Rd6 +10.5 ✗(too-much-loss,material-rule,hangs-material,shallow-disagrees) · a5 +10.6 ✗(too-much-loss,material-rule,shallow-disagrees) · Ra8 +11.3 ✗(too-much-loss,material-rule,shallow-disagrees)</sub>
-<sub>Timings: total 7.43s, deepAfter 5.00s, shallow 0.36s, threat 0.56s, forcedness 1.50s, facts 0.01s; cached searches 3</sub>
+<sub>Candidates: Rd1+ +4.1 ✓ · Kxa3 +4.5 ✓ · a5 +7.9 ✗(too-much-loss,material-rule,shallow-disagrees) · Ra8 +10.9 ✗(too-much-loss,material-rule,shallow-disagrees) · Qxc2+ +13.1 ✗(too-much-loss,material-rule,hangs-material,shallow-disagrees)</sub>
+<sub>Timings: total 0.03s, facts 0.02s; cached searches 14</sub>
 
 ### 32. Qxa6+ — Great !
 
 Great ! — the only good move here: the next best loses 36% winning chances.
 
-Eval +5.0 → +5.3 · White's win% 86 → 88 · winLoss 0.0 · accuracy 100
+Eval +4.8 → +5.0 · White's win% 86 → 86 · winLoss 0.0 · accuracy 100
 
-- *Immediate:* Wins Black's pawn on a6 for free (+1), with check.
-- *Short term:* Qxa6+ wins the pawn → Kxb4 wins the pawn (forced) → c3+ → Kxc3 wins the pawn → Qa1+ → Kd2 → White loses a pawn (−1).
-- *Long term:* Black's king is more exposed (more open files next to it). Black gets an isolated pawn on b5. After the line, White's king is more exposed (fewer pawns in front of it and more open files next to it).
+- *Immediate:* Wins Black's pawn on a6 (+1 point), with check.
+- *Short term:* Qxa6+ takes the pawn → Kxb4 takes the pawn → c3+ → Kxc3 takes the pawn → Qa1+ → … → Kd1.
+- *Long term:* Black's king is more exposed (more open files next to it). Black gets an isolated pawn on b5 (no pawn of the same colour on the files next to it).
 
-Good — this was the move.
+Great find — the only good move here.
 
-<sub>Candidates: Qxa6+ +5.0 ✓ · Qb2+ 0.0 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees) · Qa1+ 0.0 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees) · Kc1 −5.9 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees) · Qxd8 #−4 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees)</sub>
-<sub>Timings: total 6.12s, deepAfter 5.00s, shallow 0.01s, threat 0.10s, forcedness 1.00s, facts 0.01s; cached searches 2</sub>
+<sub>Candidates: Qxa6+ +4.8 ✗(shallow-disagrees) · Qb2+ 0.0 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees) · Qa1+ 0.0 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees) · Kc1 −5.5 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees) · Qxd8 #−4 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees,no-concrete-fact)</sub>
+<sub>Timings: total 0.02s, facts 0.01s; cached searches 9</sub>
 
 ### 32... Kxb4 — Forced
 
 Forced — the only legal move.
 
-Eval +5.3 → +5.4 · Black's win% 12 → 12 · winLoss 0.0 · accuracy 99
+Eval +5.0 → +5.2 · Black's win% 14 → 13 · winLoss 0.0 · accuracy 98
 
-- *Immediate:* Wins White's pawn on b4 for free (+1). Threatens a forced mate in 3, starting with Rd1+. Defends the pawn on b5, which was under attack. Steps out of check with the king.
-- *Short term:* Kxb4 wins the pawn → c3+ (forced) → Kxc3 wins the pawn → Qa1+ (forced) → Kd2 → Black wins two pawns (+2).
-- *Long term:* Black's king is more exposed (more open files next to it). White's king is more exposed (more open files next to it). White gets an isolated pawn on c2.
+- *Immediate:* Wins White's pawn on b4 (+1 point). Threatens a forced mate in 3, starting with Rd1+. Defends the pawn on b5, which was under attack. Steps out of check with the king.
+- *Short term:* Kxb4 takes the pawn → c3+ → Kxc3 takes the pawn → Qa1+ → … → Qb2+ → … → Bf1 attacks the queen.
+- *Long term:* Black's king is more exposed (more open files next to it). White's king is more exposed (more open files next to it).
 
-Good — this was the move.
+The only legal move.
 
-<sub>Candidates: Kxb4 +5.3 ✓</sub>
-<sub>Timings: total 5.01s, deepAfter 5.00s, shallow 0.00s, threat 0.00s, facts 0.00s; cached searches 3</sub>
+<sub>Candidates: Kxb4 +5.0 ✓</sub>
+<sub>Timings: total 0.01s, facts 0.01s; cached searches 6</sub>
 
 ### 33. c3+ — Great !
 
-Great ! — the only good move here: the next best loses 27% winning chances.
+Great ! — the only good move here: the next best loses 26% winning chances.
 
-Eval +5.4 → +5.6 · White's win% 88 → 89 · winLoss 0.0 · accuracy 100
+Eval +5.2 → +5.3 · White's win% 87 → 88 · winLoss 0.0 · accuracy 100
 
 - *Immediate:* Gives check.
-- *Short term:* c3+ → Kxc3 wins the pawn → Qa1+ → Kd2 → White loses a pawn (−1).
-- *Long term:* After the line, White's king is more exposed (fewer pawns in front of it and more open files next to it). After the line, White's pawn on c2 is no longer isolated. The payoff is far away: a quick engine look rates this move lower — only a deep search sees why it works.
+- *Short term:* c3+ → Kxc3 takes the pawn → Qa1+ → … → Qb2+ → … → Bf1 attacks the queen → Ke1 attacks the bishop.
+- *Long term:* After these moves, White's king is more exposed (fewer pawns in front of it and more open files next to it).
 
-Good — this was the move.
+Great find — the only good move here.
 
-<sub>Candidates: c3+ +5.4 ✗(shallow-disagrees) · Bd7 +1.3 ✗(too-much-loss,loses-result,shallow-disagrees) · Qf6 −4.6 ✗(too-much-loss,loses-result,shallow-disagrees) · Rd7 −5.5 ✗(too-much-loss,loses-result,shallow-disagrees) · Qxb5+ −8.8 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees)</sub>
-<sub>Timings: total 5.05s, deepAfter 5.00s, shallow 0.01s, threat 0.03s, facts 0.01s; cached searches 4</sub>
+<sub>Candidates: c3+ +5.2 ✓ · Bd7 +1.3 ✗(too-much-loss,loses-result,shallow-disagrees) · Qf6 −4.2 ✗(too-much-loss,loses-result,shallow-disagrees) · Rd7 −5.2 ✗(too-much-loss,loses-result,shallow-disagrees) · Rxb5+ −8.8 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees)</sub>
+<sub>Timings: total 0.02s, facts 0.02s; cached searches 12</sub>
 
 ### 33... Kxc3 — Best
 
 Best — the engine's top choice.
 
-Eval +5.6 → +5.4 · Black's win% 11 → 12 · winLoss 0.0 · accuracy 100
+Eval +5.3 → +5.3 · Black's win% 12 → 13 · winLoss 0.0 · accuracy 100
 
-- *Immediate:* Wins White's pawn on c3 for free (+1). Threatens checkmate with Rd1#. Steps out of check with the king.
-- *Short term:* Kxc3 wins the pawn → Qa1+ (forced) → Kd2 → Qb2+ (forced) → Kd1 → Bf1 attacks the queen (forced) → Ke1 attacks the bishop → Bxc4 takes the queen → a few moves later, Black gives a queen for a pawn (−8).
-- *Long term:* Black's king is safer (fewer enemy pieces aim at it). White's king is more exposed (fewer pawns in front of it and more open files next to it). Black gets a passed pawn on b5.
+- *Immediate:* Wins White's pawn on c3 (+1 point). Threatens checkmate with Rd1#. Steps out of check with the king.
+- *Short term:* Kxc3 takes the pawn → Qa1+ → … → Qb2+ → … → Bf1 attacks the queen → Ke1 attacks the bishop.
+- *Long term:* White's king is more exposed (fewer pawns in front of it and more open files next to it). Black gets a passed pawn on b5 (no enemy pawn stands in its way).
 
-Good — this was the move.
+This was the best move.
 
-<sub>Candidates: Kxc3 +5.6 ✓ · Kc5 +8.6 ✗(too-much-loss,shallow-disagrees) · Kb3 #11 ✗(too-much-loss,hangs-material,loses-result,shallow-disagrees) · Qxc3 #3 ✗(too-much-loss,hangs-material,loses-result,shallow-disagrees)</sub>
-<sub>Timings: total 5.91s, deepAfter 5.00s, shallow 0.01s, threat 0.01s, forcedness 0.89s, facts 0.01s; cached searches 2</sub>
+<sub>Candidates: Kxc3 +5.3 ✓ · Kc5 +9.1 ✗(too-much-loss,shallow-disagrees) · Kb3 +18.8 ✗(too-much-loss,shallow-disagrees) · Qxc3 #3 ✗(too-much-loss,hangs-material,loses-result,shallow-disagrees)</sub>
+<sub>Timings: total 0.02s, facts 0.01s; cached searches 9</sub>
 
 ### 34. Qa1+ — Great !
 
-Great ! — the only good move here: the next best loses 81% winning chances.
+Great ! — the only good move here: the next best loses 78% winning chances.
 
-Eval +5.4 → +5.5 · White's win% 88 → 88 · winLoss 0.0 · accuracy 100
+Eval +5.3 → +5.1 · White's win% 87 → 87 · winLoss 0.0 · accuracy 98
 
 - *Immediate:* Gives check.
-- *Short term:* Qa1+ → Kd2 → Qb2+ → Kd1 → Bf1 attacks the queen → Ke1 attacks the bishop → Bxc4 takes the queen → Rd1+ → a few moves later, White wins a queen and a pawn for a bishop (+7).
-- *Long term:* After the line, Black's king is more exposed (more enemy pieces aim at it). The payoff is far away: a quick engine look rates this move lower — only a deep search sees why it works.
+- *Short term:* Qa1+ → Kd2 → Qb2+ → … → Bf1 attacks the queen → … → Bxc4 takes the queen → Rd1+.
+- *Long term:* The payoff is far away: a quick engine look rates this move lower — only a deep search sees why it works.
 
-Good — this was the move.
+Great find — the only good move here.
 
-<sub>Candidates: Qa1+ +5.4 ✗(shallow-disagrees) · Qa5+ −7.0 ✗(too-much-loss,loses-result,shallow-disagrees) · Qa3+ −7.1 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees) · Qf6+ −19.1 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees) · Qa4 #−4 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees)</sub>
-<sub>Timings: total 6.25s, deepAfter 5.00s, shallow 0.01s, threat 0.23s, forcedness 1.00s, facts 0.01s; cached searches 3</sub>
+<sub>Candidates: Qa1+ +5.3 ✗(shallow-disagrees) · Qa3+ −6.0 ✗(too-much-loss,loses-result,shallow-disagrees) · Qa5+ −7.0 ✗(too-much-loss,loses-result,shallow-disagrees) · Qf6+ −13.6 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees) · Qa4 −22.0 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees)</sub>
+<sub>Timings: total 0.02s, facts 0.01s; cached searches 9</sub>
 
 ### 34... Kd2 — Best
 
 Best — the engine's top choice.
 
-Eval +5.5 → +5.5 · Black's win% 12 → 12 · winLoss 0.0 · accuracy 100
+Eval +5.1 → +5.4 · Black's win% 13 → 12 · winLoss 0.0 · accuracy 95
 
 - *Immediate:* Threatens checkmate with Qc2#. Steps out of check with the king.
-- *Short term:* Kd2 → Qb2+ (forced) → Kd1 → Bf1 attacks the queen (forced) → Ke1 attacks the bishop → Bxc4 takes the queen (forced) → Rd1+ → Ka2 → a few moves later, Black gives a queen and a pawn for a bishop (−7).
-- *Long term:* Black gives up some control of the centre.
+- *Short term:* Kd2 → Qb2+ → … → Bf1 attacks the queen → … → Bxc4 takes the queen → … → bxc4+ takes the bishop → Kxc4 takes the pawn → Black gives a queen and a pawn for a bishop (−7 points); White is 4 points up.
+- *Long term:* No notable long-term change.
 
-Good — this was the move.
+This was the best move.
 
-<sub>Candidates: Kd2 +5.5 ✓ · Kb4 +6.4 ✓ · Kd3 +8.4 ✗(too-much-loss,material-rule,shallow-disagrees) · Kb3 #2 ✗(too-much-loss,hangs-material,loses-result,shallow-disagrees)</sub>
-<sub>Timings: total 5.29s, deepAfter 5.00s, shallow 0.00s, threat 0.00s, forcedness 0.28s, facts 0.01s; cached searches 3</sub>
+<sub>Candidates: Kd2 +5.1 ✓ · Kb4 +6.3 ✓ · Kd3 +9.1 ✗(too-much-loss,material-rule,shallow-disagrees) · Kb3 #2 ✗(too-much-loss,hangs-material,loses-result,shallow-disagrees)</sub>
+<sub>Timings: total 0.02s, facts 0.01s; cached searches 9</sub>
 
 ### 35. Qb2+ — Great !
 
-Great ! — the only good move here: the next best loses 86% winning chances.
+Great ! — the only good move here: the next best loses 79% winning chances.
 
-Eval +5.5 → +5.6 · White's win% 88 → 89 · winLoss 0.0 · accuracy 100
+Eval +5.4 → +5.6 · White's win% 88 → 89 · winLoss 0.0 · accuracy 100
 
 - *Immediate:* Gives check.
-- *Short term:* Qb2+ → Kd1 → Bf1 attacks the queen → Ke1 attacks the bishop → Bxc4 takes the queen → Rd1+ → Ka2 → Ra8+ → a few moves later, White wins a queen and a pawn for a bishop (+7).
-- *Long term:* After the line, White's king is safer (fewer open files next to it).
+- *Short term:* Qb2+ → Kd1 → Bf1 attacks the queen → … → Bxc4 takes the queen → … → bxc4+ takes the bishop → Kxc4 takes the pawn → White wins a queen and a pawn for a bishop (+7 points); White is 4 points up.
+- *Long term:* The payoff is far away: a quick engine look rates this move lower — only a deep search sees why it works.
 
-Good — this was the move.
+Great find — the only good move here.
 
-<sub>Candidates: Qb2+ +5.5 ✓ · Qa3 −10.0 ✗(too-much-loss,loses-result,shallow-disagrees) · Qa2+ −7.4 ✗(too-much-loss,loses-result,shallow-disagrees) · Qa5+ −8.1 ✗(too-much-loss,loses-result,shallow-disagrees) · Qxh8 −11.3 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees)</sub>
-<sub>Timings: total 6.02s, deepAfter 5.00s, shallow 0.01s, threat 0.50s, forcedness 0.50s, facts 0.01s; cached searches 4</sub>
+<sub>Candidates: Qb2+ +5.4 ✗(shallow-disagrees) · Qa3 −6.3 ✗(too-much-loss,hangs-material,loses-result,shallow-disagrees) · Qa2+ −7.3 ✗(too-much-loss,hangs-material,loses-result,shallow-disagrees) · Qa5+ −9.0 ✗(too-much-loss,hangs-material,loses-result,shallow-disagrees)</sub>
+<sub>Timings: total 0.02s, facts 0.01s; cached searches 9</sub>
 
 ### 35... Kd1 — Best
 
@@ -1132,295 +1120,280 @@ Best — the engine's top choice.
 Eval +5.6 → +5.6 · Black's win% 11 → 11 · winLoss 0.0 · accuracy 100
 
 - *Immediate:* Steps out of check with the king.
-- *Short term:* Kd1 → Bf1 attacks the queen (forced) → Ke1 attacks the bishop → Bxc4 takes the queen (forced) → Rd1+ → Ka2 (forced) → Ra8+ → Kb3 → a few moves later, Black gives a queen and a pawn for a bishop (−7).
+- *Short term:* Kd1 → Bf1 attacks the queen → Ke1 attacks the bishop → Bxc4 takes the queen → … → bxc4+ takes the bishop → Kxc4 takes the pawn → Black gives a queen and a pawn for a bishop (−7 points); White is 4 points up.
 - *Long term:* No notable long-term change.
 
-Good — this was the move.
+This was the best move.
 
-<sub>Candidates: Kd1 +5.6 ✗(no-concrete-fact) · Ke1 +6.2 ✓ · Kd3 +13.0 ✗(too-much-loss,shallow-disagrees,no-concrete-fact) · Ke3 +15.6 ✗(too-much-loss,material-rule,shallow-disagrees,no-concrete-fact) · Qc2+ #7 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees)</sub>
-<sub>Timings: total 7.53s, deepAfter 5.00s, shallow 0.50s, threat 0.01s, forcedness 2.00s, facts 0.01s; cached searches 3</sub>
+<sub>Candidates: Kd1 +5.6 ✗(no-concrete-fact) · Ke1 +5.9 ✓ · Ke3 +11.1 ✗(too-much-loss,material-rule,hangs-material,shallow-disagrees,no-concrete-fact) · Kd3 +17.3 ✗(too-much-loss,material-rule,hangs-material,shallow-disagrees,no-concrete-fact) · Qc2+ #6 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees)</sub>
+<sub>Timings: total 0.02s, facts 0.02s; cached searches 9</sub>
 
 ### 36. Bf1 — Great !
 
-Great ! — the only good move here: the next best loses 86% winning chances.
+Great ! — the only good move here: the next best loses 80% winning chances.
 
-Eval +5.6 → +5.8 · White's win% 89 → 89 · winLoss 0.0 · accuracy 100
+Eval +5.6 → +5.2 · White's win% 89 → 87 · winLoss 0.0 · accuracy 95
 
-- *Immediate:* Sacrifices the bishop on f1 (−3) — the follow-up wins it back with interest. Threatens Bxc4, winning material (+6).
-- *Short term:* Bf1 attacks the queen → Ke1 attacks the bishop → Bxc4 takes the queen → Rd1+ → Ka2 → Ra8+ → Kb3 → bxc4+ takes the bishop → a few moves later, White wins a queen and a pawn for a bishop (+7).
-- *Long term:* White just had to play this — every other move is much worse.
+- *Immediate:* Attacks Black's queen on c4 with a bishop.
+- *Short term:* Bf1 attacks the queen → Ke1 attacks the bishop → Bxc4 takes the queen → Rd1+ → … → Ra8+ → Kb3.
+- *Long term:* The payoff is far away: a quick engine look rates this move lower — only a deep search sees why it works.
 
-Good — this was the move.
+Great find — the only good move here.
 
-<sub>Candidates: Bf1 +5.6 ✓ · Bc8 −9.4 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees,no-concrete-fact) · Rc7 −10.6 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees,no-concrete-fact) · Be6 −11.1 ✗(too-much-loss,hangs-material,loses-result,shallow-disagrees) · Qg2 −11.1 ✗(too-much-loss,loses-result,shallow-disagrees,no-concrete-fact)</sub>
-<sub>Timings: total 5.57s, deepAfter 5.00s, shallow 0.01s, threat 0.05s, forcedness 0.50s, facts 0.01s; cached searches 4</sub>
+<sub>Candidates: Bf1 +5.6 ✗(shallow-disagrees,no-concrete-fact) · Rb8 −6.3 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees,no-concrete-fact) · Bc8 −8.5 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees,no-concrete-fact) · Qa3 −8.8 ✗(too-much-loss,loses-result,shallow-disagrees,no-concrete-fact) · Ra7 −8.9 ✗(too-much-loss,loses-result,shallow-disagrees,no-concrete-fact)</sub>
+<sub>Timings: total 0.02s, facts 0.01s; cached searches 13</sub>
 
-### 36... Rd2 — Excellent
+### 36... Rd2 — Good
 
-Excellent — almost as good as the best move Ke1 (−2% winning chances).
+Good — a little weaker than Ke1 (−3% winning chances).
 
-Eval +5.8 → +6.6 · Black's win% 11 → 8 · winLoss 1.6 · accuracy 90
+Eval +5.2 → +5.8 · Black's win% 13 → 11 · winLoss 3.0 · accuracy 92
 
-- *Immediate:* Leaves the queen on c4 hanging — it was already attacked and White can still win it (−6). Leaves the rook on h8 hanging (−5). Threatens Rxb2+, winning material (+4).
-- *Short term:* Rd2 attacks the queen → Rd7 (forced) → Rxd7 wins the rook → Bxc4 takes the queen (forced) → bxc4 takes back → Qxh8 wins the rook → Rb7+ → Ka1 → a few moves later, Black gives a queen for a bishop (−6).
-- *Long term:* After the line, Black's king is safer (fewer open files next to it and fewer enemy pieces aim at it). Black's pieces get more room to move than White's. Black gives up material, but the engine sees about 5.5 pawns of compensation in the position.
+- *Immediate:* Leaves the queen on c4 hanging — it was already attacked and White can still win it (−6 points). Leaves the rook on h8 hanging: White can win it (−5 points). Attacks White's queen on b2 with a rook.
+- *Short term:* Rd2 attacks the queen → Rd7 → Rxd7 takes the rook → Bxc4 takes the queen → bxc4 takes back → Qxh8 wins the rook → Black gives a queen for a bishop (−6 points); White is 3 points up.
+- *Long term:* Black gives up material, but the engine sees about 5.2 pawns' worth of compensation in the position.
 
 **Engine's top:** Ke1 (Ke1 Bxc4 Rd1+ Ka2 Ra8+ Kb3)
-  - *Immediate:* Leaves the queen on c4 hanging — it was already attacked and White can still win it (−6). Threatens a forced mate in 3, starting with Rd1+. Attacks White's bishop on f1, which is undefended.
-  - *Short term:* Ke1 attacks the bishop → Bxc4 takes the queen (forced) → Rd1+ → Ka2 (forced) → Ra8+ → Kb3 (forced) → bxc4+ takes the bishop → Kxc4 takes back → a few moves later, Black gives a queen and a pawn for a bishop (−7).
-  - *Long term:* After the line, Black no longer has a passed pawn on b5. After the line, Black's pawn on b5 is no longer isolated.
+  - *Immediate:* Leaves the queen on c4 hanging — it was already attacked and White can still win it (−6 points). Threatens a forced mate in 3, starting with Rd1+. Attacks White's bishop on f1 with a king.
+  - *Short term:* Ke1 attacks the bishop → Bxc4 takes the queen → Rd1+ → … → Ra8+ → Kb3.
+  - *Long term:* No notable long-term change.
 
-<sub>Candidates: Ke1 +5.8 ✓ · Rd2 +6.3 ✗(hangs-material) · Rb8 +9.7 ✗(too-much-loss,material-rule,shallow-disagrees) · Rhe8 +10.3 ✗(too-much-loss,material-rule,shallow-disagrees) · Qb3 +10.9 ✗(too-much-loss,material-rule,hangs-material,shallow-disagrees)</sub>
-<sub>Timings: total 6.97s, deepAfter 5.00s, shallow 0.01s, threat 0.57s, forcedness 1.37s, facts 0.01s; cached searches 4</sub>
+<sub>Candidates: Ke1 +5.2 ✓ · Rd2 +6.1 ✗(hangs-material,no-concrete-fact) · Rhe8 +8.6 ✗(too-much-loss,material-rule,shallow-disagrees,no-concrete-fact) · Qa2+ +9.2 ✗(too-much-loss,material-rule,hangs-material,shallow-disagrees) · Rb8 +9.3 ✗(too-much-loss,material-rule,shallow-disagrees,no-concrete-fact)</sub>
+<sub>Timings: total 0.02s, facts 0.01s; cached searches 18</sub>
 
 ### 37. Rd7 — Great !
 
 Great ! — the only good move here: the next best loses 36% winning chances.
 
-Eval +6.6 → +6.9 · White's win% 92 → 93 · winLoss 0.0 · accuracy 100
+Eval +5.8 → +6.1 · White's win% 89 → 90 · winLoss 0.0 · accuracy 100
 
-- *Immediate:* Stops Black's threat Rxb2+, which would win material (+4 for Black).
-- *Short term:* Rd7 → Rxd7 wins the rook → Bxc4 takes the queen → bxc4 takes back → Qxh8 wins the rook → Rb7+ → Ka1 → Kc2 → a few moves later, White wins a queen for a bishop (+6).
-- *Long term:* White's rook on d7 now stands on a fully open file. White gains control of the centre.
+- *Immediate:* Stops Black's threat Rxb2+, which would win material (+4 points for Black).
+- *Short term:* Rd7 → Rxd7 takes the rook → Bxc4 takes the queen → bxc4 takes back (forced) → Qxh8 wins the rook → … → Rxf3 takes the pawn → White wins a queen for a bishop (+6 points); White is 3 points up.
+- *Long term:* The payoff is far away: a quick engine look rates this move lower — only a deep search sees why it works.
 
-Good — this was the move.
+Great find — the only good move here.
 
-<sub>Candidates: Rd7 +6.6 ✓ · Bxc4 +0.6 ✗(too-much-loss,loses-result,shallow-disagrees) · Qxd2+ −3.5 ✗(too-much-loss,loses-result,shallow-disagrees) · Be2+ −10.5 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees) · Ra7 −17.6 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees,no-concrete-fact)</sub>
-<sub>Timings: total 7.00s, deepAfter 5.00s, shallow 0.01s, threat 0.54s, forcedness 1.43s, facts 0.01s; cached searches 2</sub>
+<sub>Candidates: Rd7 +5.8 ✗(shallow-disagrees) · Bxc4 +0.4 ✗(too-much-loss,hangs-material,loses-result,shallow-disagrees) · Qxd2+ −2.9 ✗(too-much-loss,hangs-material,loses-result,shallow-disagrees) · Be2+ −10.9 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees) · Rxb5 #−7 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees)</sub>
+<sub>Timings: total 0.02s, facts 0.01s; cached searches 13</sub>
 
 ### 37... Rxd7 — Best
 
 Best — the engine's top choice.
 
-Eval +6.9 → +6.8 · Black's win% 7 → 8 · winLoss 0.0 · accuracy 100
+Eval +6.1 → +6.5 · Black's win% 10 → 9 · winLoss 0.0 · accuracy 96
 
-- *Immediate:* Leaves the queen on c4 hanging — it was already attacked and White can still win it (−6). Wins White's rook on d7 for free (+5). Stops White's threat of checkmate with Qxd2#. Threatens Qxf1, winning a bishop (+3).
-- *Short term:* Rxd7 wins the rook → Bxc4 takes the queen (forced) → bxc4 takes back → Qxh8 wins the rook → Rb7+ → Ka1 → Rd7 → Qc8 attacks the rook → a few moves later, Black gives a queen and a pawn for a bishop (−7).
-- *Long term:* After the line, Black's king is safer (fewer open files next to it and fewer enemy pieces aim at it). Black gains control of the centre.
+- *Immediate:* Takes White's rook on d7. Leaves the queen on c4 hanging — it was already attacked and White can still win it (−6 points). Stops White's threat of checkmate with Qxd2#.
+- *Short term:* Rxd7 takes the rook → Bxc4 takes the queen → bxc4 takes back → Qxh8 wins the rook → Black gives a queen for a bishop (−6 points); White is 3 points up.
+- *Long term:* No notable long-term change.
 
-Good — this was the move.
+This was the best move.
 
-<sub>Candidates: Rxd7 +6.9 ✓ · Ke1 +14.6 ✗(material-rule) · Rd6 #7 ✗(material-rule,hangs-material,loses-result) · Rd5 #7 ✗(material-rule,hangs-material,loses-result) · Rd4 #7 ✗(material-rule,hangs-material,loses-result)</sub>
-<sub>Timings: total 6.19s, deepAfter 5.00s, shallow 0.04s, threat 0.64s, forcedness 0.50s, facts 0.01s; cached searches 4</sub>
+<sub>Candidates: Rxd7 +6.1 ✓ · Ke1 +16.1 ✗(too-much-loss,material-rule,hangs-material,shallow-disagrees) · Rd5 #6 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees) · Rd6 #5 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees) · Qb4 #4 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees)</sub>
+<sub>Timings: total 0.03s, facts 0.02s; cached searches 14</sub>
 
 ### 38. Bxc4 — Great !
 
-Great ! — the only good move here: the next best loses 82% winning chances.
+Great ! — the only good move here: the next best loses 86% winning chances.
 
-Eval +6.8 → +6.5 · White's win% 92 → 91 · winLoss 0.0 · accuracy 97
+Eval +6.5 → +6.6 · White's win% 91 → 92 · winLoss 0.0 · accuracy 100
 
-- *Immediate:* Takes Black's queen on c4 and comes out ahead in the exchange (+6).
-- *Short term:* Bxc4 takes the queen → bxc4 takes back → Qxh8 wins the rook → Rd3 → Qf6 → c3 → Qc6 → White wins a queen and a rook for a bishop (+11).
-- *Long term:* White just had to play this — every other move is much worse. White gains control of the centre.
+- *Immediate:* Takes Black's queen on c4 and comes out ahead in the exchange of pieces (+6 points).
+- *Short term:* Bxc4 takes the queen → bxc4 takes back (forced) → Qxh8 wins the rook → Rb7+ → … → Qxc4 wins the pawn → Rxf3 takes the pawn → White wins a queen and a rook for a bishop (+11 points); White is 3 points up.
+- *Long term:* No notable long-term change.
 
-Good — this was the move.
+Great find — the only good move here.
 
-<sub>Candidates: Bxc4 +6.8 ✓ · Be2+ −5.9 ✗(too-much-loss,loses-result,shallow-disagrees) · h4 −11.3 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees) · Qa3 −11.5 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees) · h3 −11.7 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees)</sub>
-<sub>Timings: total 5.76s, deepAfter 5.00s, shallow 0.01s, threat 0.24s, forcedness 0.50s, facts 0.01s; cached searches 4</sub>
+<sub>Candidates: Bxc4 +6.5 ✓ · Be2+ −7.7 ✗(too-much-loss,hangs-material,loses-result,shallow-disagrees) · Ka1 −12.3 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees,no-concrete-fact) · h3 −12.6 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees,no-concrete-fact) · g4 −12.7 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees,no-concrete-fact)</sub>
+<sub>Timings: total 0.02s, facts 0.02s; cached searches 15</sub>
 
 ### 38... bxc4 — Best
 
 Best — the engine's top choice.
 
-Eval +6.5 → +6.5 · Black's win% 9 → 8 · winLoss 0.0 · accuracy 100
+Eval +6.6 → +6.2 · Black's win% 8 → 9 · winLoss 0.0 · accuracy 100
 
-- *Immediate:* Leaves the rook on h8 hanging — it was already attacked and White can still win it (−5). Recaptures: takes White's bishop on c4. Stops White's threat of checkmate with Qe2#.
-- *Short term:* bxc4 takes back → Qxh8 wins the rook → Rb7+ → Ka1 → Rd7 → Qc8 attacks the rook → Rd3 → Qxc4 wins the pawn → a few moves later, Black loses the exchange (−2).
-- *Long term:* After the line, Black no longer has a passed pawn on b5. After the line, Black's pawn on b5 is no longer isolated.
+- *Immediate:* Leaves the rook on h8 hanging — it was already attacked and White can still win it (−5 points). Takes back: captures White's bishop on c4. Stops White's threat of checkmate with Qe2#.
+- *Short term:* bxc4 takes back → Qxh8 wins the rook → Rb7+ → … → Qd4+ → … → Qxc4 wins the pawn → Rxf3 takes the pawn → Black loses the exchange — a rook for a bishop (−2 points); White is 3 points up.
+- *Long term:* No notable long-term change.
 
-Good — this was the move.
+This was the best move.
 
-<sub>Candidates: bxc4 +6.5 ✓ · Rd3 #2 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees) · Rd6 #1 ✗(too-much-loss,hangs-material,loses-result,shallow-disagrees,no-concrete-fact) · h6 #1 ✗(too-much-loss,hangs-material,loses-result,shallow-disagrees,no-concrete-fact) · b4 #1 ✗(too-much-loss,hangs-material,loses-result,shallow-disagrees,no-concrete-fact)</sub>
-<sub>Timings: total 5.79s, deepAfter 4.46s, shallow 0.50s, threat 0.78s, forcedness 0.04s, facts 0.01s; cached searches 4</sub>
+<sub>Candidates: bxc4 +6.6 ✓ · Rd3 #2 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees) · Rd5 #1 ✗(too-much-loss,hangs-material,loses-result,shallow-disagrees,no-concrete-fact) · Rd4 #1 ✗(too-much-loss,hangs-material,loses-result,shallow-disagrees) · b4 #1 ✗(too-much-loss,hangs-material,loses-result,shallow-disagrees,no-concrete-fact)</sub>
+<sub>Timings: total 0.01s, facts 0.01s; cached searches 19</sub>
 
 ### 39. Qxh8 — Best
 
 Best — the engine's top choice.
 
-Eval +6.5 → +6.0 · White's win% 92 → 90 · winLoss 0.0 · accuracy 94
+Eval +6.2 → +6.4 · White's win% 91 → 91 · winLoss 0.0 · accuracy 100
 
-- *Immediate:* Wins Black's rook on h8 for free (+5). Attacks Black's pawn on h7, which is undefended.
-- *Short term:* Qxh8 wins the rook → Rd3 → Qf6 → h5 → Qxf7 wins the pawn → c3 → Qb3+ → Ke1 → a few moves later, White wins a rook and a pawn (+6).
-- *Long term:* The payoff is far away: a quick engine look rates this move lower — only a deep search sees why it works.
+- *Immediate:* Wins Black's rook on h8 (+5 points). Attacks Black's pawn on h7, which is undefended.
+- *Short term:* Qxh8 wins the rook → f5 → White wins a rook (+5 points); White is 3 points up.
+- *Long term:* No notable long-term change.
 
-Good — this was the move.
+This was the best move.
 
-<sub>Candidates: Qxh8 +6.5 ✗(shallow-disagrees) · Qc2+ +4.1 ✗(too-much-loss,shallow-disagrees) · Qc1+ +3.9 ✗(too-much-loss,shallow-disagrees) · f4 −2.6 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees) · g4 −2.7 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees)</sub>
-<sub>Timings: total 6.04s, deepAfter 5.00s, shallow 0.01s, threat 0.52s, forcedness 0.50s, facts 0.01s; cached searches 4</sub>
+<sub>Candidates: Qxh8 +6.2 ✓ · Qc2+ +4.2 ✗(too-much-loss,shallow-disagrees) · Qc1+ +3.8 ✗(too-much-loss,shallow-disagrees) · f4 −2.4 ✗(too-much-loss,material-rule,hangs-material,loses-result,shallow-disagrees) · g4 −2.7 ✗(too-much-loss,material-rule,loses-result,shallow-disagrees,no-concrete-fact)</sub>
+<sub>Timings: total 0.01s, facts 0.01s; cached searches 8</sub>
 
-### 39... Rd3 — Excellent
+### 39... Rd3 — Best
 
-Excellent — almost as good as the best move c3 (−1% winning chances).
+Best — as good as the engine's top move (Rb7+).
 
-Eval +6.0 → +6.9 · Black's win% 10 → 7 · winLoss 1.4 · accuracy 90
+Eval +6.4 → +6.6 · Black's win% 9 → 8 · winLoss 0.3 · accuracy 98
 
 - *Immediate:* Attacks White's pawn on f3, which is undefended.
-- *Short term:* Rd3 → Qf6 → Rb3+ → Ka2 (forced) → Rd3 → Qxf7 wins the pawn → c3 → Qc4 attacks the rook → a few moves later, Black loses a pawn (−1).
-- *Long term:* Black gains space.
+- *Short term:* No forcing follow-up.
+- *Long term:* No notable long-term change.
 
-**Try this:** Rb7+ (Rb7+ Ka1 Ra7+ Kb2 Ke2 f4; −1.7% winning chances vs the engine's top)
-  - *Immediate:* Gives check.
-  - *Short term:* Rb7+ → Ka1 → Ra7+ → Kb2 → Ke2 → f4 → Kf1 → Qxh7 wins the pawn → a few moves later, Black loses a pawn (−1).
-  - *Long term:* Black gives up some control of the centre.
-**Engine's top:** c3 (c3 Qxc3 Rb7+ Ka2 Ra7+ Kb3)
-  - *Immediate:* Leaves the pawn on c3 hanging (−1).
-  - *Short term:* c3 → Qxc3 wins the pawn (forced) → Rb7+ → Ka2 → Black loses a pawn (−1).
-  - *Long term:* After the line, Black no longer has a passed pawn on c4. After the line, Black's pawn on c4 is no longer isolated. Black gives up material, but the engine sees about 1.0 pawns of compensation in the position.
+As good as the engine's top move.
 
-<sub>Candidates: c3 +6.0 ✗(hangs-material,no-concrete-fact) · g5 +6.3 ✗(no-concrete-fact) · Rd3 +6.5 ✗(no-concrete-fact) · Rd6 +6.3 ✗(no-concrete-fact) · Rb7+ +6.6 ✓</sub>
-<sub>Timings: total 8.11s, deepAfter 5.00s, shallow 0.30s, threat 0.56s, forcedness 2.23s, facts 0.01s; cached searches 3</sub>
+<sub>Candidates: Rb7+ +6.4 ✓ · Rd6 +6.6 ✗(no-concrete-fact) · Rd3 +6.5 ✗(no-concrete-fact) · h5 +6.5 ✓ · Rd5 +6.5 ✗(no-concrete-fact)</sub>
+<sub>Timings: total 0.01s, facts 0.01s; cached searches 12</sub>
 
-### 40. Qa8 — Inaccuracy ?!
+### 40. Qa8 — Good
 
-Inaccuracy ?! — Qf6 was better (−6% winning chances).
+Good — a little weaker than f4 (−5% winning chances).
 
-Eval +6.9 → +5.1 · White's win% 93 → 87 · winLoss 6.2 · accuracy 77
+Eval +6.6 → +4.7 · White's win% 92 → 85 · winLoss 4.8 · accuracy 73
 
 - *Immediate:* Defends the pawn on f3, which was under attack.
-- *Short term:* Qa8 → f5 → Qc6 → Rb3+ → Ka2 → Ke1 → g4 → fxg4 takes the pawn → a few moves later, material stays level.
-- *Long term:* After the line, White gets isolated pawns on h2 and f3. After the line, Black gets doubled pawns on the g-file.
+- *Short term:* Qa8 → Rb3+ → Ka2.
+- *Long term:* The payoff is far away: a quick engine look rates this move lower — only a deep search sees why it works.
 
-**Engine's top:** Qf6 (Qf6 c3 Qc6 Ke1 Qe4+ Kd2)
-  - *Immediate:* Threatens Qxf7, winning a pawn (+1). Defends the pawn on f3, which was under attack.
-  - *Short term:* No forcing follow-up; material stays level (engine line: Qf6 c3 Qc6 Ke1).
+**Engine's top:** f4 (f4 Kd2 Qb2+ Ke1 Qf6 Rd1+)
+  - *Immediate:* Saves the pawn: it was under attack on f3 and is safe on f4.
+  - *Short term:* f4 → Kd2 → Qb2+ → Ke1.
   - *Long term:* No notable long-term change.
 
-<sub>Candidates: Qf6 +6.9 ✓ · f4 +5.9 ✓ · Qa8 +5.0 ✗(too-much-loss,shallow-disagrees,no-concrete-fact) · Qc8 +4.3 ✗(too-much-loss,shallow-disagrees,no-concrete-fact) · g4 +3.7 ✗(too-much-loss,shallow-disagrees,no-concrete-fact)</sub>
-<sub>Timings: total 8.14s, deepAfter 5.00s, shallow 0.01s, threat 1.12s, forcedness 2.00s, facts 0.01s; cached searches 3</sub>
+<sub>Candidates: f4 +6.6 ✓ · Qf6 +5.5 ✗(shallow-disagrees) · Qa8 +5.2 ✗(shallow-disagrees,no-concrete-fact) · Qc8 +4.2 ✗(too-much-loss,shallow-disagrees,no-concrete-fact) · Qa1 +3.9 ✗(too-much-loss,shallow-disagrees,no-concrete-fact)</sub>
+<sub>Timings: total 0.02s, facts 0.01s; cached searches 12</sub>
 
 ### 40... c3 — Inaccuracy ?!
 
-Inaccuracy ?! — f5 was better (−6% winning chances).
+Inaccuracy ?! — Rb3+ was better (−7% winning chances).
 
-Eval +5.1 → +7.2 · Black's win% 13 → 7 · winLoss 6.2 · accuracy 74
+Eval +4.7 → +7.0 · Black's win% 15 → 7 · winLoss 7.5 · accuracy 70
 
 - *Immediate:* Nothing special happens right away.
-- *Short term:* c3 → Qa4+ → Ke1 → Qe4+ attacks the rook → Kd2.
+- *Short term:* c3 → Qa4+ → … → Qe4+ attacks the rook → … → Qf4+ → Re3 blocks the check → Qd4+.
 - *Long term:* No notable long-term change.
 
-**Try this:** Rb3+ (Rb3+ Ka2 f5 Qd5+ Ke1 g4; −2.0% winning chances vs the engine's top)
+**Engine's top:** Rb3+ (Rb3+ Ka2 Rd3 Qc6 Rd2+ Kb1)
   - *Immediate:* Gives check.
-  - *Short term:* Rb3+ → Ka2 → f5 → Qd5+ → Ke1 → g4 → Rd3 attacks the queen → Qe6+ → a few moves later, material stays level.
-  - *Long term:* Black gives up some control of the centre.
-**Engine's top:** f5 (f5 Qc6 Ke1 g4 fxg4 fxg4)
-  - *Immediate:* Nothing special happens right away.
-  - *Short term:* f5 → Qc6 → Ke1 → g4 → fxg4 takes the pawn → fxg4 takes back → Kf2 → h4 → a few moves later, Black loses a pawn (−1).
+  - *Short term:* Rb3+ → Ka2.
   - *Long term:* No notable long-term change.
 
-<sub>Candidates: f5 +5.1 ✗(no-concrete-fact) · Rb3+ +5.6 ✓ · f6 +6.2 ✗(no-concrete-fact) · Kd2 +6.7 ✗(too-much-loss,no-concrete-fact) · g5 +5.9 ✗(shallow-disagrees,no-concrete-fact)</sub>
-<sub>Timings: total 8.87s, deepAfter 5.00s, searchmoves 0.45s, shallow 0.17s, threat 0.19s, forcedness 3.03s, facts 0.01s; cached searches 2</sub>
+<sub>Candidates: Rb3+ +4.7 ✓ · Kd2 +5.5 ✗(no-concrete-fact) · f6 +5.9 ✗(too-much-loss,no-concrete-fact) · f5 +6.0 ✗(too-much-loss,no-concrete-fact) · g5 +6.1 ✗(too-much-loss,no-concrete-fact)</sub>
+<sub>Timings: total 0.03s, facts 0.02s; cached searches 13</sub>
 
 ### 41. Qa4+ — Best
 
 Best — the engine's top choice.
 
-Eval +7.2 → +7.4 · White's win% 93 → 94 · winLoss 0.0 · accuracy 100
+Eval +7.0 → +6.7 · White's win% 93 → 92 · winLoss 0.0 · accuracy 98
 
 - *Immediate:* Gives check.
-- *Short term:* Qa4+ → Ke1 → Qe4+ attacks the rook → Kd2.
-- *Long term:* White gives up some space. The payoff is far away: a quick engine look rates this move lower — only a deep search sees why it works.
+- *Short term:* Qa4+ → Ke1 → Qe4+ attacks the rook → … → Qf4+ → … → Qc1+ → … → f4.
+- *Long term:* No notable long-term change.
 
-Good — this was the move.
+This was the best move.
 
-<sub>Candidates: Qa4+ +7.2 ✗(shallow-disagrees) · Qc6 +6.7 ✗(shallow-disagrees,no-concrete-fact) · Qa1 +3.6 ✗(too-much-loss,hangs-material,shallow-disagrees,no-concrete-fact) · Qc8 +3.6 ✗(too-much-loss,hangs-material,shallow-disagrees,no-concrete-fact) · Qa2 +3.5 ✗(too-much-loss,hangs-material,shallow-disagrees)</sub>
-<sub>Timings: total 7.15s, deepAfter 5.00s, shallow 0.01s, threat 1.14s, forcedness 1.00s, facts 0.01s; cached searches 2</sub>
+<sub>Candidates: Qa4+ +7.0 ✓ · Qc6 +5.5 ✗(shallow-disagrees,no-concrete-fact) · Qa2 +3.4 ✗(too-much-loss,material-rule,shallow-disagrees) · Qc8 +3.8 ✗(too-much-loss,hangs-material,shallow-disagrees,no-concrete-fact) · Qa1 +3.1 ✗(too-much-loss,material-rule,hangs-material,shallow-disagrees,no-concrete-fact)</sub>
+<sub>Timings: total 0.02s, facts 0.02s; cached searches 11</sub>
 
 ### 41... Ke1 — Best
 
 Best — the engine's top choice.
 
-Eval +7.4 → +7.4 · Black's win% 6 → 6 · winLoss 0.0 · accuracy 100
+Eval +6.7 → +7.1 · Black's win% 8 → 7 · winLoss 0.0 · accuracy 97
 
-- *Immediate:* Threatens Rxf3, winning a pawn (+1). Steps out of check with the king.
-- *Short term:* Ke1 → Qe4+ attacks the rook → Kd2 → Qf4+ (forced) → Kd1 → Qc1+ → Ke2 → Qc2+.
+- *Immediate:* Threatens Rxf3, winning a pawn (+1 point). Steps out of check with the king.
+- *Short term:* Ke1 → Qe4+ attacks the rook → … → Qf4+ → Re3 blocks the check → Qd4+ → … → Qc4+.
 - *Long term:* No notable long-term change.
 
-Good — this was the move.
+This was the best move.
 
-<sub>Candidates: Ke1 +7.4 ✓ · Ke2 +7.4 ✓ · Kd2 +7.6 ✓ · c2+ +15.7 ✗(material-rule,hangs-material)</sub>
-<sub>Timings: total 5.60s, deepAfter 5.00s, shallow 0.00s, threat 0.04s, forcedness 0.56s, facts 0.01s; cached searches 2</sub>
+<sub>Candidates: Ke1 +6.7 ✓ · Ke2 +7.2 ✓ · Kd2 +7.3 ✓ · c2+ +10.0 ✗(too-much-loss,material-rule,hangs-material,shallow-disagrees)</sub>
+<sub>Timings: total 0.02s, facts 0.01s; cached searches 7</sub>
 
-### 42. f4 — Excellent
+### 42. f4 — Inaccuracy ?!
 
-Excellent — almost as good as the best move Qe4+ (−2% winning chances).
+Inaccuracy ?! — Qe4+ was better (−5% winning chances). Qe4+ leads to winning a pawn.
 
-Eval +7.4 → +6.5 · White's win% 94 → 92 · winLoss 1.9 · accuracy 91
+Eval +7.1 → +6.2 · White's win% 93 → 91 · winLoss 5.4 · accuracy 90
 
-- *Immediate:* Stops Black's threat Rxf3, which would win a pawn (+1 for Black). Saves the pawn: it was under attack on f3 and is safe on f4.
-- *Short term:* f4 → Rd2 → Qc4 → Rxh2 wins the pawn → Qxf7 wins the pawn → Rh6 → material stays level.
+- *Immediate:* Stops Black's threat Rxf3, which would win a pawn (+1 point for Black).
+- *Short term:* f4 → Rd1+ → … → Rd2+ → Kxc3 takes the pawn → Rxh2 takes the pawn → the material balance doesn't change (White is 3 points up).
 - *Long term:* No notable long-term change.
 
-**Engine's top:** Qe4+ (Qe4+ Kd2 Qf4+ Kd1 Qc1+ Ke2)
+**Engine's top:** Qe4+ (Qe4+ Kd2 Qf4+ Ke1 Qxf7 Rd2)
   - *Immediate:* Gives check. Attacks Black's rook on d3, which is undefended.
-  - *Short term:* Qe4+ attacks the rook → Kd2 → Qf4+ → Kd1 → Qc1+ → Ke2 (forced) → Qc2+ → Rd2 attacks the queen → a few moves later, White wins a pawn (+1).
-  - *Long term:* White gains control of the centre.
+  - *Short term:* Qe4+ attacks the rook → Kd2 → Qf4+ → … → Qxf7 wins the pawn → White wins a pawn (+1 point); White is 4 points up.
+  - *Long term:* No notable long-term change.
 
-<sub>Candidates: Qe4+ +7.4 ✓ · f4 +6.6 ✓ · Qc6 +4.9 ✗(too-much-loss,shallow-disagrees) · Qf4 +4.9 ✗(too-much-loss,shallow-disagrees) · Kc2 +4.3 ✗(too-much-loss,shallow-disagrees)</sub>
-<sub>Timings: total 7.65s, deepAfter 5.00s, shallow 0.01s, threat 0.63s, forcedness 2.00s, facts 0.01s; cached searches 3</sub>
+<sub>Candidates: Qe4+ +7.1 ✓ · f4 +5.4 ✗(too-much-loss) · Qf4 +5.4 ✗(too-much-loss,shallow-disagrees) · Kc2 +4.5 ✗(too-much-loss,shallow-disagrees) · Qh4 +4.4 ✗(too-much-loss,shallow-disagrees,no-concrete-fact)</sub>
+<sub>Timings: total 0.03s, facts 0.02s; cached searches 15</sub>
 
-### 42... f5 — Good
+### 42... f5 — Excellent
 
-Good — a little weaker than Kf2 (−4% winning chances).
+Excellent — almost as good as the best move Rd1+ (−2% winning chances).
 
-Eval +6.5 → +7.9 · Black's win% 8 → 5 · winLoss 4.1 · accuracy 87
+Eval +6.2 → +7.7 · Black's win% 9 → 5 · winLoss 1.8 · accuracy 85
 
 - *Immediate:* Nothing special happens right away.
-- *Short term:* f5 → Kc1 (forced) → Rd2 → Qa7 → h6 → Qb6 → g5 → fxg5 takes the pawn → a few moves later, Black loses a pawn (−1).
-- *Long term:* After the line, Black gets isolated pawns on f5 and h6. After the line, White gets doubled pawns on the g-file.
+- *Short term:* No forcing follow-up.
+- *Long term:* No notable long-term change.
 
-**Try this:** Rd2 (Rd2 Qc4 Rxh2 Qxf7 Rd2 Kc1; −1.9% winning chances vs the engine's top)
-  - *Immediate:* Threatens Rxh2, winning a pawn (+1).
-  - *Short term:* Rd2 → Qc4 → Rxh2 wins the pawn → Qxf7 wins the pawn → Rd2 → Kc1 → Ke2 → g4 → a few moves later, Black loses a pawn (−1).
-  - *Long term:* No notable long-term change.
-**Engine's top:** Kf2 (Kf2 Kc2 Re3 Qd4 Kf3 Qd5+)
-  - *Immediate:* Nothing special happens right away.
-  - *Short term:* Kf2 → Kc2 attacks the rook → Re3 → Qd4 pins the rook.
+**Engine's top:** Rd1+ (Rd1+ Kc2 Rd2+ Kxc3 Rxh2 Qa7)
+  - *Immediate:* Gives check.
+  - *Short term:* Rd1+ → Kc2 (forced) → Rd2+ → Kxc3 takes the pawn → Rxh2 takes the pawn → the material balance doesn't change (White is 3 points up).
   - *Long term:* No notable long-term change.
 
-<sub>Candidates: Kf2 +6.5 ✗(no-concrete-fact) · Rd2 +7.2 ✓ · g5 +7.3 ✗(hangs-material,no-concrete-fact) · Rd1+ +7.5 ✓ · c2+ +6.5 ✗(hangs-material)</sub>
-<sub>Timings: total 12.12s, deepAfter 5.00s, searchmoves 3.52s, shallow 0.52s, threat 0.18s, forcedness 2.88s, facts 0.01s; cached searches 2</sub>
+<sub>Candidates: Rd1+ +6.2 ✓ · c2+ +6.3 ✗(hangs-material) · f5 +6.8 ✗(no-concrete-fact) · Rd6 +6.9 ✗(no-concrete-fact) · f6 +6.9 ✗(no-concrete-fact)</sub>
+<sub>Timings: total 0.02s, facts 0.01s; cached searches 12</sub>
 
 ### 43. Kc1 — Best
 
-Best — as good as the engine's top move (Qa7).
+Best — the engine's top choice.
 
-Eval +7.9 → +8.6 · White's win% 95 → 96 · winLoss 0.5 · accuracy 100
+Eval +7.7 → +7.8 · White's win% 95 → 95 · winLoss 0.0 · accuracy 100
 
 - *Immediate:* Nothing special happens right away.
-- *Short term:* Kc1 → Kf2 → Qa7+ → Re3 → Qxh7 wins the pawn → Re6 → White wins a pawn (+1).
+- *Short term:* No forcing follow-up.
 - *Long term:* No notable long-term change.
 
-Good — this was the move.
+This was the best move.
 
-<sub>Candidates: Qa7 +7.9 ✗(no-concrete-fact) · Kc1 +7.6 ✓ · g4 +6.4 ✗(shallow-disagrees,no-concrete-fact) · Qc6 +5.1 ✗(too-much-loss,shallow-disagrees,no-concrete-fact) · Qc4 +5.1 ✗(too-much-loss,shallow-disagrees)</sub>
-<sub>Timings: total 7.77s, deepAfter 5.00s, shallow 0.01s, threat 0.61s, forcedness 2.14s, facts 0.01s; cached searches 2</sub>
+<sub>Candidates: Kc1 +7.7 ✗(no-concrete-fact) · Qa7 +7.7 ✗(no-concrete-fact) · Qe8+ +6.8 ✗(shallow-disagrees) · g4 +6.0 ✗(hangs-material,shallow-disagrees,no-concrete-fact) · Qc6 +4.4 ✗(too-much-loss,shallow-disagrees,no-concrete-fact)</sub>
+<sub>Timings: total 0.01s, facts 0.01s; cached searches 8</sub>
 
 ### 43... Rd2 — Best
 
-Best — as good as the engine's top move (c2).
+Best — the engine's top choice.
 
-Eval +8.6 → +8.6 · Black's win% 4 → 4 · winLoss 0.0 · accuracy 100
+Eval +7.8 → +7.8 · Black's win% 5 → 5 · winLoss 0.0 · accuracy 100
 
-- *Immediate:* Threatens Rxh2, winning material (+2).
-- *Short term:* Rd2 → Qa7 → Ke2 → Qxh7 wins the pawn → Kd3 → Qd7+ → Ke3 uncovers an attack on the queen → Qe7+ → Black loses a pawn (−1).
+- *Immediate:* Threatens Rxh2, winning a pawn (+1 point).
+- *Short term:* Rd2 → Qa7 → … → fxg5 takes the pawn → hxg5 takes back → Qe6+.
 - *Long term:* No notable long-term change.
 
-Good — this was the move.
+This was the best move.
 
-<sub>Candidates: c2 +8.6 ✗(hangs-material,no-concrete-fact) · Rd6 +8.5 ✗(no-concrete-fact) · Rd2 +8.5 ✓ · h6 +8.6 ✗(no-concrete-fact) · Re3 +8.6 ✗(no-concrete-fact)</sub>
-<sub>Timings: total 6.69s, deepAfter 5.00s, shallow 0.11s, threat 0.80s, forcedness 0.76s, facts 0.01s; cached searches 3</sub>
+<sub>Candidates: Rd2 +7.8 ✓ · c2 +8.0 ✗(no-concrete-fact) · Ke2 +8.2 ✗(no-concrete-fact) · Kf2 +8.2 ✗(no-concrete-fact) · Re3 +8.2 ✗(no-concrete-fact)</sub>
+<sub>Timings: total 0.02s, facts 0.01s; cached searches 13</sub>
 
 ### 44. Qa7 — Best
 
 Best — the engine's top choice.
 
-Eval +8.6 → +8.3 · White's win% 96 → 95 · winLoss 0.0 · accuracy 99
+Eval +7.8 → +8.4 · White's win% 95 → 96 · winLoss 0.0 · accuracy 100
 
-- *Immediate:* Threatens Qxh7, winning a pawn (+1).
-- *Short term:* Qa7 → Ke2 → Qxh7 wins the pawn → Kd3 → Qd7+ → Ke4 uncovers an attack on the queen → Qe6+ → Kd3 → a few moves later, White wins a pawn (+1).
-- *Long term:* White gains space.
+- *Immediate:* Threatens Qxh7, winning a pawn (+1 point).
+- *Short term:* Qa7 → Ke2 → Qxh7 wins the pawn → White wins a pawn (+1 point); White is 4 points up.
+- *Long term:* No notable long-term change.
 
-Good — this was the move.
+This was the best move.
 
-<sub>Candidates: Qa7 +8.6 ✓ · h4 +7.2 ✓ · h3 +6.3 ✗(shallow-disagrees) · Qe8+ +5.2 ✗(too-much-loss,shallow-disagrees) · Qb3 +4.0 ✗(too-much-loss,shallow-disagrees)</sub>
-<sub>Timings: total 6.97s, deepAfter 5.00s, shallow 0.01s, threat 0.78s, forcedness 1.17s, facts 0.01s; cached searches 2</sub>
+<sub>Candidates: Qa7 +7.8 ✓ · h4 +6.9 ✗(shallow-disagrees) · h3 +5.9 ✗(shallow-disagrees) · Qe8+ +4.8 ✗(too-much-loss,hangs-material,shallow-disagrees) · g4 +4.0 ✗(too-much-loss,hangs-material,shallow-disagrees,no-concrete-fact)</sub>
+<sub>Timings: total 0.02s, facts 0.01s; cached searches 14</sub>

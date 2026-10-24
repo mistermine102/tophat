@@ -146,7 +146,7 @@ export const DEFAULT_SETTINGS: AnalysisSettings = {
     shallowTolerance: 5,
   },
   explain: {
-    shortLineMinPlies: 4,
+    shortLineMinPlies: 2,
     shortLineMaxPlies: 8,
     forcedReplyMinGap: 10,
     necessaryMinGap: 10,

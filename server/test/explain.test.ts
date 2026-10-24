@@ -31,26 +31,26 @@ describe('immediate level', () => {
   it('hanging the queen', () => {
     expect(imm('r5k1/ppp2pp1/7p/8/8/2N2N2/PPPQ1PPP/4R1K1 w - - 0 1', 'd2g5')).toMatchInlineSnapshot(`
       [
-        "Leaves the queen on g5 hanging (−8).",
+        "Leaves the queen on g5 hanging: Black can win it (−8 points).",
       ]
     `);
   });
   it('free capture; capture with check is one sentence', () => {
     expect(imm('4k3/8/8/3n4/8/8/8/3RK3 w - - 0 1', 'd1d5')).toMatchInlineSnapshot(`
       [
-        "Wins Black's knight on d5 for free (+3).",
+        "Wins Black's knight on d5 (+3 points).",
       ]
     `);
     expect(imm('4k3/8/8/8/8/8/8/R2qK3 w - - 0 1', 'a1d1')).toMatchInlineSnapshot(`
       [
-        "Wins Black's queen on d1 for free (+9).",
+        "Wins Black's queen on d1 (+9 points).",
       ]
     `);
   });
   it('losing capture and even trade', () => {
     expect(imm('4k3/8/4p3/3n4/8/8/8/3RK3 w - - 0 1', 'd1d5')).toMatchInlineSnapshot(`
       [
-        "Takes Black's knight on d5, but loses material in the exchange (−2).",
+        "Takes Black's knight on d5, but loses material when the pieces are traded off (−2 points).",
       ]
     `);
     expect(imm('4k3/8/4p3/3n4/8/4N3/8/4K3 w - - 0 1', 'e3d5')).toMatchInlineSnapshot(`
@@ -62,7 +62,7 @@ describe('immediate level', () => {
   it('pin, skewer, discovered check', () => {
     expect(imm('4k3/8/2n5/8/8/8/8/4KB2 w - - 0 1', 'f1b5')).toMatchInlineSnapshot(`
       [
-        "Pins Black's knight on c6 to the king.",
+        "Pins Black's knight on c6 to the king — it is not allowed to move.",
         "Develops the bishop to b5.",
       ]
     `);
@@ -73,7 +73,7 @@ describe('immediate level', () => {
     `);
     expect(imm('4k3/8/8/8/4N3/8/8/4R1K1 w - - 0 1', 'e4c5')).toMatchInlineSnapshot(`
       [
-        "Discovered check.",
+        "Discovered check: moving this piece opens a line to the king.",
       ]
     `);
   });
@@ -103,7 +103,7 @@ describe('immediate level', () => {
   it('attack on an undefended piece; threats (gain, fork, mate)', () => {
     expect(imm('4k3/8/8/1r6/8/8/8/1N2K3 w - - 0 1', 'b1c3')).toMatchInlineSnapshot(`
       [
-        "Attacks Black's rook on b5, which is undefended.",
+        "Attacks Black's rook on b5 with a knight.",
         "Saves the knight: it was under attack on b1 and is safe on c3.",
         "Develops the knight to c3.",
       ]
@@ -115,7 +115,7 @@ describe('immediate level', () => {
     ];
     expect(renderExplanation({ immediate: threats, short: [], long: [] }, W).immediate.text).toMatchInlineSnapshot(`
       [
-        "Threatens Nc7+, forking Black's king on e8 and rook on a8 (+5).",
+        "Threatens Nc7+, forking Black's king on e8 and rook on a8 (+5 points).",
         "Threatens checkmate with Qxh7#.",
       ]
     `);
@@ -171,19 +171,19 @@ describe('short level', () => {
   it('fork line with a forced reply', () => {
     const fen = legalFen('r3k3/8/8/1N6/8/8/8/4K3 w - - 0 1');
     const { line } = narrateLine(fen, ['b5c7', 'e8d7', 'c7a8', 'd7c6'], { settings: S, plies: 4, forced: new Map([[1, { forced: true, alternatives: 4 }]]) });
-    expect(lineText(line, W)).toMatchInlineSnapshot(`"Nc7+ forks the king and rook → Kd7 attacks the knight (forced) → Nxa8 wins the rook → Kc6 → White wins a rook (+5)."`);
+    expect(lineText(line, W)).toMatchInlineSnapshot(`"Nc7+ forks the king and rook → Kd7 attacks the knight (forced) → Nxa8 wins the rook → Kc6 → White wins a rook (+5 points); White is 3 points up."`);
   });
   it('hung queen line, mate line, quiet line', () => {
     const q = narrateLine(legalFen('r5k1/ppp2pp1/7p/8/8/2N2N2/PPPQ1PPP/4R1K1 w - - 0 1'), ['d2g5', 'h6g5', 'f3g5', 'a8d8'], { settings: S }).line;
-    expect(lineText(q, W)).toMatchInlineSnapshot(`"Qg5 → hxg5 takes the queen → Nxg5 takes back → Rd8 → White gives a queen for a pawn (−8)."`);
+    expect(lineText(q, W)).toMatchInlineSnapshot(`"Qg5 → hxg5 takes the queen → Nxg5 takes back → White gives a queen for a pawn (−8 points); White is 7 points up."`);
     const m = narrateLine(legalFen('6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1'), ['a1a8'], { settings: S }).line;
     expect(lineText(m, W)).toMatchInlineSnapshot(`"Ra8# is checkmate."`);
     const quiet = narrateLine(legalFen('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'), ['g1f3', 'g8f6', 'g2g3', 'g7g6'], { settings: S }).line;
-    expect(lineText(quiet, W)).toMatchInlineSnapshot(`"No forcing follow-up; material stays level (engine line: Nf3 Nf6 g3 g6)."`);
+    expect(lineText(quiet, W)).toMatchInlineSnapshot(`"No forcing follow-up."`);
   });
   it('exchange won; mate announced from the score', () => {
     const line: Fact = { type: 'line', steps: [{ ply: 1, san: 'Nc7+', uci: 'b5c7', color: 'white', facts: [] }], materialDelta: 2, result: 'wins-material', won: ['rook'], lost: ['knight'] };
-    expect(lineText(line, W)).toMatchInlineSnapshot(`"Nc7+ → White wins the exchange (+2)."`);
+    expect(lineText(line, W)).toMatchInlineSnapshot(`"Nc7+ → White wins the exchange — a rook for a knight (+2 points)."`);
     const mate: Fact = { type: 'line', steps: [{ ply: 1, san: 'Qh5', uci: 'd1h5', color: 'white', facts: [] }], materialDelta: 0, result: 'mate', mateIn: 4 };
     expect(lineText(mate, W)).toMatchInlineSnapshot(`"Qh5 → White forces mate in 4."`);
   });
@@ -196,7 +196,7 @@ describe('sacrifices and defended threats', () => {
     const mate: Fact = { type: 'line', steps: [], materialDelta: -4, result: 'mate', mateIn: 2 };
     expect(renderExplanation({ immediate: facts, short: [mate], long: [] }, W).immediate.text).toMatchInlineSnapshot(`
       [
-        "Sacrifices the queen on b8 (−9) — it leads to mate.",
+        "Sacrifices the queen on b8 (−9 points) — it starts a forced mate in 2.",
         "Gives check.",
       ]
     `);
@@ -206,7 +206,7 @@ describe('sacrifices and defended threats', () => {
     const cap: Fact = { type: 'capture', captured: { role: 'pawn', square: 'b5', color: 'black' }, outcome: 'loses-material', net: -1 };
     expect(renderExplanation({ immediate: [cap], short: [win], long: [] }, W).immediate.text).toMatchInlineSnapshot(`
       [
-        "Takes Black's pawn on b5 as a sacrifice (−1) — the follow-up wins it back with interest.",
+        "Takes Black's pawn on b5 as a sacrifice (−1 point) — the follow-up wins it back with interest.",
       ]
     `);
   });
@@ -222,8 +222,8 @@ describe('sacrifices and defended threats', () => {
       [
         "Stops White's threat of checkmate with Qxf7#.",
         "Stops White's mating attack (it would start with Bxf7+).",
-        "Stops Black's threat Nc2+, which would fork White's king on e1 and rook on a1 (+5 for Black).",
-        "Stops White's threat Qxb7, which would win material (+6 for White).",
+        "Stops Black's threat Nc2+, which would fork White's king on e1 and rook on a1 (+5 points for Black).",
+        "Stops White's threat Qxb7, which would win material (+6 points for White).",
       ]
     `);
   });
@@ -251,12 +251,12 @@ describe('long level', () => {
       [
         "White's king is more exposed (fewer pawns in front of it and more open files next to it).",
         "Black's king is more exposed (more enemy pieces aim at it).",
-        "White gets a passed pawn on d5.",
-        "Black gets an isolated pawn on e6.",
-        "After the line, Black gets doubled pawns on the c-file.",
-        "White gives up the bishop pair.",
-        "Black loses the bishop pair.",
-        "White's rook on d1 gets an open file.",
+        "White gets a passed pawn on d5 (no enemy pawn stands in its way).",
+        "Black gets an isolated pawn on e6 (no pawn of the same colour on the files next to it).",
+        "After these moves, Black gets doubled pawns on the c-file (two pawns on one file).",
+        "White gives up the bishop pair (both bishops).",
+        "Black loses the bishop pair (both bishops).",
+        "White's rook on d1 gets a file without its own pawns in the way.",
         "White gains control of the centre.",
         "White gives up some space.",
       ]
@@ -267,13 +267,13 @@ describe('long level', () => {
     const e = renderExplanation({ immediate: [], short: [lost], long: [{ type: 'positional-gain', cp: 120 }, { type: 'deep-payoff' }] }, B);
     expect(e.long.text).toMatchInlineSnapshot(`
       [
-        "Black gives up material, but the engine sees about 1.2 pawns of compensation in the position.",
+        "Black gives up material, but the engine sees about 1.2 pawns' worth of compensation in the position.",
         "The payoff is far away: a quick engine look rates this move lower — only a deep search sees why it works.",
       ]
     `);
     expect(renderExplanation({ immediate: [], short: [], long: [{ type: 'necessary' }] }, B).long.text).toMatchInlineSnapshot(`
       [
-        "Black just had to play this — every other move is much worse.",
+        "The only good move here — every other move is much worse.",
       ]
     `);
   });
@@ -282,8 +282,10 @@ describe('long level', () => {
 describe('label text', () => {
   const base = { color: 'white' as const, uci: 'd2g5', bestUci: 'c3d5', bestSan: 'Nd5', evalBefore: { cp: 1780 }, evalAfter: { cp: 850 }, winBefore: 99.9, winAfter: 95.8, winLoss: 1.9 };
   it('material blunder while still winning', () => {
-    const t = labelText({ ...base, label: 'blunder', labelReason: { winChance: 'excellent', material: { playedLine: 3, bestLine: 11, loss: 8, evalDropCp: 930, label: 'blunder', hung: { role: 'queen', square: 'g5', color: 'white' } } } }, S);
-    expect(t).toMatchInlineSnapshot(`"Blunder ?? — leaves the queen on g5 hanging (−8). White is still winning (+17.8 → +8.5), but this is the habit to fix."`);
+    const t = labelText({ ...base, label: 'blunder', labelReason: { winChance: 'excellent', material: { playedLine: 3, bestLine: 11, loss: 8, evalDropCp: 930, label: 'blunder', hung: { role: 'queen', square: 'g5', color: 'white' } } }, san: 'Qg5', verifiedHang: { piece: { role: 'queen', square: 'g5', color: 'white' }, loss: 8 } }, S);
+    // without a verified hang on the board, the label doesn't name a piece
+    expect(labelText({ ...base, label: 'blunder', labelReason: { winChance: 'excellent', material: { playedLine: 3, bestLine: 11, loss: 8, evalDropCp: 930, label: 'blunder', hung: { role: 'rook', square: 'c1', color: 'white' } } }, san: 'Qg5' }, S)).toMatch(/^Blunder \?\? — Qg5 loses material: the engine line ends 8 points worse than after Nd5\./);
+    expect(t).toMatchInlineSnapshot(`"Blunder ?? — Qg5 leaves the queen on g5 hanging (−8 points). White is still winning (engine eval +17.8 → +8.5), but this is the habit to fix."`);
   });
   it('win-chance labels', () => {
     const r = (label: 'best' | 'great' | 'good' | 'inaccuracy' | 'mistake' | 'miss' | 'blunder' | 'book' | 'forced', extra = {}) =>

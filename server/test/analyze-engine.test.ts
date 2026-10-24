@@ -173,7 +173,7 @@ describe.skipIf(!engineAvailable())('analyzeMove on real positions (Stockfish)',
       const msg = dump(a);
       const cap = a.played.explanation!.immediate.facts.find((f) => f.type === 'capture');
       expect(cap, msg).toMatchObject({ outcome: 'recapture' });
-      expect(a.played.explanation!.immediate.text.join(' '), msg).toMatch(/Recaptures/);
+      expect(a.played.explanation!.immediate.text.join(' '), msg).toMatch(/Takes back/);
     },
     T,
   );
