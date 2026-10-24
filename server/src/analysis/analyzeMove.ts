@@ -27,7 +27,8 @@ import { type ClassifyInput, type EngineMoveLine, type PrevMoveContext, classify
 import { BAD_LABELS, betterReasons, labelText, renderExplanation, verdictText } from './explain';
 import { type SearchParams, type Searcher, SearchCache } from './searchCache';
 import { type ReasonCode, lineDelta, suggest } from './suggest';
-import { legalPrefix, normalizeFen, playMove, positionStatus, pvToSan, uciSquares } from '../chess/notation';
+import { legalMove as legalMoveAt, legalPrefix, normalizeFen, playMove, positionStatus, pvToSan, uciSquares } from '../chess/notation';
+import { seeMove } from '../chess/see';
 import type { PvLine, SearchResult } from '../engine/uci';
 import { materialBalance, positionFromFen } from '../chess/material';
 import { immediateFacts } from '../facts/immediate';
@@ -182,9 +183,10 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
       if (!still && !takesThreatener) defends = { type: 'defends-threat', move: oppThreat.move, san: oppThreat.san, gain: oppThreat.gain, facts: oppThreat.facts, ...(oppThreat.mateIn !== undefined ? { mateIn: oppThreat.mateIn } : {}) };
     }
     const tf = now();
-    const immediate = pruneRefuted(immediateFacts(fen, p.uci, prevOpt), p.uci, pv[1]);
-    if (threat && !replyTakesMovedPiece(p.uci, pv[1])) immediate.push(threat);
-    if (defends) immediate.push(defends);
+    const immediate = verifyWithLine(pruneRefuted(immediateFacts(fen, p.uci, prevOpt), p.uci, pv[1]), fen, pv);
+    if (threat && !replyTakesMovedPiece(p.uci, pv[1]) && !threatExistedBefore(fen, threat)) immediate.push(threat);
+    // "stops the threat" only if the engine line doesn't play it anyway
+    if (defends && !opponentPlays(pv, (defends as { move: string }).move)) immediate.push(defends);
     // engine-verified forced mate against the mover that the best move avoids (board check only sees mate in 1)
     const matedIn = line.score.mate !== undefined && line.score.mate < 0 ? -line.score.mate : 0;
     if (matedIn > 1 && !((best.score.mate ?? 0) < 0) && !immediate.some((f) => f.type === 'allows-mate')) immediate.push({ type: 'allows-mate', inMoves: matedIn });
@@ -252,7 +254,10 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
       const nf = nullMoveFen(afterReply);
       const replyThreat = nf ? threatFromSearch(nf, await search('threat', nf, threatParams)) : null;
       const allows = refutationFact({ fenBefore: fen, uci: w.uci, pv: w.pv, line: narrated.line, replyThreat });
-      if (allows) immediate = [allows, ...immediate];
+      // the best move allows the same reply with the same effect: that is not what makes this move worse
+      const b = cands[0]!;
+      const bestAllows = sameMoveUci(fen, b.uci, w.uci) ? null : refutationFact({ fenBefore: fen, uci: b.uci, pv: b.pv, line: b.narrated.line });
+      if (allows && !(bestAllows && allowsSignature(bestAllows) === allowsSignature(allows))) immediate = [allows, ...immediate];
     }
     const short: Fact[] = [narrated.line, ...narrated.forcedReplies];
     shortFacts.set(w.uci, short);
@@ -326,7 +331,9 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
   const better = BAD_LABELS.has(cr.label) && !playedIsBest
     ? betterReasons([...bestWork.immediate, ...(shortFacts.get(bestWork.uci) ?? [])], playedWork.immediate, mover)
     : [];
-  analysis.labelText = labelText({ ...analysis, bestSan: bestWork.san, bestUci: bestWork.uci, checkmate: cr.checkmate, better }, settings);
+  const hangs = playedWork.immediate.filter((f): f is Extract<Fact, { type: 'hangs' }> => f.type === 'hangs').sort((a, b) => b.loss - a.loss);
+  const hang = hangs.find((h) => h.piece.square === cr.labelReason.material?.hung?.square) ?? hangs[0];
+  analysis.labelText = labelText({ ...analysis, bestSan: bestWork.san, bestUci: bestWork.uci, checkmate: cr.checkmate, better, verifiedHang: hang ? { piece: hang.piece, loss: hang.loss } : null }, settings);
   const verdict = verdictText(cr.label, playedIsBest);
   if (verdict) analysis.verdictText = verdict;
   return analysis;
@@ -343,6 +350,61 @@ function replyTakesMovedPiece(uci: string, reply: string | undefined): boolean {
  * whose piece is taken). A quiet move keeps its attacks — they are its point, and the line shows the refutation.
  * Forks/pins are verified against every reply and stay.
  */
+/** What a refutation does: reply, what it captures, which pieces it puts en prise. */
+function allowsSignature(f: Extract<Fact, { type: 'allows' }>): string {
+  const cap = f.facts.find((x): x is Extract<Fact, { type: 'capture' }> => x.type === 'capture');
+  return [f.reply.uci, cap?.captured.square ?? '', ...(f.targets ?? []).map((t) => t.square).sort()].join('|');
+}
+
+/** Plies of the move's PV used to confirm board claims ("hanging", "stops the threat"). */
+export const VERIFY_PLIES = 6;
+
+/** The opponent plays `uci` (normalised) within the first VERIFY_PLIES of the move's PV. */
+function opponentPlays(pv: readonly string[], uci: string): boolean {
+  return pv.slice(0, VERIFY_PLIES).some((m, i) => i % 2 === 1 && m.slice(0, 4) === uci.slice(0, 4));
+}
+
+/**
+ * Board claims confirmed by the engine line (SEE alone misses pins, forks and forced recaptures):
+ * a 'hangs' piece must actually be captured on its square by the opponent within the first VERIFY_PLIES of the
+ * move's PV — when the engine doesn't take it, it isn't hanging.
+ */
+function verifyWithLine(facts: Fact[], fen: string, pv: readonly string[]): Fact[] {
+  const taken = new Set<string>();
+  const pos = positionFromFen(fen);
+  for (const [i, m] of pv.slice(0, VERIFY_PLIES).entries()) {
+    const mv = legalMoveAt(pos, m);
+    if (!mv) break;
+    const to = m.slice(2, 4);
+    if (i % 2 === 1 && pos.board.get(mv.to)) taken.add(to);
+    pos.play(mv);
+  }
+  return facts.filter((f) => f.type !== 'hangs' || taken.has(f.piece.square));
+}
+
+/**
+ * The move's null-move threat was already there before the move: the threat move is legal right now and wins the
+ * same (a capture worth as much by SEE, or mate in one) — then it is not something the move created.
+ */
+function threatExistedBefore(fen: string, threat: ThreatFact): boolean {
+  const pos = positionFromFen(fen);
+  const mv = legalMoveAt(pos, threat.move);
+  if (!mv) return false;
+  if (threat.mateIn === 1) {
+    const p = pos.clone();
+    p.play(mv);
+    return p.isCheckmate();
+  }
+  if (threat.mateIn) return false;
+  return !!pos.board.get(mv.to) && seeMove(pos, threat.move) >= Math.min(threat.gain, 1) && seeMove(pos, threat.move) >= seeMoveAfter(threat);
+}
+
+/** SEE value of the threat's own capture (from its facts), for comparing with the same capture now. */
+function seeMoveAfter(threat: ThreatFact): number {
+  const cap = threat.facts.find((f): f is Extract<Fact, { type: 'capture' }> => f.type === 'capture');
+  return cap ? cap.net : Infinity;
+}
+
 function pruneRefuted(facts: Fact[], uci: string, reply: string | undefined): Fact[] {
   if (!replyTakesMovedPiece(uci, reply)) return facts;
   if (!facts.some((f) => f.type === 'capture')) return facts;

@@ -113,6 +113,53 @@ function onBoardSquares(f: PositionalFact, fenAt: string, mover: Color): Positio
   return { ...f, squares };
 }
 
+/** Structure features that a pending recapture can undo at once (exd5 "doubles" pawns until cxd5). */
+const TRANSIENT: ReadonlySet<PositionalFeature> = new Set<PositionalFeature>(['isolated-pawn', 'doubled-pawn', 'passed-pawn', 'bishop-pair']);
+
+/** A move-level structure change still there at the end of the short line (same feature, side and direction). */
+function persists(f: PositionalFact, endFacts: readonly PositionalFact[] | null): boolean {
+  if (!endFacts || !TRANSIENT.has(f.feature)) return true;
+  return endFacts.some((e) => e.feature === f.feature && (e.side ?? '') === (f.side ?? '') && Math.sign(e.delta) === Math.sign(f.delta));
+}
+
+const pawnCount = (fen: string, color: Color) => positionFromFen(fen).board.pieces(color, 'pawn').size();
+
+/**
+ * Move-level noise: a bishop-pair change that leaves both sides without the pair (each traded one); "development"
+ * for a king walk; a structure "improvement" that is only a pawn being lost (Qxg6 "fixes" the doubled g-pawns);
+ * a rook "losing its file" because it moved away; centre / space notes for piece moves and mobility notes.
+ */
+function meaningfulAtMove(f: PositionalFact, fenBefore: string, fenAfter: string, fenAt: string, mover: Color): boolean {
+  const side = sideColor(f, mover);
+  switch (f.feature) {
+    case 'bishop-pair': {
+      const at = positionalFeatures(fenAt);
+      return at.white.bishopPair !== at.black.bishopPair;
+    }
+    case 'development': {
+      const kb = positionFromFen(fenBefore).board.kingOf(mover);
+      const ka = positionFromFen(fenAfter).board.kingOf(mover);
+      const rookMoved = positionFromFen(fenBefore).board.pieces(mover, 'rook').equals(positionFromFen(fenAfter).board.pieces(mover, 'rook')) === false;
+      return kb === ka && !rookMoved; // castling is told by the Immediate level anyway
+    }
+    case 'isolated-pawn':
+    case 'doubled-pawn':
+      return worseForSide(f) || pawnCount(fenAfter, side) >= pawnCount(fenBefore, side);
+    case 'open-file-rook': {
+      if (!worseForSide(f)) return true;
+      const board = positionFromFen(fenAfter).board;
+      return (f.squares ?? []).every((s) => board.get(parseSquare(s)!)?.role === 'rook');
+    }
+    case 'centre-control':
+    case 'space':
+      return !positionFromFen(fenBefore).board.pieces(mover, 'pawn').equals(positionFromFen(fenAfter).board.pieces(mover, 'pawn'));
+    case 'mobility':
+      return false;
+    default:
+      return true;
+  }
+}
+
 /** A line-end change big enough to mention (see header). */
 export function bigLineEnd(f: PositionalFact, lineEndFen: string, mover: Color): boolean {
   if (!LINE_END_FEATURES.has(f.feature)) return false;
@@ -121,7 +168,7 @@ export function bigLineEnd(f: PositionalFact, lineEndFen: string, mover: Color):
     case 'passed-pawn':
       return !worse; // a side gets a passed pawn
     case 'bishop-pair':
-      return worse; // a side loses the bishop pair
+      { const at = positionalFeatures(lineEndFen); return worse && at.white.bishopPair !== at.black.bishopPair; } // a side loses the bishop pair and the other keeps it
     case 'king-safety': {
       if (!worse) return false;
       const m = /shield (\d+)->(\d+)/.exec(f.detail ?? '');
@@ -144,8 +191,11 @@ export function bigLineEnd(f: PositionalFact, lineEndFen: string, mover: Color):
 /** Positional facts of the move and of the line end (see header). */
 export function positionalFacts(input: Pick<LongTermInput, 'fenBefore' | 'fenAfter' | 'lineEndFen' | 'mover' | 'immediate'>): PositionalFact[] {
   const { fenBefore, fenAfter, lineEndFen, mover } = input;
+  const endFacts = lineEndFen !== fenAfter ? (positionalDelta(fenBefore, lineEndFen, mover) as PositionalFact[]) : null;
   const own = (positionalDelta(fenBefore, fenAfter, mover) as PositionalFact[])
     .filter((f) => keep(f, fenBefore, fenAfter, mover))
+    .filter((f) => persists(f, endFacts))
+    .filter((f) => meaningfulAtMove(f, fenBefore, fenAfter, endFacts ? lineEndFen : fenAfter, mover))
     .map((f) => onBoardSquares(f, fenAfter, mover))
     .filter((f): f is PositionalFact => !!f);
   const seen = new Set(own.map((f) => `${f.feature}|${f.side ?? ''}`));

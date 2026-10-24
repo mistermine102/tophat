@@ -40,6 +40,15 @@ describe('1. no material claim at a non-quiet point', () => {
     expect(lineText(line, W)).not.toMatch(/loses a knight|few moves later/);
   });
 
+  it('a capture the opponent cannot take back at once is no payoff when the eval says the material comes back', () => {
+    // 3.Bb5 Nf6 4.O-O Nxe4: nothing recaptures on e4 right away, but Re1 / Nxe5 regain the pawn (eval +0.3)
+    const fen = legalFen('r1bqkbnr/pppp1ppp/2n5/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 2 3');
+    const p = pv('f1b5 g8f6 e1g1 f6e4 f1e1 e4d6 f3e5 c6e5 e1e5 f8e7 b5f1 e8g8');
+    const { line } = narrateLine(fen, p, { settings: S, score: { cp: 30 } });
+    expect(line.result).not.toBe('loses-material');
+    expect(lineText(line, W)).not.toMatch(/White loses/);
+  });
+
   it('a line that ends with material still hanging on several squares claims nothing', () => {
     // 1.e4 d5 2.Nc3 dxe4 3.Nxe4 Qd5: the queen hits e4 and nothing is settled after 4 plies with Nc3-... cut
     const fen = legalFen('rnbqkbnr/ppp1pppp/8/3p4/4P3/2N5/PPPP1PPP/R1BQKBNR b KQkq - 1 2');
@@ -65,7 +74,8 @@ describe('2. bad moves are explained by what they allow', () => {
     const allows = refutationFact({ fenBefore: BEFORE_6B, uci: 'g8f6', pv: NF6_PV, line })!;
     const imm = [allows, ...immediateFacts(BEFORE_6B, 'g8f6')];
     const bad = renderExplanation({ immediate: imm, short: [line], long: [] }, { mover: 'black', label: 'mistake' }).immediate.text;
-    expect(bad[0]).toBe("Allows Qb3, attacking Black's pawns on b7 and f7 at once.");
+    // Qb3 was already in the air before 6...Nf6 (White threatened it and Qxf7#): Nf6 stops one, not the other
+    expect(bad[0]).toBe("Doesn't stop Qb3: then Black's pawns on b7 and f7 are both under attack.");
     const fine = renderExplanation({ immediate: imm, short: [line], long: [] }, { mover: 'black', label: 'best' }).immediate.text;
     expect(fine.join(' ')).not.toMatch(/Allows/);
   });
@@ -103,7 +113,7 @@ describe('2. bad moves are explained by what they allow', () => {
     const ownThreat: Fact = { type: 'threat', move: 'c4f7', san: 'Bxf7+', gain: 1, facts: [{ type: 'capture', captured: { role: 'pawn', square: 'f7', color: 'black' }, outcome: 'wins-material', net: 1 }, { type: 'check' }] };
     const imm = [allows, ...immediateFacts(fen, 'f3e5'), ownThreat];
     const text = renderExplanation({ immediate: imm, short: [line], long: [] }, { mover: 'white', label: 'mistake' }).immediate.text;
-    expect(text[0]).toBe("Takes Black's pawn on e5, but allows Qg5, attacking White's knight on e5 and pawn on g2 at once.");
+    expect(text[0]).toBe("Takes Black's pawn on e5, but allows Qg5: then White's knight on e5 and pawn on g2 are both under attack.");
     expect(text.join(' ')).not.toMatch(/for free|Threatens|winning a pawn/);
     // and the story doesn't call the pawn grab a win either
     expect(lineText(line, W)).toMatch(/^Nxe5 takes the pawn → Qg5 attacks the knight/);
@@ -160,7 +170,7 @@ describe('4. long-term: at most 2 meaningful sentences', () => {
 describe('5. pick: an attack whose line wins the target is concrete (6.Qb3 in the Opera game)', () => {
   it('Qb3 attacks the undefended b7 pawn and the line wins it', () => {
     const p = pv('f3b3 b8d7 c1e3 f8c5 e3c5 d7c5 b3b5 c5d7 b5b7 g8e7 b1c3 a8b8');
-    const { line } = narrateLine(BEFORE_6W, p, { settings: S });
+    const { line } = narrateLine(BEFORE_6W, p, { settings: S, score: { cp: 220 } });
     expect(line.result).toBe('wins-material');
     expect(line.won).toEqual(['pawn']);
     expect(line.steps.length).toBeLessThanOrEqual(9);

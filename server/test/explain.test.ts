@@ -171,11 +171,11 @@ describe('short level', () => {
   it('fork line with a forced reply', () => {
     const fen = legalFen('r3k3/8/8/1N6/8/8/8/4K3 w - - 0 1');
     const { line } = narrateLine(fen, ['b5c7', 'e8d7', 'c7a8', 'd7c6'], { settings: S, plies: 4, forced: new Map([[1, { forced: true, alternatives: 4 }]]) });
-    expect(lineText(line, W)).toMatchInlineSnapshot(`"Nc7+ forks the king and rook → Kd7 attacks the knight (forced) → Nxa8 wins the rook → Kc6 → White wins a rook (+5 points)."`);
+    expect(lineText(line, W)).toMatchInlineSnapshot(`"Nc7+ forks the king and rook → Kd7 attacks the knight (forced) → Nxa8 wins the rook → Kc6 → White wins a rook (+5 points); White is 3 points up."`);
   });
   it('hung queen line, mate line, quiet line', () => {
     const q = narrateLine(legalFen('r5k1/ppp2pp1/7p/8/8/2N2N2/PPPQ1PPP/4R1K1 w - - 0 1'), ['d2g5', 'h6g5', 'f3g5', 'a8d8'], { settings: S }).line;
-    expect(lineText(q, W)).toMatchInlineSnapshot(`"Qg5 → hxg5 takes the queen → Nxg5 takes back → White gives a queen for a pawn (−8 points)."`);
+    expect(lineText(q, W)).toMatchInlineSnapshot(`"Qg5 → hxg5 takes the queen → Nxg5 takes back → White gives a queen for a pawn (−8 points); White is 7 points up."`);
     const m = narrateLine(legalFen('6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1'), ['a1a8'], { settings: S }).line;
     expect(lineText(m, W)).toMatchInlineSnapshot(`"Ra8# is checkmate."`);
     const quiet = narrateLine(legalFen('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'), ['g1f3', 'g8f6', 'g2g3', 'g7g6'], { settings: S }).line;
@@ -196,7 +196,7 @@ describe('sacrifices and defended threats', () => {
     const mate: Fact = { type: 'line', steps: [], materialDelta: -4, result: 'mate', mateIn: 2 };
     expect(renderExplanation({ immediate: facts, short: [mate], long: [] }, W).immediate.text).toMatchInlineSnapshot(`
       [
-        "Sacrifices the queen on b8 (−9 points) — it leads to mate.",
+        "Sacrifices the queen on b8 (−9 points) — it starts a forced mate in 2.",
         "Gives check.",
       ]
     `);
@@ -282,8 +282,10 @@ describe('long level', () => {
 describe('label text', () => {
   const base = { color: 'white' as const, uci: 'd2g5', bestUci: 'c3d5', bestSan: 'Nd5', evalBefore: { cp: 1780 }, evalAfter: { cp: 850 }, winBefore: 99.9, winAfter: 95.8, winLoss: 1.9 };
   it('material blunder while still winning', () => {
-    const t = labelText({ ...base, label: 'blunder', labelReason: { winChance: 'excellent', material: { playedLine: 3, bestLine: 11, loss: 8, evalDropCp: 930, label: 'blunder', hung: { role: 'queen', square: 'g5', color: 'white' } } } }, S);
-    expect(t).toMatchInlineSnapshot(`"Blunder ?? — leaves the queen on g5 hanging (−8 points). White is still winning (engine eval +17.8 → +8.5), but this is the habit to fix."`);
+    const t = labelText({ ...base, label: 'blunder', labelReason: { winChance: 'excellent', material: { playedLine: 3, bestLine: 11, loss: 8, evalDropCp: 930, label: 'blunder', hung: { role: 'queen', square: 'g5', color: 'white' } } }, san: 'Qg5', verifiedHang: { piece: { role: 'queen', square: 'g5', color: 'white' }, loss: 8 } }, S);
+    // without a verified hang on the board, the label doesn't name a piece
+    expect(labelText({ ...base, label: 'blunder', labelReason: { winChance: 'excellent', material: { playedLine: 3, bestLine: 11, loss: 8, evalDropCp: 930, label: 'blunder', hung: { role: 'rook', square: 'c1', color: 'white' } } }, san: 'Qg5' }, S)).toMatch(/^Blunder \?\? — Qg5 loses material in the engine line \(−8 points\)/);
+    expect(t).toMatchInlineSnapshot(`"Blunder ?? — Qg5 leaves the queen on g5 hanging (−8 points). White is still winning (engine eval +17.8 → +8.5), but this is the habit to fix."`);
   });
   it('win-chance labels', () => {
     const r = (label: 'best' | 'great' | 'good' | 'inaccuracy' | 'mistake' | 'miss' | 'blunder' | 'book' | 'forced', extra = {}) =>

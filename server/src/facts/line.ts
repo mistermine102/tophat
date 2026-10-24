@@ -12,7 +12,10 @@
 //   up to `explain.shortLineMaxPlies` plies — and, if the line is still tactical there, on to the first quiet
 //   point within `material.quietHorizonPlies` plies. A line that never gets fully quiet ends at its first
 //   settled capture (`isSettled`: after a capture or promotion, the side to move can't win anything back right
-//   now — e.g. Qxb7 that also hits the rook on a8). A checkmate ends the line; a mate score that fits within
+//   now — e.g. Qxb7 that also hits the rook on a8). Stop points where the material swing goes against the
+//   line's deep eval are skipped (3.Bb5 Nf6 4.O-O Nxe4 is quiet, but Re1 / Nxe5 regain the pawn: the story runs
+//   on to the regain); if no stop point agrees, the first quiet point is used (a real gambit: the pawn is gone).
+//   A checkmate ends the line; a mate score that fits within
 //   the maximum is narrated to the mate. `targetDelta` (the material rule's verdict for a played move): when the
 //   first quiet point doesn't show that loss yet, the line runs on to the first quiet point (within the horizon)
 //   that does, so "what is lost and how" is part of the story.
@@ -50,7 +53,7 @@ import type { AnalysisSettings, Color, Fact, LineStep, PieceRef, PieceRole, Scor
 import { winPercentFromScore } from '@chess-coach/shared';
 import { makeFen } from 'chessops/fen';
 import { makeSan } from 'chessops/san';
-import { opposite } from 'chessops/util';
+import { opposite, parseSquare } from 'chessops/util';
 import { countLegalMoves, sameMoveUci } from '../analysis/classify';
 import { toPieceRef, withTurn } from '../chess/attacks';
 import { lineMaterial, PIECE_VALUES, positionFromFen } from '../chess/material';
@@ -68,7 +71,7 @@ type Pos = ReturnType<typeof positionFromFen>;
 
 /** Fact types kept for each narrated step (and for a threat move). */
 export const STEP_FACT_TYPES: ReadonlySet<Fact['type']> = new Set<Fact['type']>([
-  'checkmate', 'stalemate', 'fork', 'skewer', 'discovered-attack', 'pin', 'capture', 'promotion', 'check', 'attack',
+  'checkmate', 'stalemate', 'fork', 'skewer', 'discovered-attack', 'pin', 'capture', 'promotion', 'check', 'attack', 'block-check',
 ]);
 export const MAX_STEP_FACTS = 2;
 /** Step facts that make a ply forcing (the story goes on through it). */
@@ -141,6 +144,16 @@ export function isSettled(pos: Pos): boolean {
   return true;
 }
 
+/** The side that just moved threatens mate in one (it would mate if it could move again). */
+function threatensMateInOne(pos: Pos): boolean {
+  if (pos.isCheck() || pos.isEnd()) return false;
+  try {
+    return hasMateInOne(withTurn(pos, opposite(pos.turn)));
+  } catch {
+    return false;
+  }
+}
+
 /** Per-ply data of a PV walk from `fenBefore` (index k = position after k plies). */
 interface PlyInfo {
   /** quiet[k]: position after k plies is a quiet point. */
@@ -153,6 +166,8 @@ interface PlyInfo {
   forcing: boolean[];
   /** Mover's material delta after k plies. */
   delta: number[];
+  /** Mover's material balance (pawns) before the line. */
+  start: number;
   /** Number of plies until checkmate (inclusive), if the PV mates. */
   mateAt?: number;
 }
@@ -188,7 +203,7 @@ function walk(fenBefore: string, legal: readonly string[]): PlyInfo {
     }
     if (pos.isStalemate()) break;
   }
-  const out: PlyInfo = { quiet, settled, captured, forcing, delta };
+  const out: PlyInfo = { quiet, settled, captured, forcing, delta, start };
   if (mateAt !== undefined) out.mateAt = mateAt;
   return out;
 }
@@ -224,13 +239,17 @@ export function narrationPlies(fenBefore: string, pv: readonly string[], setting
   // a quiet point whose next ply isn't forcing (the end of the walked PV counts as "nothing follows")
   const stopOk = (k: number) => info.quiet[k]! && (k === n || !info.forcing[k]);
   // a settled capture: the payoff of a line that never gets fully quiet (e.g. Qxb7 also hitting the rook on a8)
+  // A stop point is preferred where the engine's eval agrees with the material swing: after 3...Nxe4 in the Berlin
+  // nothing can be taken back at once, yet Re1 and Nxe5 regain the pawn (eval ~0). Real gambits fall back to the first quiet point.
+  const evalPawns = score?.cp !== undefined ? score.cp / 100 : null;
+  const agrees = (k: number) => evalPawns === null || Math.abs(info.start + info.delta[k]! - evalPawns) < Math.abs(info.start - evalPawns) + 0.5;
   const claimOk = (k: number) => info.settled[k]! && info.captured[k]! && (k === n || !info.forcing[k]);
   const first = (from: number, ok: (k: number) => boolean): number | undefined => {
     for (let k = from; k <= n; k++) if (ok(k)) return k;
     return undefined;
   };
   const lo = Math.min(min, n);
-  const end = first(lo, (k) => stopOk(k) || claimOk(k));
+  const end = first(lo, (k) => (stopOk(k) || claimOk(k)) && agrees(k)) ?? first(lo, stopOk);
   if (end === undefined) return Math.min(max, n); // never quiet: the material result will be resolved or 'unclear'
   const target = opts.targetDelta;
   if (target !== undefined && info.delta[end]! > target + 0.5) {
@@ -372,6 +391,7 @@ export function narrateLine(fenBefore: string, pv: readonly string[], opts: Narr
     if (cap) anyCapture = true;
     lastTo = cap || move.promotion ? move.to : undefined;
     const pressured = color !== mover && underPressure(pos);
+    const wasInCheck = pos.isCheck();
     const step: LineStep = { ply: i + 1, san, uci: standardUci(pos, move), color, facts };
     steps.push(step);
     pos.play(move);
@@ -379,7 +399,10 @@ export function narrateLine(fenBefore: string, pv: readonly string[], opts: Narr
     // only a defensive reply is 'forced' in the reader's sense: not a mating move (it is simply the end), not a
     // reply that answers nothing or that attacks (check, a winning capture, a fork…), and not the opponent's
     // punishing reply to a bad move (`noForcedFirstReply`)
-    const attacking = pos.isCheck() || facts.some((f) => FORCING_FACT_TYPES.has(f.type) || (f.type === 'capture' && f.outcome === 'wins-material'));
+    // (a king stepping out of check may attack something on the way — that reply is still forced)
+    const attacking = pos.isCheck()
+      || facts.some((f) => FORCING_FACT_TYPES.has(f.type) || (f.type === 'attack' && !wasInCheck) || (f.type === 'capture' && f.outcome === 'wins-material'))
+      || threatensMateInOne(pos);
     if (fi?.forced && pressured && !attacking && !(opts.noForcedFirstReply && i === 1) && !pos.isCheckmate()) {
       step.forced = true;
       forcedReplies.push({ type: 'forced-reply', san, alternatives: fi.alternatives });
@@ -429,13 +452,19 @@ export function narrateLine(fenBefore: string, pv: readonly string[], opts: Narr
   if (mateIn !== undefined) line.mateIn = mateIn;
   if (won.length) line.won = won;
   if (lost.length) line.lost = lost;
-  // the opponent just captured: the line's gain is partly winning that back, so the resulting balance tells more
-  if (opts.prev && !unclear && (result === 'wins-material' || result === 'trade')) {
-    try {
-      const pp = positionFromFen(opts.prev.fenBefore);
-      if (isCapture(pp, opts.prev.uci)) line.balance = materialOf(positionFromFen(fenBefore), mover) + delta;
-    } catch {
-      // an unusable prev: no balance
+  // the resulting balance (a "loses a pawn" that only gives back a gambit pawn ends level), and what the
+  // opponent's previous capture won (the line's gain is partly winning that back)
+  if (!unclear && result !== 'mate' && result !== 'mated') {
+    const start = materialOf(positionFromFen(fenBefore), mover);
+    line.balance = start + delta;
+    if (opts.prev) {
+      try {
+        const pp = positionFromFen(opts.prev.fenBefore);
+        const owed = materialOf(pp, mover) - start; // mover POV: what the opponent's last move took
+        if (isCapture(pp, opts.prev.uci) && owed > 0) line.owed = owed;
+      } catch {
+        // an unusable prev
+      }
     }
   }
   return { line, forcedReplies, endFen: makeFen(pos.toSetup()) };
@@ -478,7 +507,18 @@ export function threatFromSearch(nullFen: string, result: Pick<SearchResult, 'li
     const tactic = facts.some((f) => f.type === 'fork' || f.type === 'skewer' || f.type === 'discovered-attack');
     if (!winningCapture && !tactic) return null;
   }
-  const fact: ThreatFact = { type: 'threat', move: standardUci(pos, move), san: makeSan(pos, move), gain: Math.max(0, lm.delta), facts };
+  // the gain told is the net value of the threat move itself (a capture: its SEE; a fork/skewer: the line's gain,
+  // at most the best target) — the null-move line can add captures the opponent would never allow
+  let gain = Math.max(0, lm.delta);
+  if (!mates) {
+    if (capturedBy(pos, move)) gain = Math.min(gain, Math.max(THREAT_MIN_GAIN, seeMove(pos, best.move)));
+    const tactic = facts.find((f) => f.type === 'fork' || f.type === 'skewer');
+    if (tactic) {
+      const targets = tactic.type === 'fork' ? tactic.targets : [tactic.behind];
+      gain = Math.min(gain, Math.max(...targets.map((t) => PIECE_VALUES[t.role])));
+    }
+  }
+  const fact: ThreatFact = { type: 'threat', move: standardUci(pos, move), san: makeSan(pos, move), gain, facts };
   if (mates) fact.mateIn = best.score.mate!;
   return fact;
 }
@@ -553,7 +593,30 @@ export function refutationFact(input: RefutationInput): AllowsFact | null {
   if (targets.length) out.targets = targets;
   if (input.line.result === 'loses-material') out.gain = -input.line.materialDelta;
   if (input.line.result === 'mated' && input.line.mateIn !== undefined) out.mateIn = input.line.mateIn;
-  // a plain check (or nothing) is no refutation worth a sentence
-  if (!kept.some((f) => f.type !== 'check') && targets.length === 0 && out.mateIn === undefined) return null;
+  // a plain check (or nothing) is no refutation worth a sentence — unless the line then costs material
+  if (!kept.some((f) => f.type !== 'check') && targets.length === 0 && out.mateIn === undefined && !((out.gain ?? 0) >= 1 && kept.length)) return null;
+  if (replyWasAlreadyThere(input.fenBefore, replyUci, kept, targets)) out.already = true;
   return out;
+}
+
+/**
+ * The reply would have done the same before the move (the mover just didn't deal with it): it is legal in the
+ * null-move position at fenBefore (the opponent to move as if the mover had passed), its winning capture wins
+ * there too, and the same targets end up en prise.
+ */
+function replyWasAlreadyThere(fenBefore: string, replyUci: string, facts: readonly Fact[], targets: readonly PieceRef[]): boolean {
+  const nf = nullMoveFen(fenBefore);
+  if (!nf) return false;
+  const pos = positionFromFen(nf);
+  const m = legalMove(pos, replyUci);
+  if (!m) return false;
+  const cap = facts.find((f): f is Extract<Fact, { type: 'capture' }> => f.type === 'capture');
+  if (cap && !(capturedBy(pos, m) && seeMove(pos, replyUci) >= cap.net)) return false;
+  if (facts.some((f) => f.type === 'fork' || f.type === 'checkmate' || f.type === 'skewer' || f.type === 'discovered-attack')) return false;
+  if (!cap && targets.length === 0) return false;
+  pos.play(m);
+  return targets.every((t) => {
+    const p = pos.board.get(parseSquare(t.square)!);
+    return p?.role === t.role && p.color === t.color && hangingLoss(pos, parseSquare(t.square)!) > 0;
+  });
 }
