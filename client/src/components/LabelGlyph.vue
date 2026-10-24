@@ -19,8 +19,9 @@ const dims = computed(
     :title="meta.name"
     :data-label="label"
   >
-    <svg v-if="label === 'book'" viewBox="0 0 16 16" class="h-[62%] w-[62%]" fill="currentColor" aria-hidden="true">
-      <path d="M2 3.2C3.6 2.5 5.6 2.4 7.4 3.3v10.2C5.6 12.7 3.6 12.8 2 13.4zM14 3.2c-1.6-.7-3.6-.8-5.4.1v10.2c1.8-.8 3.8-.7 5.4-.1z" />
+    <svg v-if="label === 'book'" viewBox="0 0 16 16" class="h-[70%] w-[70%]" fill="currentColor" aria-hidden="true">
+      <!-- open book: two pages around a spine -->
+      <path d="M1 4.2 7.2 2.6v10.6L1 14.6zM15 4.2 8.8 2.6v10.6l6.2 1.4z" />
     </svg>
     <span v-else>{{ meta.glyph }}</span>
   </span>

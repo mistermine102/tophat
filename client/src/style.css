@@ -17,6 +17,16 @@ body,
   height: 100%;
 }
 
+/* Big screens: scale rem-based text up a little so the panels stay readable next to a large board. */
+@media (min-width: 1800px) and (min-height: 1000px) {
+  html {
+    font-size: 17px;
+  }
+  :root {
+    --board-size: clamp(300px, min(100vh - 246px, 100vw - 820px), 880px);
+  }
+}
+
 body {
   background: #141416;
   -webkit-font-smoothing: antialiased;

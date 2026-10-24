@@ -1,0 +1,2 @@
+# Every e2e run rewrites all screenshots; only a reviewed selection is committed (force-added).
+*.png

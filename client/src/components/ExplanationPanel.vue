@@ -100,7 +100,7 @@ const opening = computed(() => {
         <p v-if="!keyMoments.length" class="text-sm italic text-neutral-500">
           {{ session.progress.value.done < session.progress.value.total ? 'Appear as the analysis comes in…' : 'No errors in this game.' }}
         </p>
-        <div class="grid grid-cols-1 gap-1 xl:grid-cols-2">
+        <div class="grid grid-cols-1 gap-x-3 gap-y-0.5 min-[1700px]:grid-cols-2">
           <button
             v-for="k in keyMoments"
             :key="k.ply"
@@ -108,7 +108,7 @@ const opening = computed(() => {
             @click="session.goToMainPly(k.ply)"
           >
             <LabelGlyph :label="k.label" size="sm" />
-            <span class="w-16 shrink-0 font-medium text-neutral-100">{{ k.move }}</span>
+            <span class="w-20 shrink-0 font-medium text-neutral-100">{{ k.move }}</span>
             <span class="min-w-0 flex-1 truncate" :style="{ color: LABELS[k.label].color }">{{ LABELS[k.label].name }}</span>
             <span class="text-[10px] font-semibold uppercase tracking-wide" :class="k.you ? 'text-amber-300' : 'text-neutral-500'">
               {{ k.you ? 'You' : 'Opp' }}
@@ -119,7 +119,7 @@ const opening = computed(() => {
     </template>
 
     <template v-else-if="node">
-      <section class="rounded-lg bg-neutral-800/70 p-4 ring-1 ring-white/5" data-testid="label-card">
+      <section class="rounded-lg bg-neutral-800/70 p-3.5 ring-1 ring-white/5" data-testid="label-card">
         <div class="flex items-start gap-3">
           <LabelGlyph v-if="a" :label="a.label" size="lg" />
           <span v-else class="mt-0.5 inline-block h-8 w-8 shrink-0 rounded-full bg-neutral-700"></span>
@@ -155,7 +155,7 @@ const opening = computed(() => {
             </p>
           </div>
         </div>
-        <div v-if="a" class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-white/5 pt-2.5 text-sm" data-testid="eval-change">
+        <div v-if="a" class="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px]" data-testid="eval-change">
           <span class="text-neutral-400">
             Eval
             <span class="font-semibold tabular-nums text-neutral-100">{{ formatPositionEval(a.evalBefore, null) }}</span>
@@ -168,15 +168,14 @@ const opening = computed(() => {
           </span>
           <span class="text-neutral-400">Accuracy <span class="tabular-nums text-neutral-200">{{ Math.round(a.accuracy) }}%</span></span>
         </div>
-      </section>
-
-      <section v-if="a && ex" class="space-y-3 rounded-lg bg-neutral-800/40 p-4 ring-1 ring-white/5" data-testid="levels">
-        <div v-if="confirmed && a.label !== 'book' && a.label !== 'forced'" class="text-sm font-medium text-emerald-400">
-          ✓ Good — this was the move.
+        <div v-if="a && ex" class="mt-3 space-y-2.5 border-t border-white/5 pt-3" data-testid="levels">
+          <div v-if="confirmed && a.label !== 'book' && a.label !== 'forced'" class="text-sm font-medium text-emerald-400">
+            ✓ Good — this was the move.
+          </div>
+          <LevelList title="Immediate" :level="ex.immediate" />
+          <LevelList title="Short term" :level="ex.short" />
+          <LevelList title="Long term" :level="ex.long" />
         </div>
-        <LevelList title="Immediate" :level="ex.immediate" />
-        <LevelList title="Short term" :level="ex.short" />
-        <LevelList title="Long term" :level="ex.long" />
       </section>
 
       <div v-if="a" class="space-y-3">

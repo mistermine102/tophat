@@ -101,9 +101,9 @@ export function factText(f: Fact, mover: Color): string {
           : f.result === 'mated'
             ? `${side(other(mover))} mates`
             : f.result === 'wins-material'
-              ? `${side(mover)} ends up ${pawns(f.materialDelta)} ahead (${signed(f.materialDelta)})`
+              ? `${side(mover)} wins ${pawns(f.materialDelta)} of material (${signed(f.materialDelta)})`
               : f.result === 'loses-material'
-                ? `${side(mover)} ends up ${pawns(f.materialDelta)} down (${signed(f.materialDelta)})`
+                ? `${side(mover)} loses ${pawns(f.materialDelta)} of material (${signed(f.materialDelta)})`
                 : f.result === 'trade'
                   ? 'pieces are traded evenly'
                   : 'a quiet position';

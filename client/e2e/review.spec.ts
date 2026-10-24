@@ -7,8 +7,8 @@ const SIZES = [
   { name: '1920x1080', width: 1920, height: 1080 },
 ];
 
-async function shot(page: Page, name: string, size: string) {
-  await page.waitForTimeout(450); // let board animations settle
+async function shot(page: Page, name: string, size: string, settleMs = 450) {
+  await page.waitForTimeout(settleMs); // let board animations settle
   await page.screenshot({ path: `e2e/screenshots/${size}-${name}.png` });
 }
 
@@ -86,6 +86,11 @@ for (const size of SIZES) {
     await expect(page.getByTestId('label-reason')).toContainText('still winning');
     await shot(page, '04-material-blunder', size.name);
 
+    // Threat arrow (red) + pin: 32... Qxf3 threatens Qxg2#.
+    await page.locator('[data-node="m64"]').click();
+    await expect(page.getByTestId('label-card')).toContainText('Threatens Qxg2#');
+    await shot(page, '04b-threat-arrow', size.name);
+
     // Great move and the Miss.
     await page.locator('[data-node="m23"]').click();
     await expect(page.getByTestId('label-name')).toHaveText('Great');
@@ -96,13 +101,14 @@ for (const size of SIZES) {
     // Deep-only suggestion.
     await page.locator('[data-node="m33"]').click();
     await expect(page.getByTestId('deep-only')).toBeVisible();
+    await shot(page, '05b-deep-only', size.name);
 
     // Side line: after 10... Nh5 (ply 20) play 11. Kh1 instead of 11. h3.
     await page.locator('[data-node="m20"]').click();
     await drag(page, 'g1', 'h1');
     await expect(page.getByTestId('back-to-game')).toBeVisible();
     await expect(page.getByTestId('variation')).toContainText('Kh1');
-    await shot(page, '06-sideline-pending', size.name);
+    await shot(page, "06-sideline-pending", size.name, 120);
     await expect(page.getByTestId('move-spinner')).toHaveCount(0, { timeout: 5_000 });
     await drag(page, 'a7', 'a5');
     await expect(page.getByTestId('variation').first()).toContainText('a5');
@@ -125,6 +131,18 @@ for (const size of SIZES) {
     await page.keyboard.press('End');
     await expect(page.getByTestId('label-card')).toContainText('Rd3#');
     await shot(page, '09-final-position', size.name);
+
+    // Start position: game overview with key moments; settings dialog.
+    await page.keyboard.press('Home');
+    await expect(page.getByTestId('key-moments')).toContainText('Blunder');
+    await shot(page, '10-overview', size.name);
+    await page.getByTestId('open-settings').click();
+    await expect(page.getByTestId('settings-username')).toHaveValue('coach_tester');
+    await shot(page, '11-settings', size.name, 150);
+    await page.getByTestId('settings-username').fill('BishopBlunder99');
+    await page.getByTestId('settings-save').click();
+    await expect(page.getByTestId('board')).toHaveClass(/orientation-white/);
+    await expect(page.getByTestId('summary')).toContainText('BishopBlunder99');
   });
 }
 

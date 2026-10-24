@@ -14,6 +14,10 @@ watch(
   () => session.current.value?.id,
   async (id) => {
     await nextTick();
+    if (id === 'root' && scroller.value) {
+      scroller.value.scrollTop = 0;
+      return;
+    }
     const el = scroller.value?.querySelector<HTMLElement>(`[data-node="${id}"]`);
     if (!el || !scroller.value) return;
     const box = scroller.value.getBoundingClientRect();
