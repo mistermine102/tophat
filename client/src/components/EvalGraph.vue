@@ -31,7 +31,9 @@ const points = computed<(Pt | null)[]>(() => {
   for (const m of props.moves) {
     const a = props.analyses[m.ply];
     if (!a) {
-      out.push(null);
+      // the position after ply p is also the next ply's "before" position (same deep search)
+      const next = props.analyses[m.ply + 1];
+      out.push(next ? { ply: m.ply, win: whiteWinPercent(next.evalBefore) } : null);
       continue;
     }
     const mated = isCheckmate(a.fenAfter) ? sideToMove(a.fenAfter) : null;
@@ -98,9 +100,12 @@ const hoverInfo = computed(() => {
   const m = props.moves[p - 1];
   const a = props.analyses[p];
   const name = p === 0 ? 'Start' : m ? `${moveNumberLabel(m.fenBefore)} ${m.san}` : '';
+  const next = props.analyses[p + 1];
   const ev = p === 0 ? (props.analyses[1] ? formatPositionEval(props.analyses[1].evalBefore, null) : '…') : a
     ? formatPositionEval(a.evalAfter, isCheckmate(a.fenAfter) ? sideToMove(a.fenAfter) : null)
-    : '…';
+    : next
+      ? formatPositionEval(next.evalBefore, null)
+      : '…';
   return { left: (p / n.value) * 100, text: `${name}  ${ev}` };
 });
 </script>
@@ -126,7 +131,8 @@ const hoverInfo = computed(() => {
     <span
       v-for="mk in marks"
       :key="mk.ply"
-      class="pointer-events-none absolute h-2.5 w-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-neutral-900"
+      class="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 rounded-full"
+      :class="n > 80 ? 'h-1.5 w-1.5 ring-1 ring-neutral-900' : 'h-2.5 w-2.5 ring-2 ring-neutral-900'"
       :style="{ left: `${mk.left}%`, top: `${Math.min(94, Math.max(6, mk.top))}%`, background: mk.color }"
       :title="mk.title"
       :data-label="mk.label"

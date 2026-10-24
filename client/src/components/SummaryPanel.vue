@@ -5,6 +5,7 @@ import { computed } from 'vue';
 import { LABEL_ORDER, LABELS } from '../lib/labels';
 import { useSession } from '../stores/session';
 import LabelGlyph from './LabelGlyph.vue';
+import LabelLegend from './LabelLegend.vue';
 
 const session = useSession();
 const summary = computed(() => session.summary.value);
@@ -26,7 +27,10 @@ const complete = computed(() => progress.value.total > 0 && progress.value.done 
 <template>
   <section class="rounded-lg bg-neutral-800/70 p-3 ring-1 ring-white/5" data-testid="summary">
     <div class="flex items-center justify-between">
-      <span class="text-xs font-semibold uppercase tracking-wide text-neutral-400">Summary</span>
+      <span class="flex items-center gap-2">
+        <span class="text-xs font-semibold uppercase tracking-wide text-neutral-400">Summary</span>
+        <LabelLegend />
+      </span>
       <span v-if="!complete && progress.total" class="text-[11px] text-neutral-500" data-testid="summary-progress">
         partial · {{ progress.done }}/{{ progress.total }}
       </span>

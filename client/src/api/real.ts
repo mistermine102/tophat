@@ -1,6 +1,6 @@
 // Real data layer: the server's HTTP API + SSE stream (ARCHITECTURE.md "HTTP API").
 import type { GameInfo, GameSummary, MoveAnalysis, Settings } from '@chess-coach/shared';
-import { ApiError, type AnalyseRequest, type ApiClient, type GameSnapshot, type StreamHandlers, type Unsubscribe } from './types';
+import { ApiError, type AnalyseRequest, type ApiClient, type GameSnapshot, type Health, type StreamHandlers, type Unsubscribe } from './types';
 
 type FetchLike = typeof fetch;
 type EventSourceFactory = (url: string) => EventSource;
@@ -63,6 +63,7 @@ export class RealApiClient implements ApiClient {
         return null;
       }
     };
+    es.addEventListener('open', () => handlers.onOpen?.());
     es.addEventListener('analysis', (e) => {
       const d = parse(e) as { ply: number | string; analysis: MoveAnalysis } | null;
       if (d) handlers.onAnalysis?.(Number(d.ply), d.analysis);
@@ -101,5 +102,20 @@ export class RealApiClient implements ApiClient {
 
   putSettings(settings: Settings): Promise<Settings> {
     return this.request<Settings>('PUT', '/settings', settings);
+  }
+
+  async health(): Promise<Health> {
+    let res: Response;
+    try {
+      res = await this.fetchImpl(`${this.base}/health`);
+    } catch (e) {
+      return { ok: false, engine: null, error: `Cannot reach the Chess Coach server (${(e as Error).message}). Is it running?` };
+    }
+    try {
+      const data = (await res.json()) as Partial<Health>;
+      return { ok: res.ok && data.ok === true, engine: data.engine ?? null, ...(data.error ? { error: data.error } : {}) };
+    } catch {
+      return { ok: false, engine: null, error: `The server answered ${res.status} to /api/health — is it the Chess Coach server?` };
+    }
   }
 }

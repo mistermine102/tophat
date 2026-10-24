@@ -32,7 +32,17 @@ const BRUSH: Record<Arrow['kind'], string> = { pick: 'pick', best: 'best', threa
 const ORDER: Record<Arrow['kind'], number> = { played: 0, threat: 1, best: 2, pick: 3 };
 const shapes = computed<DrawShape[]>(() => {
   if (preview.value || !analysis.value) return [];
-  return [...analysis.value.arrows]
+  const played = analysis.value.uci;
+  // a pick/best arrow for the move that was actually played only repeats the last-move highlight
+  // no suggestions for book / forced moves (matches the explanation panel)
+  const noSuggestion = analysis.value.label === 'book' || analysis.value.label === 'forced';
+  const arrows = analysis.value.arrows.filter(
+    (a) => !((a.kind === 'pick' || a.kind === 'best') && (noSuggestion || played.startsWith(a.from + a.to))),
+  );
+  // the grey "played" arrow is only useful as a contrast to a suggested move
+  const contrast = arrows.some((a) => a.kind === 'pick' || a.kind === 'best');
+  return arrows
+    .filter((a) => a.kind !== 'played' || contrast)
     .sort((a, b) => ORDER[a.kind] - ORDER[b.kind])
     .map((a) => ({ orig: a.from as Key, dest: a.to as Key, brush: BRUSH[a.kind] }));
 });
@@ -41,7 +51,9 @@ const evalScore = computed(() => {
   const n = node.value;
   if (!n) return null;
   if (n.ply === 0) return session.state.analyses[1]?.evalBefore ?? null;
-  return analysis.value?.evalAfter ?? null;
+  if (analysis.value) return analysis.value.evalAfter;
+  // main line: the position after ply p is the next ply's "before" position
+  return n.mainPly !== null ? (session.state.analyses[n.mainPly + 1]?.evalBefore ?? null) : null;
 });
 const mated = computed(() => (node.value && isCheckmate(node.value.fen) ? sideToMove(node.value.fen) : null));
 
@@ -92,6 +104,7 @@ const shownKinds = computed(() => new Set(shapes.value.map((s) => s.brush)));
           :check="check"
           :shapes="shapes"
           :movable="!preview && !promotion"
+          :highlight="session.state.highlight"
           @move="onMove"
         />
         <PromotionPicker v-if="promotion" :color="turn" @pick="onPromote" @cancel="cancelPromotion" />

@@ -73,6 +73,17 @@ describe('RealApiClient', () => {
     expect((err as ApiError).message).toMatch(/Cannot reach/);
   });
 
+  it('health(): engine up, engine down (503), server unreachable', async () => {
+    const up = new RealApiClient('/api', (async () => jsonResponse(200, { ok: true, engine: 'Stockfish 19' })) as typeof fetch);
+    expect(await up.health()).toEqual({ ok: true, engine: 'Stockfish 19' });
+    const down = new RealApiClient('/api', (async () => jsonResponse(503, { ok: false, engine: null, error: 'binary not found' })) as typeof fetch);
+    expect(await down.health()).toEqual({ ok: false, engine: null, error: 'binary not found' });
+    const gone = new RealApiClient('/api', (async () => {
+      throw new TypeError('Failed to fetch');
+    }) as typeof fetch);
+    expect((await gone.health()).error).toMatch(/Cannot reach/);
+  });
+
   it('parses SSE events and tells server `error` events from connection errors', () => {
     let es: FakeEventSource | null = null;
     const api = new RealApiClient('/api', fetch, (url) => (es = new FakeEventSource(url)) as unknown as EventSource);
@@ -83,7 +94,9 @@ describe('RealApiClient', () => {
       onSummary: (s) => got.push(`summary ${s.done}`),
       onPlyError: (ply, m) => got.push(`plyError ${ply} ${m}`),
       onConnectionError: () => got.push('connection'),
+      onOpen: () => got.push('open'),
     });
+    es!.dispatchEvent(new Event('open'));
     expect(es!.url).toBe('/api/games/g1/stream');
     es!.emit('analysis', { ply: '3', analysis: analyses[3] });
     es!.emit('progress', { done: 3, total: 72 });
@@ -93,6 +106,7 @@ describe('RealApiClient', () => {
     off();
     expect(es!.closed).toBe(true);
     expect(got).toEqual([
+      'open',
       'analysis 3 Nf3',
       'progress 3/72',
       'summary 72',

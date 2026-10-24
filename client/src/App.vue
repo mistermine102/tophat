@@ -15,7 +15,8 @@ const showSettings = ref(false);
 const booting = ref(true);
 const game = computed(() => session.state.game);
 const progress = computed(() => session.progress.value);
-const analysing = computed(() => progress.value.total > 0 && progress.value.done < progress.value.total);
+const analysing = computed(() => progress.value.total > 0 && progress.value.done + progress.value.failed < progress.value.total);
+const health = computed(() => session.state.health);
 
 const players = computed(() => {
   const h = game.value?.headers;
@@ -25,7 +26,7 @@ const players = computed(() => {
 });
 
 onMounted(async () => {
-  await session.loadSettings();
+  await Promise.all([session.loadSettings(), session.checkHealth()]);
   const id = new URLSearchParams(location.search).get('game');
   if (id && (await session.openGame(id))) {
     booting.value = false;
@@ -83,13 +84,23 @@ onBeforeUnmount(() => {
         <span
           v-if="game"
           class="inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-xs"
-          :class="analysing ? 'bg-amber-500/10 text-amber-300' : 'bg-emerald-500/10 text-emerald-300'"
+          :class="analysing ? 'bg-amber-500/10 text-amber-300' : progress.failed ? 'bg-rose-500/10 text-rose-200' : 'bg-emerald-500/10 text-emerald-300'"
           data-testid="progress"
         >
           <span v-if="analysing" class="h-3 w-3 animate-spin rounded-full border-2 border-amber-400 border-t-transparent"></span>
-          <span v-else>✓</span>
+          <span v-else-if="!progress.failed">✓</span>
           <template v-if="analysing">Analysed {{ progress.done }}/{{ progress.total }}</template>
+          <template v-else-if="progress.failed">Analysed {{ progress.done }}/{{ progress.total }}</template>
           <template v-else>Analysis complete</template>
+          <span v-if="progress.failed" class="text-rose-300" data-testid="failed-count">· {{ progress.failed }} failed</span>
+        </span>
+        <span
+          v-if="health && !health.ok"
+          class="inline-flex items-center gap-1.5 rounded-full bg-rose-500/10 px-2.5 py-1 text-xs text-rose-300"
+          :title="health.error"
+          data-testid="engine-down"
+        >
+          <span class="h-2 w-2 rounded-full bg-rose-400"></span>Engine offline
         </span>
         <span v-if="session.state.connectionError" class="text-xs text-rose-300" :title="session.state.connectionError">Connection lost</span>
         <button class="hdr-btn" data-testid="open-pgn" @click="showPgn = true">

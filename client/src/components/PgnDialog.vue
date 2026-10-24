@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
+import { ApiError } from '../api/types';
 import { useSession } from '../stores/session';
 import ModalDialog from './ModalDialog.vue';
 
@@ -26,7 +27,8 @@ async function submit() {
     await session.importPgn(pgn.value);
     emit('close');
   } catch (e) {
-    error.value = (e as Error).message;
+    const msg = (e as Error).message;
+    error.value = e instanceof ApiError && e.status === 400 ? `Could not read this PGN: ${msg}` : msg;
   } finally {
     busy.value = false;
   }

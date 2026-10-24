@@ -20,6 +20,8 @@ const props = defineProps<{
   check: boolean;
   shapes: DrawShape[];
   movable: boolean;
+  /** Squares to highlight (e.g. hovered square names in an explanation). */
+  highlight?: string[];
 }>();
 
 const emit = defineEmits<{ move: [orig: string, dest: string] }>();
@@ -49,6 +51,7 @@ function config(): Config {
       showDests: true,
     },
     drawable: { autoShapes: props.shapes },
+    highlight: { lastMove: true, check: true, custom: new Map((props.highlight ?? []).map((sq) => [sq as Key, 'cc-hl'])) },
   };
 }
 
@@ -58,7 +61,6 @@ onMounted(() => {
     ...config(),
     coordinates: true,
     animation: { enabled: true, duration: 160 },
-    highlight: { lastMove: true, check: true },
     premovable: { enabled: false },
     draggable: { enabled: true, showGhost: true },
     drawable: {
@@ -80,7 +82,7 @@ onMounted(() => {
 });
 
 watch(
-  () => [props.fen, props.orientation, props.turnColor, props.dests, props.lastMove, props.check, props.movable, props.shapes],
+  () => [props.fen, props.orientation, props.turnColor, props.dests, props.lastMove, props.check, props.movable, props.shapes, props.highlight],
   () => {
     if (!cg) return;
     const c = config();
@@ -107,6 +109,10 @@ defineExpose({ sync });
 </template>
 
 <style>
+.cc-board square.cc-hl {
+  background: rgba(245, 158, 11, 0.45);
+  box-shadow: inset 0 0 0 3px rgba(245, 158, 11, 0.95);
+}
 .cc-board coords {
   font-size: 11px;
   font-weight: 600;

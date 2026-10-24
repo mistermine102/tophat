@@ -115,6 +115,10 @@ export function isCheckmate(fen: string): boolean {
   return tryPosition(fen)?.isCheckmate() ?? false;
 }
 
+export function isStalemate(fen: string): boolean {
+  return tryPosition(fen)?.isStalemate() ?? false;
+}
+
 /** Legal destinations in chessground format. */
 export function legalDests(fen: string): Map<SquareName, SquareName[]> {
   const pos = tryPosition(fen);

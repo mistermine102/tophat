@@ -15,12 +15,38 @@ export interface AppContext {
   engineError?: string;
   /** Game/analysis state. Default: a GameManager over an in-memory database (tests). */
   games?: GameManager;
+  /** Mount the fault-injection routes under /api/test (default: env CHESS_COACH_TEST_HOOKS=1). */
+  testHooks?: boolean;
 }
 
 /** Build the full server state: sqlite cache, persisted search cache and the game manager. */
 export function createGameManager(opts: { scheduler: Scheduler<Searcher> | null; db?: CacheDb; settings?: AnalysisSettings }): GameManager {
   const db = opts.db ?? new CacheDb();
   return new GameManager({ db, searchCache: new SearchCache(db), scheduler: opts.scheduler, settings: opts.settings ?? DEFAULT_SETTINGS });
+}
+
+/**
+ * Analysis profiles (env `ANALYSIS_PROFILE`): `default` = DEFAULT_SETTINGS; `fast` = reduced search budget for
+ * E2E tests and quick looks (same pipeline, much shallower searches; a different settings hash, so its cache
+ * entries never mix with full-depth results).
+ */
+export function analysisSettingsFor(profile: string | undefined): AnalysisSettings {
+  const p = (profile ?? '').trim().toLowerCase();
+  if (!p || p === 'default') return DEFAULT_SETTINGS;
+  if (p !== 'fast') throw new Error(`unknown ANALYSIS_PROFILE "${profile}" (expected "default" or "fast")`);
+  const s: AnalysisSettings = structuredClone(DEFAULT_SETTINGS);
+  s.budget.deep = { depth: 10, multipv: 5, maxMs: 1000 };
+  s.budget.shallow = { depth: 6, multipv: 5, maxMs: 300 };
+  s.budget.threat = { depth: 8, multipv: 1, maxMs: 300 };
+  s.budget.forcedness = { depth: 8, multipv: 2, maxMs: 300 };
+  return s;
+}
+
+/** Positive integer from an env value, or undefined (unset / invalid). */
+export function envInt(value: string | undefined): number | undefined {
+  if (value === undefined || value.trim() === '') return undefined;
+  const n = Number(value);
+  return Number.isInteger(n) && n > 0 ? n : undefined;
 }
 
 export function createApp(ctx: AppContext): Express {
