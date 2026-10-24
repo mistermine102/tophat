@@ -18,11 +18,9 @@ describe('narrationPlies', () => {
     expect(narrationPlies(fen, ['g1f3', 'g8f6', 'b1c3', 'b8c6', 'e2e3', 'e7e6', 'f1e2', 'f8e7'], S)).toBe(S.explain.shortLineMinPlies);
   });
 
-  it('extends through a pending capture and stops at the max', () => {
-    // 1.Nc7+ Kd7 2.Nxa8 Kc6: the knight on a8 is trapped/attacked -> unstable, keeps going
-    const n = narrationPlies(FORK, FORK_PV, S);
-    expect(n).toBeGreaterThanOrEqual(4);
-    expect(n).toBeLessThanOrEqual(S.explain.shortLineMaxPlies);
+  it('stops at the payoff: the first quiet point after the decisive capture', () => {
+    // 1.Nc7+ Kd7 2.Nxa8: nothing is en prise any more -> the story ends with the rook won
+    expect(narrationPlies(FORK, FORK_PV, S)).toBe(3);
   });
 
   it('runs to a mate that fits', () => {
@@ -78,9 +76,10 @@ describe('narrateLine', () => {
 });
 
 describe('forcedness', () => {
-  it('checks odd plies within the forcedness budget', () => {
+  it('checks odd plies within the forcedness budget, only where the reply answers pressure', () => {
+    // Kd7 answers the check; Kc6 and Kb7 answer nothing (no black piece is attacked, no mate threat)
     const checks = forcednessChecks(FORK, FORK_PV, 6, S);
-    expect(checks.map((c) => c.index)).toEqual([1, 3, 5]);
+    expect(checks.map((c) => c.index)).toEqual([1]);
     expect(checks[0]).toMatchObject({ uci: 'e8d7', fen: playUci(FORK, ['b5c7']) });
     expect(checks[0]!.legalMoves).toBe(5); // Kd7 Kd8 Ke7 Kf7 Kf8
   });
@@ -127,13 +126,14 @@ describe('long-term facts', () => {
   const base = { settings: S, legalMoves: 20, secondBestLoss: 1, isBest: true, immediate: [] as Fact[], lineMaterialDelta: 0 };
 
   it('positional deltas of the move, plus structure at the line end', () => {
-    // 1.Bxc6 dxc6: Black's doubled c-pawns appear only at the line end (bishop-pair changes are not line-end facts)
+    // 1.Bxc6 dxc6: White giving up the bishop pair is big (kept at the line end); Black's doubled c-pawns are not
+    // isolated (the b-pawn is next to them) -> a small structure change, dropped at the line end
     const fen = legalFen('r1bqkbnr/pppp1ppp/2n5/1B2p3/4P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 1');
     const after = playUci(fen, ['b5c6']);
     const end = playUci(fen, ['b5c6', 'd7c6']);
     const fs = positionalFacts({ fenBefore: fen, fenAfter: after, lineEndFen: end, mover: 'white', immediate: [] });
-    expect(fs.some((f) => f.feature === 'bishop-pair')).toBe(false);
-    expect(fs.some((f) => f.feature === 'doubled-pawn' && f.side === 'opponent' && f.at === 'line-end')).toBe(true);
+    expect(fs.some((f) => f.feature === 'bishop-pair' && f.side === 'own' && f.at === 'line-end')).toBe(true);
+    expect(fs.some((f) => f.feature === 'doubled-pawn')).toBe(false);
   });
 
   it('positional-gain: material given up without the eval dropping (gambit)', () => {

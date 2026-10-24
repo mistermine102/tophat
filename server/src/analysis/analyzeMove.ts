@@ -9,22 +9,29 @@
 //   3. shallow   fenBefore, MultiPV budget.shallow       (+ shallow searchmoves for candidates outside it)
 //   4. threat    null-move position after each candidate / the played move, budget.threat
 //   5. forcedness at opponent replies of the narrated lines of the played move, the best move and the pick
+//      (only replies under pressure, see facts/line.ts)
+//   5b. refutation threat: for a bad played move (Inaccuracy / Mistake / Blunder / Miss), budget.threat at the
+//      null-move position after the opponent's PV reply -> the 'allows' fact (what the reply threatens)
 //   6. prev      if the previous ply's result isn't supplied: deep (+searchmoves) at prev.fenBefore — the same
 //                searches that ply's own analysis uses (cached), to build the Miss / book-chain context.
 // Classification (classify.ts) gets mover-POV scores from search 1/1b, the previous ply's winLoss/win% (Miss),
 // prev.fenBefore (material baseline), prev.uci (Great take-back rule) and the book chain.
+// Explanations: the played move's narration runs on until the material rule's loss is shown (targetDelta), its
+// Immediate level leads with the refutation for bad labels, and the label text says why the best move is better
+// (explain.ts betterReasons, from the best move's own verified facts).
 
 import type { AnalysisSettings, Arrow, Candidate, Color, Fact, Label, MaterialCheck, MoveAnalysis, Score } from '@chess-coach/shared';
 import { ANALYSIS_VERSION, moveAccuracy, toWhitePov, winPercentForColor, winPercentFromScore } from '@chess-coach/shared';
 import { bookInfo } from './book';
 import { type ClassifyInput, type EngineMoveLine, type PrevMoveContext, classifyMove, countLegalMoves, materialCheck, sameMoveUci } from './classify';
-import { labelText, renderExplanation } from './explain';
+import { BAD_LABELS, betterReasons, labelText, renderExplanation, verdictText } from './explain';
 import { type SearchParams, type Searcher, SearchCache } from './searchCache';
-import { type ReasonCode, suggest } from './suggest';
+import { type ReasonCode, lineDelta, suggest } from './suggest';
 import { legalPrefix, normalizeFen, playMove, positionStatus, pvToSan, uciSquares } from '../chess/notation';
 import type { PvLine, SearchResult } from '../engine/uci';
+import { materialBalance, positionFromFen } from '../chess/material';
 import { immediateFacts } from '../facts/immediate';
-import { type ForcedInfo, type NarratedLine, type ThreatFact, forcedFromSearch, forcednessChecks, narrateLine, narrationPlies, nullMoveFen, threatFromSearch, threatStillWorks } from '../facts/line';
+import { type ForcedInfo, type NarratedLine, type ThreatFact, forcedFromSearch, forcednessChecks, narrateLine, narrationPlies, nullMoveFen, refutationFact, threatFromSearch, threatStillWorks } from '../facts/line';
 import { longTermFacts } from '../facts/longterm';
 
 export interface AnalyzeContext {
@@ -69,6 +76,8 @@ interface MoveWork {
   shallow: Score | null;
   material: MaterialCheck | null;
   reasons?: ReasonCode[];
+  /** Material rule verdict to show in the narration (played move, when the rule fired). */
+  targetDelta?: number;
 }
 
 const now = () => performance.now();
@@ -191,9 +200,11 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
   for (let i = 0; i < lines.length; i++) cands.push(await work(lines[i]!, i + 1));
   const playedIdx = cands.findIndex((c) => sameMoveUci(fen, c.uci, played.uci));
   const playedWork = playedIdx >= 0 ? cands[playedIdx]! : await work(playedLine, 0);
+  const mat = cr.labelReason.material;
+  if (mat?.label) playedWork.targetDelta = mat.playedLine - materialBalance(positionFromFen(fen).board, mover);
 
   // 4. suggestion
-  const judge = (ws: MoveWork[]) => suggest(ws.map((w) => ({ uci: w.uci, score: w.score, shallowScore: w.shallow, material: w.material, facts: [...w.immediate, w.narrated.line] })), best.score, settings);
+  const judge = (ws: MoveWork[]) => suggest(ws.map((w) => ({ uci: w.uci, score: w.score, shallowScore: w.shallow, material: w.material, facts: [...w.immediate, w.narrated.line] })), best.score, settings, lineDelta([cands[0]!.narrated.line]));
   const sug = judge(cands);
   cands.forEach((c, i) => (c.reasons = sug.reasons[i]));
   if (playedIdx < 0) playedWork.reasons = judge([playedWork]).reasons[0];
@@ -203,10 +214,11 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
   const winBest = winPercentFromScore(best.score);
   const secondBestLoss = lines[1] ? Math.max(0, winBest - winPercentFromScore(lines[1].score)) : null;
   const explained = new Map<string, Candidate['explanation']>();
-  const explain = async (w: MoveWork): Promise<NonNullable<Candidate['explanation']>> => {
+  const shortFacts = new Map<string, Fact[]>();
+  const explain = async (w: MoveWork, label?: Label): Promise<NonNullable<Candidate['explanation']>> => {
     const done = explained.get(w.uci);
     if (done) return done;
-    const plies = narrationPlies(fen, w.pv, settings, w.score);
+    const plies = narrationPlies(fen, w.pv, settings, w.score, w.targetDelta !== undefined ? { targetDelta: w.targetDelta } : {});
     const forced = new Map<number, ForcedInfo>();
     for (const c of forcednessChecks(fen, w.pv, plies, settings)) {
       if (c.legalMoves <= 1) forced.set(c.index, { forced: true, alternatives: 0 });
@@ -216,7 +228,7 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
       }
     }
     const tf = now();
-    const narrated = narrateLine(fen, w.pv, { settings, prev: prevMove, score: w.score, forced, plies });
+    const narrated = narrateLine(fen, w.pv, { settings, prev: prevMove, score: w.score, forced, plies, noForcedFirstReply: !!label && BAD_LABELS.has(label) });
     const isBest = sameMoveUci(fen, w.uci, best.move);
     const long = longTermFacts({
       fenBefore: fen,
@@ -233,7 +245,18 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
       legalMoves,
       settings,
     });
-    const e = renderExplanation({ immediate: w.immediate, short: [narrated.line, ...narrated.forcedReplies], long }, { mover });
+    let immediate = w.immediate;
+    if (label && BAD_LABELS.has(label) && w.pv.length >= 2) {
+      // the refutation: what the opponent's reply does, incl. its own verified threat
+      const afterReply = playMove(w.fenAfter, w.pv[1]!).fenAfter;
+      const nf = nullMoveFen(afterReply);
+      const replyThreat = nf ? threatFromSearch(nf, await search('threat', nf, threatParams)) : null;
+      const allows = refutationFact({ fenBefore: fen, uci: w.uci, pv: w.pv, line: narrated.line, replyThreat });
+      if (allows) immediate = [allows, ...immediate];
+    }
+    const short: Fact[] = [narrated.line, ...narrated.forcedReplies];
+    shortFacts.set(w.uci, short);
+    const e = renderExplanation({ immediate, short, long }, label ? { mover, label } : { mover });
     factsMs += now() - tf;
     explained.set(w.uci, e);
     return e;
@@ -258,7 +281,8 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
   };
 
   const bestWork = cands[0]!;
-  const playedCand = toCandidate(playedWork, await explain(playedWork));
+  const playedIsBest = sameMoveUci(fen, playedWork.uci, bestWork.uci);
+  const playedCand = toCandidate(playedWork, await explain(playedWork, cr.label));
   playedCand.winLoss = cr.winLoss;
   const bestCand = toCandidate(bestWork, await explain(bestWork));
   const pickCand = pickWork ? toCandidate(pickWork, await explain(pickWork)) : null;
@@ -299,7 +323,12 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
     arrows,
     timings,
   };
-  analysis.labelText = labelText({ ...analysis, bestSan: bestWork.san, bestUci: bestWork.uci, checkmate: cr.checkmate }, settings);
+  const better = BAD_LABELS.has(cr.label) && !playedIsBest
+    ? betterReasons([...bestWork.immediate, ...(shortFacts.get(bestWork.uci) ?? [])], playedWork.immediate, mover)
+    : [];
+  analysis.labelText = labelText({ ...analysis, bestSan: bestWork.san, bestUci: bestWork.uci, checkmate: cr.checkmate, better }, settings);
+  const verdict = verdictText(cr.label, playedIsBest);
+  if (verdict) analysis.verdictText = verdict;
   return analysis;
 }
 
