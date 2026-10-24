@@ -19,7 +19,9 @@ Coordinator keeps this updated. Each milestone is done by a subagent; its report
   - chess/attacks.ts, chess/see.ts (legal-capture SEE), facts/immediate.ts (fork/skewer only if mover wins vs every reply), facts/positional.ts (~0.05 ms/pos).
   - Puzzle benchmark (bench/reports/puzzle-facts.md): any-move recall fork 92%, skewer 89%, discovered 87%, double check 100%, mateIn1 100%, pin 35% (weak: Lichess pin = exploiting existing pins). 20/20 eyeballed non-theme firings genuine.
   - Merged total: 254 tests passing.
-- [ ] **M1c Client UI** — full v1 screen against fixture data (no server dependency), component tests.
+- [x] **M1c Client UI** — full v1 screen against fixture data (no server dependency), component tests.
+  - api/ (ApiClient: real + mock via ?mock=1), lib/ (move tree, formatting, labels, summary), stores/session.ts, components/ (Board/chessground, EvalBar, EvalGraph, MoveList, ExplanationPanel, Summary, dialogs). 49 vitest + 3 Playwright (mock).
+  - Coordinator review of screenshot: clean layout. To fix in M2-client: label-reason sentence uses mover POV (+6.7) next to White-POV eval row (-6.7) — make POV explicit/consistent.
 - [ ] **M2 Integration** — line.ts (short-term narration + forcedness), suggest.ts, explain.ts, analyzeMove.ts, games/cache/routes/SSE, client wired to API.
 - [ ] **M3 Benchmarks** — Lichess puzzles vs facts; Lichess annotated games vs labels; fix & tune; reports in bench/reports.
 - [ ] **M4 E2E + performance** — Playwright flows, screenshots reviewed, timing per game measured and tuned.
