@@ -35,7 +35,7 @@
 //   win at least as much (loss ≥ HANGS_ALREADY_MIN_LOSS). Not with checkmate.
 // - allows-mate: the opponent has a mate in 1 after the move (brute force).
 
-import { kingCastlesTo, opposite, parseUci, type Color, type NormalMove, type Position, type Role, type Square } from 'chessops';
+import { kingCastlesTo, makeUci, opposite, parseUci, type Color, type NormalMove, type Position, type Role, type Square } from 'chessops';
 import { castlingSide } from 'chessops/chess';
 import { rookCastlesTo } from 'chessops/util';
 import type { Fact, PieceRef } from '@chess-coach/shared';
@@ -160,6 +160,31 @@ function winsAgainstAllReplies(after: Position, sq: Square): boolean {
 
 const ref = (pos: Position, sq: Square): PieceRef => toPieceRef(pos.board.get(sq)!, sq);
 
+/**
+ * In `after` (opponent to move) can the opponent capture the mover's piece on `sq` and keep a material gain,
+ * even after the mover's best counter-capture elsewhere (a counter-attack created by the move)? Recaptures on
+ * `sq` itself are already part of the SEE of the capture.
+ */
+function opponentReallyWins(after: Position, sq: Square): boolean {
+  for (const m of legalReplies(after)) {
+    if (m.to !== sq || (m.promotion && m.promotion !== 'queen')) continue;
+    const uci = makeUci(m);
+    const gain = seeMove(after, uci);
+    if (gain <= 0) continue;
+    const p = after.clone();
+    p.play(m);
+    if (p.isCheckmate()) return true;
+    let counter = 0;
+    for (const c of legalReplies(p)) {
+      if (c.to === sq || (c.promotion && c.promotion !== 'queen') || !capturedBy(p, c)) continue;
+      const g = seeMove(p, makeUci(c));
+      if (g > counter) counter = g;
+    }
+    if (gain - counter > 0) return true;
+  }
+  return false;
+}
+
 /** Immediate facts of playing `uci` in the position `fenBefore`, sorted by FACT_IMPORTANCE. */
 export function immediateFacts(fenBefore: string, uci: string, opts: ImmediateOptions = {}): Fact[] {
   return immediateFactsFromPosition(positionFromFen(fenBefore), uci, opts);
@@ -251,6 +276,7 @@ export function immediateFactsFromPosition(before: Position, uci: string, opts: 
     const wasInCheck = before.isCheck();
     for (const [sq, loss] of lossAfter) {
       if (loss <= 0) continue;
+      if (!opponentReallyWins(after, sq)) continue; // e.g. taking it walks into a bigger counter-capture
       if (sq === toSq) {
         if (cap) continue; // a losing capture is reported by its outcome
         const l = -seeMove(before, uci);

@@ -359,6 +359,13 @@ describe('hangs', () => {
     });
   });
 
+  it('not reported when taking it walks into a bigger counter-capture (b4 hits the queen)', () => {
+    const fen = '4k3/8/4b3/q1pN4/8/P7/1P6/6K1 w - - 0 1';
+    const hangsKnight = (fs: Fact[]) => fs.some((f) => f.type === 'hangs' && f.piece.square === 'd5');
+    expect(hangsKnight(facts(fen, 'b2b4'))).toBe(false);
+    expect(hangsKnight(facts(fen, 'g1h2'))).toBe(true); // a pass leaves it en prise
+  });
+
   it('not reported after checkmate, after an even trade, or when the opponent must answer a check', () => {
     none(facts('6k1/5ppp/8/8/8/2N5/3b4/R5K1 w - - 0 1', 'a1a8'), 'hangs');
     none(facts('4k3/8/4p3/3n4/8/4N3/8/4K3 w - - 0 1', 'e3d5'), 'hangs');
