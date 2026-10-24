@@ -16,7 +16,7 @@ const dims = computed(
     class="inline-flex shrink-0 items-center justify-center rounded-full font-black leading-none text-neutral-950"
     :class="dims"
     :style="{ background: meta.color }"
-    :title="meta.name"
+    :title="`${meta.name} — ${meta.rule}`"
     :data-label="label"
   >
     <svg v-if="label === 'book'" viewBox="0 0 16 16" class="h-[70%] w-[70%]" fill="currentColor" aria-hidden="true">

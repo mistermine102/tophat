@@ -2,7 +2,7 @@
 // Plain Vue reactivity; one instance per app (provided via `provide`/`inject`, see useSession()).
 import type { Color, GameInfo, GameSummary, MoveAnalysis, Settings } from '@chess-coach/shared';
 import { computed, inject, reactive, watch, type InjectionKey } from 'vue';
-import { ApiError, type ApiClient, type Unsubscribe } from '../api/types';
+import { ApiError, type ApiClient, type Health, type Unsubscribe } from '../api/types';
 import { MoveTree, type TreeNode } from '../lib/moveTree';
 import { loadRecent, recentKey, rememberGame, type RecentGame } from '../lib/recent';
 import { computeSummary } from '../lib/summary';
@@ -57,6 +57,10 @@ export function createSession(api: ApiClient, opts: SessionOptions = {}) {
     preview: null as Preview | null,
     settings: { username: null } as Settings,
     recent: loadRecent(storage, recentKey(api.mode)) as RecentGame[],
+    /** Last /api/health answer (null = not checked yet). */
+    health: null as Health | null,
+    /** Squares highlighted on the board (hovering a square name in an explanation). */
+    highlight: [] as string[],
   });
 
   let unsubscribe: Unsubscribe | null = null;
@@ -96,7 +100,8 @@ export function createSession(api: ApiClient, opts: SessionOptions = {}) {
   const progress = computed(() => {
     const total = state.game?.moves.length ?? 0;
     const done = Math.max(state.progress.done, Object.keys(state.analyses).length);
-    return { done: Math.min(done, total), total };
+    const failed = Object.keys(state.plyErrors).filter((p) => !state.analyses[Number(p)]).length;
+    return { done: Math.min(done, total), total, failed };
   });
 
   function stopStream() {
@@ -117,6 +122,7 @@ export function createSession(api: ApiClient, opts: SessionOptions = {}) {
     state.progress = { done: 0, total: 0 };
     state.serverSummary = null;
     state.preview = null;
+    state.highlight = [];
     state.connectionError = null;
   }
 
@@ -150,13 +156,50 @@ export function createSession(api: ApiClient, opts: SessionOptions = {}) {
       },
       onPlyError(ply, message) {
         if (state.game?.id !== id) return;
+        if (state.analyses[ply]) return; // stale replay of an error that was retried successfully
         state.plyErrors[ply] = message;
+        focused.delete(ply);
+        void checkHealth();
       },
       onConnectionError(message) {
         if (state.game?.id !== id) return;
         state.connectionError = message;
       },
+      onOpen() {
+        if (state.game?.id !== id) return;
+        state.connectionError = null;
+      },
     });
+  }
+
+  async function checkHealth(): Promise<Health> {
+    const h = await api.health();
+    state.health = h;
+    return h;
+  }
+
+  /** Ask the server to analyse a failed main-line ply again (focus re-queues failed plies). */
+  function retryPly(ply: number) {
+    const game = state.game;
+    if (!game || state.analyses[ply]) return;
+    delete state.plyErrors[ply];
+    focused.add(ply);
+    api.focus(game.id, ply).catch((e: unknown) => {
+      state.plyErrors[ply] = (e as Error).message;
+      focused.delete(ply);
+    });
+  }
+
+  /** Analyse a failed side-line move again. */
+  function retrySide(node: TreeNode) {
+    if (node.mainPly !== null) return;
+    state.side.delete(node.id);
+    requestSide(node);
+  }
+
+  function setHighlight(squares: string[]) {
+    if (squares.length === 0 && state.highlight.length === 0) return;
+    state.highlight = squares;
   }
 
   async function openGame(id: string): Promise<boolean> {
@@ -227,9 +270,10 @@ export function createSession(api: ApiClient, opts: SessionOptions = {}) {
     () => {
       const node = current.value;
       state.preview = null;
+      state.highlight = [];
       if (!node || node.ply === 0) return;
       if (node.mainPly !== null) {
-        if (!state.analyses[node.mainPly]) scheduleFocus(node.mainPly);
+        if (!state.analyses[node.mainPly] && !state.plyErrors[node.mainPly]) scheduleFocus(node.mainPly);
       } else {
         requestSide(node);
       }
@@ -310,6 +354,10 @@ export function createSession(api: ApiClient, opts: SessionOptions = {}) {
     flip,
     setPreview,
     loadSettings,
+    checkHealth,
+    retryPly,
+    retrySide,
+    setHighlight,
     saveSettings,
     dispose,
     ...nav,

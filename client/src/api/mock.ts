@@ -9,7 +9,7 @@ import { genericAnalysis } from '../fixtures/generic';
 import { FIXTURE_USERNAME, fixtureGame } from '../fixtures/game';
 import { PgnImportError, pgnToGame, sideOf } from '../fixtures/pgnGame';
 import { computeSummary } from '../lib/summary';
-import { ApiError, type AnalyseRequest, type ApiClient, type GameSnapshot, type StreamHandlers, type Unsubscribe } from './types';
+import { ApiError, type AnalyseRequest, type ApiClient, type GameSnapshot, type Health, type StreamHandlers, type Unsubscribe } from './types';
 
 export interface MockOptions {
   intervalMs?: number;
@@ -179,6 +179,10 @@ export class MockApiClient implements ApiClient {
     } catch (e) {
       throw new ApiError((e as Error).message, 400);
     }
+  }
+
+  async health(): Promise<Health> {
+    return { ok: true, engine: 'Mock engine' };
   }
 
   async getSettings(): Promise<Settings> {

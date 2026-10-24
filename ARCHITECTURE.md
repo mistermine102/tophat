@@ -72,6 +72,10 @@ chess-coach/
 - **Score POV:** `Score` from UCI is side-to-move POV. In `MoveAnalysis` every eval exposed for display is
   **White POV** (`evalBefore`, `evalAfter`, candidate `score`), while win%/winLoss are **mover POV**. Name
   fields accordingly; never mix silently.
+  **UI (M2-client):** every *signed* eval number on screen (eval row "Eval (White)", eval bar, graph, candidate
+  "eval +1.2") is White POV, with a tooltip explaining the sign; mover-POV quantities are always labelled with the
+  side ("Black's win chance 38% → 22%", "You're still winning (eval for Black: M9 → +6.7)"). The eval row also
+  says it in words ("White is winning", "Black mates in 2", "draw by stalemate").
 - Piece values for material: P=1, N=3, B=3, R=5, Q=9, K=0.
 - All prose comes from `explain.ts`. Facts carry data only (`type` + fields). Text is attached as `text` when
   rendered.
@@ -349,15 +353,37 @@ Additions made in M2 (all additive; the client renders `Level.text`, so new fact
 | GET/PUT | `/api/settings` | `Settings` | `Settings` (persisted in sqlite) |
 | GET | `/api/health` | — | `{ ok: true, engine: 'Stockfish 19' }`; 503 `{ ok: false, engine: null, error }` if the engine isn't running |
 
-`ply` is 1-based index into `moves` (ply 1 = White's first move).
+`ply` is 1-based index into `moves` (ply 1 = the game's first move — Black's for a SetUp/FEN game with Black to
+move; use `GameMove.color` / the FEN for move numbers, never `ply` parity).
 
-M2 details: `POST /api/games` returns the same id (and the already-finished analyses) for a re-imported game;
+M2 details: `POST /api/games` returns the same id for a re-imported game (only `GameInfo`; finished analyses come
+from `GET /api/games/:id` or the stream replay);
 GameInfo `you`/`orientation` follow the *current* username setting. SSE: subscribe-then-replay (an analysis can
 arrive twice — idempotent), `progress` + `summary` after every finished ply, heartbeat comment `: ping` every
 15 s, cleanup on disconnect; the stream stays open after the game is done. `focus` → 204, 404 unknown game, 400
 bad ply. `/api/analyse` → 400 for an illegal move / bad FEN / a `prev` that doesn't lead to `fenBefore`, 503
 without engine. Errors are `{ error }` JSON. Main-line ply N uses ply N−1 as `prev` (and its finished result for
 Miss / book chain when available); side lines pass `prev` in the body.
+
+M2-client additions (client wired to the real server end to end):
+- `focus` also **re-queues a failed ply** (one that got an `event: error`, e.g. after two engine crashes in a row)
+  at FOCUS priority; the client shows the error with a "Try again" button that calls `focus` (it never re-focuses a
+  failed ply automatically). A failed side-line `/api/analyse` (500 `{error}`) is retried by posting it again.
+- Bad-PGN messages (400) are meant for the user: e.g. `illegal or unreadable move "Ke3" at ply 3`, `no moves found
+  — paste the whole PGN …`; the dialog prefixes "Could not read this PGN:".
+- Client data layer (`client/src/api`): `ApiClient.health()` (never throws; drives an "Engine offline" chip and the
+  error hint), `StreamHandlers.onOpen` (EventSource `open` → clears "Connection lost" after a reconnect).
+- URL: the open game is `?game=<id>` (history.replaceState); a reload or a shared URL reopens it from the cache.
+- Server env (`server/src/index.ts`): `PORT`, `CHESS_COACH_DB`, `STOCKFISH_PATH`, `ENGINE_THREADS` (default
+  cpus − 2), `ENGINE_HASH_MB` (512), `ANALYSIS_PROFILE` (`default` | `fast`: deep d10/1 s, shallow d6, threat /
+  forcedness d8, 300 ms caps — own settings hash, so its cache entries never mix with full-depth ones),
+  `LOG_ANALYSIS=1` (per-ply timing + focus bumps on stdout), `CHESS_COACH_TEST_HOOKS=1` (mounts
+  `POST /api/test/kill-engine` → kills the Stockfish process; `POST /api/test/fail-next {n}` → the next n analysis
+  attempts throw an EngineError; each ply is attempted twice). Vite: `CLIENT_PORT` (5173), `API_PORT` (5174).
+- E2E (`npm run e2e`): Playwright projects `mock` (`e2e/*.spec.ts`, `?mock=1`, port 5183) and `real`
+  (`e2e/real/*.spec.ts`: own server on 5194 with a fresh temp sqlite, `ANALYSIS_PROFILE=fast`, `ENGINE_THREADS=2`,
+  test hooks; client on 5193; skipped without Stockfish). `E2E_REAL=0` runs only the mock project. Screenshots of
+  real data: `client/e2e/screenshots/real-<size>-*.png`.
 
 ## Cache
 
