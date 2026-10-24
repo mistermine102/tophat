@@ -13,7 +13,8 @@ import { type AnalysisSettings, winPercentFromScore } from '@chess-coach/shared'
 import { normalizeMove } from 'chessops/chess';
 import type { NormalMove } from 'chessops/types';
 import { parseSquare, parseUci } from 'chessops/util';
-import { hangingLoss, seeMove } from '../chess/see';
+import { hangingLoss, see, seeMove } from '../chess/see';
+import { makeBoardFen } from 'chessops/fen';
 import { type LineMaterialResult, type LineMove, lineMaterial, materialBalance, PIECE_VALUES, positionFromFen } from '../chess/material';
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -208,8 +209,10 @@ const moverMates = (line: LineMaterialResult, score: Score) => line.mate === 'mo
  *   point with `lineMaterial` (`settings.material.quietHorizonPlies` plies, extended through captures and
  *   promotions) and the mover's material balance there is taken.
  * - Reference = the best line's balance, capped at the *baseline* = the material the mover already has: the
- *   balance at fenBefore, or — if the opponent's previous move changed it (e.g. they just captured and a
- *   recapture is pending) — the higher balance before that move (`prevFenBefore`). The cap means a material
+ *   balance at fenBefore, or — if the opponent's previous move changed it and a recapture is pending — the higher
+ *   balance before that move (`prevFenBefore`), but only as far as the exchange on that square can win it back
+ *   (see `materialBaseline`; M3 fix: 42.Kxe3 taking a queen that can't be recaptured left the old baseline in
+ *   place, so every later move "threw away" 8 pawns). The cap means a material
  *   *gain* the played move fails to make (not taking a hanging piece) is not counted as material thrown away;
  *   that is the job of the win-chance label and Miss. (Interpretation: SPEC compares with the best line directly,
  *   which would turn every missed free piece into a "material" Blunder and make Miss unreachable.)
@@ -225,6 +228,11 @@ const moverMates = (line: LineMaterialResult, score: Score) => line.mate === 'mo
  *   else `loss >= mistakeMinLoss` (2) and `evalDropCp >= mistakeMinEvalDropCp` (150) -> at least Mistake.
  *   The eval-drop guard exempts correct sacrifices (material goes, eval doesn't); even trades lose no material.
  * - A played move that still forces mate is never flagged (material is irrelevant when you mate).
+ * - Already lost (M3): when even the best move leaves the mover at <= -`material.lostPositionCp` (9 pawns, win% <= 3.5) or
+ *   mated, the rule fires only for a piece the move leaves hanging (`hung`, not `hungAlready`). In a lost position the winning side
+ *   has many winning plans and its PV picks one arbitrarily, so the material difference between two lines measured
+ *   12 plies deep is noise (benchmark: promotion races in dead-lost pawn endings, spite checks in the PV) —
+ *   whereas leaving a piece en prise is still the habit to fix.
  * - `lostInLine` (when loss > 0): the mover's pieces lost for nothing in the played line, with the ply (see
  *   `lostInLine`); `hung`: one of them that is en prise right after the move (see `findHung`), else absent;
  *   `hungLoss`: its static-exchange loss (`hungSeeLoss`, = the Immediate 'hangs' number).
@@ -236,16 +244,7 @@ export function materialCheck(input: MaterialCheckInput, settings: AnalysisSetti
   const best = lineMaterial(input.fenBefore, input.bestPv, opts);
   const evalDropCp = guardCp(input.bestScore) - guardCp(input.playedScore);
 
-  let baseline = played.startBalance;
-  if (input.prevFenBefore) {
-    try {
-      const prevPos = positionFromFen(input.prevFenBefore);
-      // the previous move was the opponent's: at prevFenBefore the opponent is to move
-      if (prevPos.turn !== played.mover) baseline = Math.max(baseline, materialBalance(prevPos.board, played.mover));
-    } catch {
-      // ignore an unusable prevFenBefore
-    }
-  }
+  const baseline = input.prevFenBefore ? materialBaseline(input.fenBefore, input.prevFenBefore, played.startBalance) : played.startBalance;
 
   const reference = moverMates(best, input.bestScore) ? baseline : Math.min(best.balance, baseline);
   if (moverMates(played, input.playedScore)) {
@@ -263,9 +262,47 @@ export function materialCheck(input: MaterialCheckInput, settings: AnalysisSetti
       result.hung = hung;
       const hl = hungSeeLoss(input.fenBefore, input.playedPv[0]!, hung.square);
       if (hl > 0) result.hungLoss = hl;
+      if (wasHangingBefore(input.fenBefore, input.playedPv[0]!, hung.square)) result.hungAlready = true;
     }
   }
+  // already lost: only a piece the move itself leaves hanging counts (see the doc comment)
+  if (result.label && !(result.hung && !result.hungAlready) && guardCp(input.bestScore) <= -m.lostPositionCp) delete result.label;
   return result;
+}
+
+/**
+ * Material baseline for the material rule: the mover's balance now, raised towards the balance before the
+ * opponent's previous move only by what the mover can win back on that move's destination square (static
+ * exchange `see`, mover to move). A capture that can be recaptured keeps the mover's entitlement (QxP, PxQ
+ * pending: baseline = before); a capture that can't be answered (the king took an undefended queen) doesn't.
+ */
+export function materialBaseline(fenBefore: string, prevFenBefore: string, balanceNow: number): number {
+  try {
+    const pos = positionFromFen(fenBefore);
+    const prevPos = positionFromFen(prevFenBefore);
+    // the previous move was the opponent's: at prevFenBefore the opponent is to move
+    if (prevPos.turn === pos.turn) return balanceNow;
+    const prevBalance = materialBalance(prevPos.board, pos.turn);
+    if (prevBalance <= balanceNow) return balanceNow;
+    // the opponent's move: the legal move from prevFenBefore that reaches fenBefore's board
+    const target = makeBoardFen(pos.board);
+    for (const [from, dests] of prevPos.allDests()) {
+      for (const to of dests) {
+        const promos = prevPos.board.pawn.has(from) && (to >> 3 === 0 || to >> 3 === 7) ? (['queen', 'rook', 'bishop', 'knight'] as const) : [undefined];
+        for (const promotion of promos) {
+          const next = prevPos.clone();
+          next.play(promotion ? { from, to, promotion } : { from, to });
+          if (makeBoardFen(next.board) !== target) continue;
+          const sq = next.board.get(to) ? to : undefined;
+          const winBack = sq === undefined ? 0 : see(pos, sq, pos.turn);
+          return Math.max(balanceNow, Math.min(prevBalance, balanceNow + winBack));
+        }
+      }
+    }
+    return balanceNow;
+  } catch {
+    return balanceNow; // an unusable prevFenBefore
+  }
 }
 
 /**
@@ -327,6 +364,14 @@ export function findHung(fenBefore: string, moves: readonly LineMove[], mover: C
     if (hangingLoss(pos, sq) > 0) return { role: l.role, square: l.square, color: mover };
   }
   return undefined;
+}
+
+/** The piece on `square` after the move stood there before the move (it isn't the moved piece) and was en prise already. */
+export function wasHangingBefore(fenBefore: string, uci: string, square: string): boolean {
+  if (uci.slice(2, 4) === square || uci.slice(0, 2) === square) return false;
+  const sq = parseSquare(square);
+  if (sq === undefined) return false;
+  return hangingLoss(positionFromFen(fenBefore), sq) > 0;
 }
 
 /**

@@ -49,7 +49,7 @@ Labels (thresholds are settings; defaults approximate chess.com's expected-point
 | **Forced** | The played move was the only legal move. |
 | **Book** | Position after the move is in the opening book (Lichess `chess-openings`, CC0) and every earlier move in the game was also book. |
 | **Best** | Played move is the engine's #1 move, or `winLoss ≤ 0.5`. |
-| **Great !** | Played move is Best **and** the engine's 2nd-best move would be a Mistake or worse (`winLoss(2nd) ≥ mistake threshold`) **and** the position wasn't already totally decided in a way that makes the choice irrelevant (mover's win% after best move between 10 and 97, or the 2nd best throws away a win). Requires ≥2 legal moves. |
+| **Great !** | Played move is Best **and** the engine's 2nd-best move would be a Mistake or worse (`winLoss(2nd) ≥ mistake threshold`) **and** the position wasn't already totally decided in a way that makes the choice irrelevant (mover's win% after best move between 10 and 70 — M3: was 97, see below — or the 2nd best throws away a win, i.e. drops below 70). Requires ≥2 legal moves. |
 | **Excellent** | `winLoss ≤ 2` |
 | **Good** | `winLoss ≤ 5` |
 | **Inaccuracy ?!** | `5 < winLoss ≤ 10` |
@@ -79,9 +79,11 @@ positions, where the win% clamp hides everything.
 - The UI says it, e.g. *"Blunder ?? — this allows a forced mate in 2. Black was already losing, but Qxd7 would have
   avoided it — watch for mating threats."*
 
-**Great — obvious only-moves excluded (M3):** recaptures/take-backs, check evasions with ≤ 3 legal moves, taking
-free material (the capture's static exchange alone wins material: a hanging piece or a free pawn), and the next
-move of a combination after the opponent had a single legal reply.
+**Great — obvious only-moves excluded (M3):** when already winning (≥ 70 % after the best move) only a 2nd best that
+throws the win away (< 70 %) makes the move Great — if every reasonable move keeps the win, the choice does not
+change the result (M3 benchmark: e.g. 94 % vs 82 %). Also excluded: recaptures/take-backs, check evasions with ≤ 3
+legal moves, taking free material (the capture's static exchange alone wins material: a hanging piece or a free
+pawn), and the next move of a combination after the opponent had a single legal reply.
 
 Severity order (for "worse of"): Blunder > Miss > Mistake > Inaccuracy > Good > Excellent > Best/Great/Book/Forced.
 

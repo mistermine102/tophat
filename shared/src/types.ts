@@ -67,10 +67,11 @@ export interface LostPiece extends PieceRef { ply: number }
  * Material rule data (classify.ts materialCheck). `hung` = a mover's piece that is en prise right after the move
  * (on that square) and is lost in the line; `lostInLine` = the mover's pieces lost in losing exchanges of the line
  * (first = first lost), also when the piece only becomes loose later in the line (then `hung` is absent).
+ * `hungAlready` = the hung piece was already en prise before the move (the move didn't save it).
  * `hungLoss` = the hung piece's static-exchange loss (same number as the Immediate 'hangs' fact); `loss` is the
  * line-based comparison with the best move.
  */
-export interface MaterialCheck { playedLine: number; bestLine: number; loss: number; evalDropCp: number; label?: Label; hung?: PieceRef; hungLoss?: number; lostInLine?: LostPiece[] }
+export interface MaterialCheck { playedLine: number; bestLine: number; loss: number; evalDropCp: number; label?: Label; hung?: PieceRef; hungLoss?: number; hungAlready?: boolean; lostInLine?: LostPiece[] }
 /** The played move allows a forced mate in `matedIn` moves that the best move avoids (`bestMatedIn`: the best move's own, much longer, forced mate). */
 export interface AllowedMate { matedIn: number; bestMatedIn?: number }
 /** The mover had a forced mate in `mateIn` moves (the best move) and played a move that doesn't force mate. */

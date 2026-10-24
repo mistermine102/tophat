@@ -3,7 +3,7 @@
 // Win-chance values are percentages (0..100) from the mover's point of view; cp values are centipawns.
 
 /** Bump whenever analysis output semantics change. Part of the cache key, so bumping invalidates the cache. */
-export const ANALYSIS_VERSION = 1;
+export const ANALYSIS_VERSION = 2; // 2 (M3): mate rules, Great exclusions + window, truthful hung piece, verify near thresholds
 
 export interface LabelThresholds {
   /** Best: engine #1 or winLoss <= this. */
@@ -43,6 +43,11 @@ export interface MaterialRule {
   mistakeMinEvalDropCp: number;
   /** PV plies examined when resolving the line's material outcome to a quiet point. */
   quietHorizonPlies: number;
+  /**
+   * Already lost: if the best move's eval is <= -this (cp, mover POV; or mated), the rule only fires for a piece
+   * hung right after the move (MaterialCheck.hung) — line-vs-line material differences are noise there.
+   */
+  lostPositionCp: number;
 }
 
 export interface MissRule {
@@ -153,7 +158,7 @@ export const DEFAULT_SETTINGS: AnalysisSettings = {
   great: {
     secondBestMinLoss: 10,
     minWinAfterBest: 10,
-    maxWinAfterBest: 97,
+    maxWinAfterBest: 70,
     throwsAwayWinBelow: 70,
     minLegalMoves: 2,
     maxLegalMovesInCheck: 3,
@@ -165,6 +170,7 @@ export const DEFAULT_SETTINGS: AnalysisSettings = {
     mistakeMinLoss: 2,
     mistakeMinEvalDropCp: 150,
     quietHorizonPlies: 12,
+    lostPositionCp: 900,
   },
   miss: {
     opponentMinLoss: 10,

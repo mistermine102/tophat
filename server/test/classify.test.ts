@@ -9,6 +9,7 @@ import {
   findHung,
   lostInLine,
   hungSeeLoss,
+  materialBaseline,
   guardCp,
   labelFromWinLoss,
   materialCheck,
@@ -262,7 +263,10 @@ describe('classifyMove: Great', () => {
       classifyMove(mkInput({ played: line('e2e4', scoreForWin(wb)), best: line('e2e4', scoreForWin(wb)), playedIsBest: true, second: line('d2d4', scoreForWin(ws)) }), s).label;
     expect(g(20.001, 5)).toBe('great');
     expect(g(19.999, 5)).toBe('best'); // already lost: the choice is irrelevant
-    expect(great(96.999, 80).label).toBe('great');
+    expect(great(69.999, 55).label).toBe('great');
+    // M3: winning (>= 70 after the best move) and still winning after the 2nd best -> the choice doesn't change the result
+    expect(great(94, 82).label).toBe('best');
+    expect(great(94, 69.9).label).toBe('great'); // ... unless the 2nd best throws the win away
   });
   it('M3: obvious only-moves are not Great (check evasion with <= 3 moves, free capture, combination continuation)', () => {
     // 11...g6 blocking Qh5+ (3 legal moves; Kd7/Ke7 lose) — vpfyow62
@@ -291,7 +295,7 @@ describe('classifyMove: Great', () => {
     expect(cont(prevFen)).toBe('best');
     expect(cont(undefined)).toBe('great'); // (without the context it would be)
   });
-  it('already totally winning: Great only if the 2nd best throws away the win', () => {
+  it('already winning (>= 70): Great only if the 2nd best throws away the win', () => {
     expect(great(97.5, 80).label).toBe('best'); // still winning after the 2nd best: choice irrelevant
     expect(great(97.5, 70.01).label).toBe('best');
     expect(great(97.5, 69.99).label).toBe('great'); // 2nd best throws away the win
@@ -455,6 +459,28 @@ describe('materialCheck (SPEC material rule)', () => {
   it('tolerates illegal PV tails', () => {
     const m = materialCheck({ fenBefore: E4E5, playedPv: ['f1a6', 'b8a6', 'zzzz', 'e1e8'], bestPv: ['g1f3', 'a1a8'], playedScore: { cp: -300 }, bestScore: { cp: 30 } }, S);
     expect(m).toMatchObject({ playedLine: -3, bestLine: 0, loss: 3, label: 'blunder' });
+  });
+});
+
+describe('M3: material baseline and already-lost positions', () => {
+  it('materialBaseline: a pending recapture keeps the entitlement, an unanswerable capture does not', () => {
+    // 1.Qxd5 (Black can recapture exd5): Black's baseline is the balance before the capture
+    expect(materialBaseline('k7/8/4p3/3Q4/8/8/8/4K3 b - - 0 1', 'k7/8/4p3/3p4/8/8/8/3QK3 w - - 0 1', -8)).toBe(-7);
+    // 1.Kxe2 took an undefended queen (regression: 1ciG1v60 42.Kxe3 — every later Black move "threw away" 8)
+    expect(materialBaseline('k7/8/8/8/8/8/4K3/8 b - - 0 1', 'k7/8/8/8/8/8/4q3/4K3 w - - 0 1', 0)).toBe(0);
+    // the opponent's move didn't change the material
+    expect(materialBaseline(after('e2e4 e7e5'), after('e2e4'), 0)).toBe(0);
+  });
+  it('already lost (best <= -10): only a piece hung right after the move fires the rule', () => {
+    // 1.Kg1 lets ...a1=Q, the best line (Kg2) is cut before the promotion: a horizon effect, not thrown material
+    const fen = '7k/8/8/8/8/8/p7/7K w - - 0 1';
+    const mc = (bestCp: number) => materialCheck({ fenBefore: fen, playedPv: ['h1g1', 'a2a1q'], bestPv: ['h1g2'], playedScore: { cp: bestCp - 800 }, bestScore: { cp: bestCp } }, S);
+    expect(mc(-500)).toMatchObject({ loss: 8, label: 'blunder' });
+    expect(mc(-1200).label).toBeUndefined();
+    expect(mc(-1200).loss).toBe(8); // the data is still there
+    // a real hang still counts when lost: 1.Qd5?? exd5 at -12
+    const q = materialCheck({ fenBefore: '4k3/8/4p3/3p4/8/8/8/3QK3 w - - 0 1', playedPv: ['d1d5', 'e6d5'], bestPv: ['e1e2'], playedScore: { cp: -2000 }, bestScore: { cp: -1200 } }, S);
+    expect(q).toMatchObject({ label: 'blunder', hung: { role: 'queen' } });
   });
 });
 

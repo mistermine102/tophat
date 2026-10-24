@@ -251,7 +251,7 @@ export interface Candidate {
 }
 
 export interface LostPiece extends PieceRef { ply: number }     // M3
-export interface MaterialCheck { playedLine: number; bestLine: number; loss: number; evalDropCp: number; label?: Label; hung?: PieceRef; hungLoss?: number; lostInLine?: LostPiece[] }
+export interface MaterialCheck { playedLine: number; bestLine: number; loss: number; evalDropCp: number; label?: Label; hung?: PieceRef; hungLoss?: number; hungAlready?: boolean; lostInLine?: LostPiece[] }
 export interface AllowedMate { matedIn: number; bestMatedIn?: number }   // M3
 export interface MissedMate { mateIn: number }                          // M3
 
@@ -339,6 +339,8 @@ Additions made in M3 (label quality; all additive, `ANALYSIS_VERSION` 2):
 - Great exclusions (classify.ts `isGreat`; settings `great.maxLegalMovesInCheck` (3), `great.freeCaptureMinGain`
   (1)): besides take-backs, no Great for a check evasion with ≤ 3 legal moves, a capture whose SEE alone wins ≥ 1,
   or the move right after an opponent move that was their only legal move (continuation of a combination).
+  Settings change: `great.maxWinAfterBest` 97 → 70 (with `throwsAwayWinBelow` 70): when already winning, Great only
+  if the 2nd best throws the win away.
 - `analysis/label.ts`: `labelMove(settings, search, input)` = searches 1/1b/6 + `classifyMove` (moved out of
   analyzeMove, which calls it first); the label benchmark (`bench/label-benchmark.ts`) calls the same function.
 
