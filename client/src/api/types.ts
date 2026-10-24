@@ -23,6 +23,15 @@ export interface StreamHandlers {
   onPlyError?(ply: number, message: string): void;
   /** Connection-level problem (the real client keeps retrying via EventSource). */
   onConnectionError?(message: string): void;
+  /** The stream is (re)connected; the server replays finished analyses after this. */
+  onOpen?(): void;
+}
+
+/** GET /api/health. */
+export interface Health {
+  ok: boolean;
+  engine: string | null;
+  error?: string;
 }
 
 export type Unsubscribe = () => void;
@@ -36,6 +45,8 @@ export interface ApiClient {
   analyse(req: AnalyseRequest): Promise<MoveAnalysis>;
   getSettings(): Promise<Settings>;
   putSettings(settings: Settings): Promise<Settings>;
+  /** Is the analysis engine running? Never throws (an unreachable server is `{ ok: false }`). */
+  health(): Promise<Health>;
 }
 
 export class ApiError extends Error {

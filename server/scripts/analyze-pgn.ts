@@ -5,6 +5,7 @@
 //   --db     cache database (default data/cache.sqlite or env CHESS_COACH_DB)
 //   --fresh  ignore cached move analyses (engine searches stay cached) — use after changing facts/explain code
 //   --depth  override the deep search depth (default settings: 18)
+//   --threads Stockfish threads (default: cpus - 2)
 //
 // The report lists every ply: SAN, label (+reason), eval before -> after, the three explanation levels, the
 // suggestion ("Try this" / "Engine's top") as the UI shows it, candidates and timings; the game summary at the end.
@@ -91,7 +92,7 @@ function renderReport(game: GameInfo, analyses: Record<number, MoveAnalysis>, su
     L.push(...levelLines(a.played));
     L.push('');
     if (SHOWS_CONFIRMATION.has(a.label)) {
-      L.push(`${SUGGESTION_TEXT.confirm}`);
+      L.push(`${a.verdictText ?? ''}`);
     } else if (a.deepOnly) {
       L.push(`**Engine's top:** ${a.best.san} — ${SUGGESTION_TEXT.deepOnly} (${a.best.pv.slice(0, 6).join(' ')})`);
       L.push(...levelLines(a.best, '  '));

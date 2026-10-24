@@ -5,7 +5,8 @@
 //     (materialCheck vs the best line gives no label; code 'material-rule'). Addition: it must not hang a piece,
 //     make a losing capture or allow mate unless its own short line wins material or mates (code
 //     'hangs-material') — in lost or crushing positions win% saturates and the material rule (relative to the
-//     best line) lets e.g. a queen hang because the best line loses as much.
+//     best line) lets e.g. a queen hang because the best line loses as much. Same code: its short line loses
+//     LINE_LOSS_VS_BEST or more material than the best move's short line.
 //  2. Keeps the result: if the best move keeps the mover winning (win% >= suggest.winningMin) the candidate must
 //     too; else if the best holds a draw-ish position (win% >= suggest.drawishMin) the candidate must not drop
 //     below it (code 'loses-result'). Also 'loses-result': the candidate gets mated by force while the best move
@@ -16,9 +17,12 @@
 //  4. ... and it has at least one concrete Immediate or Short-term fact (code 'no-concrete-fact'), see
 //     `concreteFacts`: check, checkmate, a capture that wins material or recaptures, promotion, fork, pin,
 //     skewer, discovered attack, escape (saving an attacked piece), stopping the opponent's verified threat
-//     ('defends-threat'), a threat with verified gain or mate, a line (within its narrated steps)
-//     that wins material or mates. (SPEC lists check / winning capture / threat / fork / pin / escape / line
-//     gain / mate; skewer, discovered attack, promotion and recapture are the same kind of concrete point.)
+//     ('defends-threat'), a threat with verified gain or mate, a line that wins material or mates (the line's
+//     result is only claimed at a quiet point, see facts/line.ts), an attack on an undefended / more valuable
+//     piece or pawn that the line then really wins (the mover captures on that square and the line wins
+//     material), and a double attack (one piece newly attacks two targets). (SPEC lists check / winning capture /
+//     threat / fork / pin / escape / line gain / mate; skewer, discovered attack, promotion, recapture, a
+//     converted attack and a double attack are the same kind of concrete point.)
 // All candidates are judged (so every one gets `explainable` + `notExplainableReasons`).
 
 import type { AnalysisSettings, Fact, MaterialCheck, Score } from '@chess-coach/shared';
@@ -40,6 +44,12 @@ export interface SuggestCandidate {
 
 /** The facts among `facts` that count as concrete for rule 4. */
 export function concreteFacts(facts: readonly Fact[]): Fact[] {
+  const line = facts.find((f): f is Extract<Fact, { type: 'line' }> => f.type === 'line');
+  const mover = line?.steps[0]?.color;
+  const lineWins = (sq: string) =>
+    line?.result === 'wins-material' && line.steps.some((s) => s.color === mover && s.uci.slice(2, 4) === sq && s.facts.some((x) => x.type === 'capture'));
+  const attacksBy = new Map<string, Set<string>>();
+  for (const f of facts) if (f.type === 'attack') attacksBy.set(f.attacker.square, (attacksBy.get(f.attacker.square) ?? new Set()).add(f.target.square));
   return facts.filter((f) => {
     switch (f.type) {
       case 'check':
@@ -57,8 +67,9 @@ export function concreteFacts(facts: readonly Fact[]): Fact[] {
       case 'threat':
         return f.gain >= 1 || (f.mateIn ?? 0) > 0;
       case 'line':
-        // material gained within the narrated steps (not 'a few moves later' beyond them)
-        return (f.materialDelta > 0 && !f.measuredAt) || f.result === 'mate';
+        return f.result === 'wins-material' || f.result === 'mate';
+      case 'attack':
+        return lineWins(f.target.square) || (attacksBy.get(f.attacker.square)?.size ?? 0) >= 2;
       default:
         return false;
     }
@@ -72,8 +83,21 @@ export function hangsWithoutPayoff(facts: readonly Fact[]): boolean {
   return facts.some((f) => (f.type === 'hangs' && !f.already) || f.type === 'allows-mate' || (f.type === 'capture' && f.outcome === 'loses-material'));
 }
 
-/** Reason codes why a candidate is not an explainable pick (empty = explainable). `bestScore`: deep, mover POV. */
-export function judgeCandidate(c: SuggestCandidate, bestScore: Score, settings: AnalysisSettings): ReasonCode[] {
+/** Material change (mover POV) claimed by a candidate's short line, or null when it claims none. */
+export function lineDelta(facts: readonly Fact[]): number | null {
+  const line = facts.find((f): f is Extract<Fact, { type: 'line' }> => f.type === 'line');
+  if (!line || line.result === 'unclear' || line.result === 'mate' || line.result === 'mated') return null;
+  return line.materialDelta;
+}
+
+/** A candidate line that loses this much more material than the best line is no teaching pick. */
+export const LINE_LOSS_VS_BEST = 2;
+
+/**
+ * Reason codes why a candidate is not an explainable pick (empty = explainable). `bestScore`: deep, mover POV;
+ * `bestLineDelta`: the best move's short-line material change (`lineDelta`), if known.
+ */
+export function judgeCandidate(c: SuggestCandidate, bestScore: Score, settings: AnalysisSettings, bestLineDelta: number | null = null): ReasonCode[] {
   const r = settings.suggest;
   const reasons: ReasonCode[] = [];
   const winBest = winPercentFromScore(bestScore);
@@ -81,7 +105,10 @@ export function judgeCandidate(c: SuggestCandidate, bestScore: Score, settings: 
   const winLoss = Math.max(0, winBest - win);
   if (winLoss > r.pickMaxLoss) reasons.push('too-much-loss');
   if (c.material?.label) reasons.push('material-rule');
-  if (hangsWithoutPayoff(c.facts)) reasons.push('hangs-material');
+  const own = lineDelta(c.facts);
+  // in lost / crushing positions win% saturates: a line that gives away much more than the best line's
+  // (a queen and a rook for two bishops) is not "as good" for a learner
+  if (hangsWithoutPayoff(c.facts) || (own !== null && bestLineDelta !== null && own <= bestLineDelta - LINE_LOSS_VS_BEST)) reasons.push('hangs-material');
   const getsMated = (c.score.mate ?? 0) < 0 && !((bestScore.mate ?? 0) < 0);
   if (getsMated || (winBest >= r.winningMin && win < r.winningMin) || (winBest >= r.drawishMin && winBest < r.winningMin && win < r.drawishMin)) {
     reasons.push('loses-result');
@@ -97,9 +124,13 @@ export interface SuggestResult {
   reasons: ReasonCode[][];
 }
 
-/** Judge all candidates (engine order) and pick the first explainable one. */
-export function suggest(candidates: readonly SuggestCandidate[], bestScore: Score, settings: AnalysisSettings): SuggestResult {
-  const reasons = candidates.map((c) => judgeCandidate(c, bestScore, settings));
+/**
+ * Judge all candidates (engine order) and pick the first explainable one. `bestLineDelta` defaults to the first
+ * candidate's (= the engine's best) short-line material change.
+ */
+export function suggest(candidates: readonly SuggestCandidate[], bestScore: Score, settings: AnalysisSettings, bestLineDelta?: number | null): SuggestResult {
+  const ref = bestLineDelta !== undefined ? bestLineDelta : candidates[0] ? lineDelta(candidates[0].facts) : null;
+  const reasons = candidates.map((c) => judgeCandidate(c, bestScore, settings, ref));
   const i = reasons.findIndex((r) => r.length === 0);
   return { pick: i >= 0 ? i : null, reasons };
 }

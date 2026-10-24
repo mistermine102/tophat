@@ -72,6 +72,10 @@ chess-coach/
 - **Score POV:** `Score` from UCI is side-to-move POV. In `MoveAnalysis` every eval exposed for display is
   **White POV** (`evalBefore`, `evalAfter`, candidate `score`), while win%/winLoss are **mover POV**. Name
   fields accordingly; never mix silently.
+  **UI (M2-client):** every *signed* eval number on screen (eval row "Eval (White)", eval bar, graph, candidate
+  "eval +1.2") is White POV, with a tooltip explaining the sign; mover-POV quantities are always labelled with the
+  side ("Black's win chance 38% → 22%", "You're still winning (eval for Black: M9 → +6.7)"). The eval row also
+  says it in words ("White is winning", "Black mates in 2", "draw by stalemate").
 - Piece values for material: P=1, N=3, B=3, R=5, Q=9, K=0.
 - All prose comes from `explain.ts`. Facts carry data only (`type` + fields). Text is attached as `text` when
   rendered.
@@ -216,7 +220,8 @@ export type Fact =
   | { type: 'allows-mate'; inMoves: number }                         // negative
   | { type: 'threat'; move: string; san: string; gain: number; mateIn?: number; facts: Fact[] }
   | { type: 'defends-threat'; move: string; san: string; gain: number; mateIn?: number; facts: Fact[] }  // the opponent's threat (as in 'threat', opponent POV) no longer works after the move
-  | { type: 'line'; steps: LineStep[]; materialDelta: number; mateIn?: number; result: 'wins-material' | 'loses-material' | 'mate' | 'mated' | 'trade' | 'quiet'; won?: PieceRole[]; lost?: PieceRole[]; measuredAt?: number }  // won/lost: net pieces gained/lost by the mover; measuredAt: material measured after this many plies (> steps.length)
+  | { type: 'line'; steps: LineStep[]; materialDelta: number; mateIn?: number; result: 'wins-material' | 'loses-material' | 'mate' | 'mated' | 'trade' | 'quiet' | 'unclear'; won?: PieceRole[]; lost?: PieceRole[]; measuredAt?: number; balance?: number; owed?: number }  // won/lost: net pieces gained/lost by the mover; measuredAt: material measured after this many plies (> steps.length); 'unclear' = material still changing where the line ends (no result is claimed); balance: mover's material balance (points) at the line end (material results only); owed: material the opponent's previous move captured, which the line may be winning back
+  | { type: 'allows'; reply: { san: string; uci: string }; facts: Fact[]; targets?: PieceRef[]; gain?: number; mateIn?: number; already?: boolean }  // negative (bad moves): the opponent's best reply from the move's PV and what it does — its board facts / verified threat, mover pieces it newly puts en prise, material the opponent gains in the line (pawns), mate against the mover; already: the reply worked before the move too (the move just doesn't deal with it)
   | { type: 'forced-reply'; san: string; alternatives: number }      // opponent's reply was (nearly) the only move
   | { type: 'positional'; feature: PositionalFeature; delta: number; detail?: string; side?: 'own' | 'opponent'; squares?: string[]; at?: 'line-end' }  // delta: + = good for mover; side: whose pieces changed; at: 'line-end' = change measured at the end of the short line, not right after the move
   | { type: 'positional-gain'; cp: number }                          // eval gain not explained by material
@@ -270,6 +275,7 @@ export interface MoveAnalysis {
   arrows: Arrow[];
   timings?: Record<string, number>;
   labelText?: string;                  // rendered label + reason (explain.ts), mover-neutral
+  verdictText?: string;                // caption for confirmed moves (Book/Forced/Best/Great), e.g. "Opening theory."
 }
 export interface Arrow { from: string; to: string; kind: 'pick' | 'best' | 'threat' | 'played' }
 
@@ -303,6 +309,16 @@ Additions made in M2 (all additive; the client renders `Level.text`, so new fact
   mate on the board for display); stalemate `{cp: 0}`. `winLoss`/label come from the fenBefore search only.
 - `SearchBudget.maxMs` (settings): per-search time cap, see "Analysis budget".
 
+Additions made in the explanation-quality pass (M5 prep; additive):
+- Fact `allows` (the refutation of a bad move, see `facts/line.ts refutationFact`) and `line.result: 'unclear'`;
+  `line.measuredAt` is no longer emitted (material is only claimed where the narrated line ends).
+- `MoveAnalysis.verdictText` — caption for confirmed moves: Book "Opening theory.", Forced "The only legal move.",
+  Best "This was the best move." / "As good as the engine's top move.", Great "Great find — the only good move
+  here." (replaces the old "Good — this was the move."; the client should show it instead of its hard-coded text).
+- Settings: `explain.shortLineMinPlies` 4 → 2 (a story stops at its payoff; see below).
+- Analysis budget: one extra threat search (budget.threat) per bad played move, at the null-move position after
+  the opponent's PV reply (for the `allows` fact); forcedness searches only run for replies under pressure.
+
 Additions made in M3 (label quality; all additive, `ANALYSIS_VERSION` 2):
 - `labelReason.allowedMate?: AllowedMate` = `{ matedIn, bestMatedIn? }`: the played move allows a forced mate in
   `matedIn` ≤ `settings.mate.allowedMaxMoves` (3) moves that the best move avoids (or only allows `bestMatedIn` ≥
@@ -314,9 +330,12 @@ Additions made in M3 (label quality; all additive, `ANALYSIS_VERSION` 2):
 - `MaterialCheck.hung` now names only a piece that is en prise **right after the move** (on its square, untouched by
   the line until captured, opponent SEE > 0) and `MaterialCheck.hungLoss` is its static-exchange loss (the same number
   as the Immediate `hangs` fact; `loss` stays the line-based comparison); `MaterialCheck.lostInLine?: LostPiece[]` (`PieceRef & { ply }`, ply 1 =
-  the move, 2 = the reply, …) lists the mover's pieces lost in losing exchanges of the line, first lost first — when
-  `hung` is absent the loss happens in the follow-up and `labelText` says "loses material in the follow-up (−4): the
-  knight falls on d7 within 3 moves" instead of "leaves … hanging".
+  the move, 2 = the reply, …) lists the mover's pieces lost in losing exchanges of the line, first lost first (when
+  `hung` is absent the loss happens in the follow-up; labelText names a hanging piece only from the verified
+  Immediate `hangs` fact, see the M5 pass below).
+- `labelText` (explain.ts, minimal M3 change): "Blunder ?? — this allows a forced mate in 2. Black was already losing,
+  but Qxd7 would have avoided it — watch for mating threats." / "Miss — Qh5 was a forced mate in 2, and this move
+  doesn't force mate (−3% winning chances)."
 - Great exclusions (classify.ts `isGreat`; settings `great.maxLegalMovesInCheck` (3), `great.freeCaptureMinGain`
   (1)): besides take-backs, no Great for a check evasion with ≤ 3 legal moves, a capture whose SEE alone wins ≥ 1,
   or the move right after an opponent move that was their only legal move (continuation of a combination).
@@ -325,22 +344,40 @@ Additions made in M3 (label quality; all additive, `ANALYSIS_VERSION` 2):
 
 ## Facts → text, suggestions (M2)
 
-- `facts/line.ts`: narration (min..max plies of the PV, extended while tactical or while some piece can be won by
-  SEE), step facts (no negative facts), forced replies (MultiPV-2 gap ≥ `forcedReplyMinGap`; never on a mating
-  move), line result at the PV's quiet point; null-move threat: mate in ≤ 3 or a material gain ≥ 1 whose first
-  move is itself a winning capture or a fork/skewer/discovered attack.
-- `facts/longterm.ts`: positional deltas (move + line end) with noise filters, `positional-gain` only for moves
-  that give material up, `deep-payoff`, `necessary`, `nothing-notable`. Exact rules in the file headers.
+- `facts/line.ts`: narration = the story of the move up to its payoff: the first quiet point (no piece of either
+  side can be won by SEE, not check) after ≥ `shortLineMinPlies` plies whose next ply isn't forcing, else the first
+  "settled" capture (the side to move can't win anything back), within `material.quietHorizonPlies`; for a played
+  move flagged by the material rule it runs on until that loss is shown. Material is claimed only there (a pending
+  recapture at a PV end is resolved with SEE, otherwise `result: 'unclear'`). Step facts (no negative facts);
+  forced replies only for replies under pressure (check, an attacked piece, a mate-in-1 threat) with a MultiPV-2
+  gap ≥ `forcedReplyMinGap` (so the opponent's punishing move is never "forced"); null-move threat: mate in ≤ 3 or
+  a material gain ≥ 1 whose first move is itself a winning capture or a fork/skewer/discovered attack; `allows`:
+  the opponent's PV reply with its board facts, the mover's pieces it newly puts en prise (two or more = a double
+  attack, one only if the line wins it), its own verified null-move threat, the line's material/mate result.
+- `facts/longterm.ts`: at most 2 facts; positional deltas of the move with noise filters, line-end changes only
+  when big (passed pawn, king shelter destroyed, bishop pair lost, a doubled+isolated pawn), `positional-gain`
+  only for moves that give material up, `deep-payoff`, `necessary`, `nothing-notable`. Exact rules in the file
+  headers.
 - `analysis/suggest.ts`: SPEC rules + `hangs-material` (no new hanging piece / losing capture / allowed mate unless
   the candidate's own short line wins material or mates). Concrete facts: check, checkmate, winning capture or
   recapture, promotion, fork, pin, skewer, discovered attack, escape, `defends-threat`, threat with gain/mate,
-  line that wins material or mates.
-- `analysis/explain.ts`: templates, mover-neutral with colour names; level dedupe (check implied by a fork/skewer
-  of the king, attacks covered by tactics, attacks merged per attacker, escape dropped when capturing); a
-  hang / losing capture whose short line wins material or mates is worded as a sacrifice; ≤ 4 sentences per level;
-  `labelText`; `SUGGESTION_TEXT` captions ("Good — this was the move.", "deep engine move — hard to explain").
+  line that wins material or mates, an attack whose target the line wins, a double attack.
+- `analysis/explain.ts`: templates, mover-neutral with colour names, material in points ("+3 points"), short
+  hints for jargon; for Inaccuracy/Mistake/Blunder/Miss the `allows` sentence leads the Immediate level ("Allows
+  Qb3, attacking Black's pawns on b7 and f7 at once."; a reply that takes a hung piece is merged with the hang);
+  level dedupe (check implied by a fork/skewer of the king, attacks covered by tactics, attacks merged per
+  attacker, escape dropped when capturing); a hang / losing capture whose short line wins material or mates is
+  worded as a sacrifice; ≤ 4 sentences per level; short line ≤ 6 shown steps (uneventful middle steps → "…"),
+  no result claim for quiet/unclear lines, Book lines without a forcing move → "No forcing follow-up."; long ≤ 2
+  sentences; `labelText` (for bad moves with a comparison from the best move's own facts: "Qf6 was much better.
+  Qf6 defends the pawn on f7."); `verdictText`; `SUGGESTION_TEXT.deepOnly`.
 - `analyzeMove` drops a move's threat (and, for captures, its new attacks) when the engine's expected reply simply
-  takes the moved piece.
+  takes the moved piece. Board claims are checked against the move's PV (first 6 plies): a `hangs` piece must be
+  captured there (else dropped; `already` when it could be won just as well before the move), `defends-threat` of a
+  material threat is dropped when the PV plays the threat anyway, a null-move threat that already existed before the
+  move or whose target can capture the threatening piece is dropped. The played move's `allows` is dropped when the
+  best move allows the same reply with the same effect, and marked `already` when it equals the opponent's pre-move
+  threat and hits nothing new. `ExplainContext` carries `label` and `uci` (uncovered pins are credited to the pinner).
 
 ## Board facts (M1b: `server/src/chess/*`, `server/src/facts/*`; pure, no engine)
 
@@ -372,15 +409,37 @@ Additions made in M3 (label quality; all additive, `ANALYSIS_VERSION` 2):
 | GET/PUT | `/api/settings` | `Settings` | `Settings` (persisted in sqlite) |
 | GET | `/api/health` | — | `{ ok: true, engine: 'Stockfish 19' }`; 503 `{ ok: false, engine: null, error }` if the engine isn't running |
 
-`ply` is 1-based index into `moves` (ply 1 = White's first move).
+`ply` is 1-based index into `moves` (ply 1 = the game's first move — Black's for a SetUp/FEN game with Black to
+move; use `GameMove.color` / the FEN for move numbers, never `ply` parity).
 
-M2 details: `POST /api/games` returns the same id (and the already-finished analyses) for a re-imported game;
+M2 details: `POST /api/games` returns the same id for a re-imported game (only `GameInfo`; finished analyses come
+from `GET /api/games/:id` or the stream replay);
 GameInfo `you`/`orientation` follow the *current* username setting. SSE: subscribe-then-replay (an analysis can
 arrive twice — idempotent), `progress` + `summary` after every finished ply, heartbeat comment `: ping` every
 15 s, cleanup on disconnect; the stream stays open after the game is done. `focus` → 204, 404 unknown game, 400
 bad ply. `/api/analyse` → 400 for an illegal move / bad FEN / a `prev` that doesn't lead to `fenBefore`, 503
 without engine. Errors are `{ error }` JSON. Main-line ply N uses ply N−1 as `prev` (and its finished result for
 Miss / book chain when available); side lines pass `prev` in the body.
+
+M2-client additions (client wired to the real server end to end):
+- `focus` also **re-queues a failed ply** (one that got an `event: error`, e.g. after two engine crashes in a row)
+  at FOCUS priority; the client shows the error with a "Try again" button that calls `focus` (it never re-focuses a
+  failed ply automatically). A failed side-line `/api/analyse` (500 `{error}`) is retried by posting it again.
+- Bad-PGN messages (400) are meant for the user: e.g. `illegal or unreadable move "Ke3" at ply 3`, `no moves found
+  — paste the whole PGN …`; the dialog prefixes "Could not read this PGN:".
+- Client data layer (`client/src/api`): `ApiClient.health()` (never throws; drives an "Engine offline" chip and the
+  error hint), `StreamHandlers.onOpen` (EventSource `open` → clears "Connection lost" after a reconnect).
+- URL: the open game is `?game=<id>` (history.replaceState); a reload or a shared URL reopens it from the cache.
+- Server env (`server/src/index.ts`): `PORT`, `CHESS_COACH_DB`, `STOCKFISH_PATH`, `ENGINE_THREADS` (default
+  cpus − 2), `ENGINE_HASH_MB` (512), `ANALYSIS_PROFILE` (`default` | `fast`: deep d10/1 s, shallow d6, threat /
+  forcedness d8, 300 ms caps — own settings hash, so its cache entries never mix with full-depth ones),
+  `LOG_ANALYSIS=1` (per-ply timing + focus bumps on stdout), `CHESS_COACH_TEST_HOOKS=1` (mounts
+  `POST /api/test/kill-engine` → kills the Stockfish process; `POST /api/test/fail-next {n}` → the next n analysis
+  attempts throw an EngineError; each ply is attempted twice). Vite: `CLIENT_PORT` (5173), `API_PORT` (5174).
+- E2E (`npm run e2e`): Playwright projects `mock` (`e2e/*.spec.ts`, `?mock=1`, port 5183) and `real`
+  (`e2e/real/*.spec.ts`: own server on 5194 with a fresh temp sqlite, `ANALYSIS_PROFILE=fast`, `ENGINE_THREADS=2`,
+  test hooks; client on 5193; skipped without Stockfish). `E2E_REAL=0` runs only the mock project. Screenshots of
+  real data: `client/e2e/screenshots/real-<size>-*.png`.
 
 ## Cache
 

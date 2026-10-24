@@ -1,7 +1,12 @@
 // Short human sentences for a move's label ("why this label"), built only from MoveAnalysis fields.
-import type { Color, Label, MoveAnalysis, PieceRole } from '@chess-coach/shared';
+//
+// POV convention (ARCHITECTURE.md "Conventions", client side): every *signed* eval shown in the UI (eval row, eval
+// bar, graph, candidate scores) is White POV. Numbers in these sentences are labelled with their side instead
+// ("eval for Black: M9 → +6.7", "Black's win chance 38% → 22%"), so a mover-POV number never appears unlabelled
+// next to a White-POV one.
+import type { Color, Label, MoveAnalysis } from '@chess-coach/shared';
 import { fromWhitePov } from '@chess-coach/shared';
-import { PIECE_VALUE } from './chess';
+import { isCheckmate } from './chess';
 import { formatScore } from './format';
 import { LABELS } from './labels';
 
@@ -12,10 +17,10 @@ export interface ReasonContext {
   prevMove?: string | null;
 }
 
-const sideName = (c: Color) => (c === 'white' ? 'White' : 'Black');
+export const sideName = (c: Color) => (c === 'white' ? 'White' : 'Black');
 const pct = (x: number) => `${x < 10 ? x.toFixed(1) : Math.round(x)}%`;
 
-/** Mover-POV eval text, e.g. "+12.0" or "M3". */
+/** Eval from the mover's point of view, e.g. "+12.0" or "M3" — only for text that names the side. */
 export function moverEval(a: MoveAnalysis, which: 'before' | 'after'): string {
   return formatScore(fromWhitePov(which === 'before' ? a.evalBefore : a.evalAfter, a.color));
 }
@@ -30,6 +35,7 @@ export function labelReasonText(a: MoveAnalysis, ctx: ReasonContext): string {
   const r = a.labelReason;
   const who = ctx.moverIsYou ? 'You' : sideName(a.color);
   const loss = a.winLoss;
+  const best = a.best.uci !== a.uci ? a.best.san : null;
   switch (a.label) {
     case 'book':
       return r.book ? `Opening theory: ${r.book.name} (${r.book.eco}).` : 'A known opening move.';
@@ -52,29 +58,31 @@ export function labelReasonText(a: MoveAnalysis, ctx: ReasonContext): string {
   if (isMaterialLabel(a)) {
     const m = r.material!;
     const what = m.hung
-      ? `left the ${m.hung.role} on ${m.hung.square} hanging (−${PIECE_VALUE[m.hung.role as PieceRole] || m.loss})`
+      ? `left the ${m.hung.role} on ${m.hung.square} hanging (−${m.loss})`
       : `gave up ${m.loss} ${m.loss === 1 ? 'pawn' : 'pawns'} of material compared with the best line`;
-    const sentence = `${ctx.moverIsYou ? 'You' : sideName(a.color)} ${what}.`;
+    const sentence = `${who} ${what}.`;
     if (a.winAfter >= 70) {
       const are = ctx.moverIsYou ? "You're" : `${sideName(a.color)} is`;
-      return `${sentence} ${are} still winning (${moverEval(a, 'before')} → ${moverEval(a, 'after')}), but this is the habit to fix.`;
+      return `${sentence} ${are} still winning (eval for ${sideName(a.color)}: ${moverEval(a, 'before')} → ${moverEval(a, 'after')}), but this is the habit to fix.`;
     }
     return sentence;
   }
+  if (a.label === 'best' && isCheckmate(a.fenAfter)) return 'Checkmate!';
   if (loss < 0.05 && a.label !== 'best') return LABELS[a.label].blurb;
   switch (a.label) {
     case 'best':
-      return a.played.rank === 1 ? 'The engine’s top choice.' : 'As good as the engine’s top move.';
+      return a.played.rank === 1 || !best ? 'The engine’s top choice.' : `As good as the engine’s top move (${best}).`;
     case 'excellent':
-      return `Almost as good as the best move (${pct(loss)} win chance lost).`;
+      return `Almost as good as the best move${best ? `, ${best}` : ''} (${pct(loss)} win chance lost).`;
     case 'good':
-      return `A decent move — ${pct(loss)} win chance worse than the best.`;
+      return `A decent move — ${pct(loss)} win chance worse than ${best ?? 'the best'}.`;
     case 'inaccuracy':
-      return `${who} lost ${pct(loss)} win chance — a better move was available.`;
+      return `${who} lost ${pct(loss)} win chance — ${best ? `${best} was better` : 'a better move was available'}.`;
     case 'mistake':
-      return `${who} gave away ${pct(loss)} win chance.`;
+      return `${who} gave away ${pct(loss)} win chance${best ? ` — ${best} was much better` : ''}.`;
     case 'blunder':
-      return `A serious error: ${pct(loss)} win chance lost.`;
+      return `A serious error: ${pct(loss)} win chance lost${best ? ` — ${best} was much better` : ''}.`;
   }
   return LABELS[a.label as Label].blurb;
 }
+

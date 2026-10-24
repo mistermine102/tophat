@@ -26,7 +26,7 @@ describe('session store', () => {
     expect(session.current.value?.ply).toBe(0);
     await vi.advanceTimersByTimeAsync(151 * 3);
     expect(Object.keys(session.state.analyses).length).toBe(3);
-    expect(session.progress.value).toEqual({ done: 3, total: 72 });
+    expect(session.progress.value).toEqual({ done: 3, total: 72, failed: 0 });
     expect(session.summary.value?.done).toBe(3);
   });
 
@@ -95,6 +95,39 @@ describe('session store', () => {
     expect(session.state.orientation).toBe('white');
     session.flip();
     expect(session.state.orientation).toBe('black');
+  });
+
+  it('a failed ply is counted, not auto-focused, and retried on request; reconnect clears the error', async () => {
+    const api = new MockApiClient({ intervalMs: 150, createDelayMs: 0 });
+    let handlers: Parameters<MockApiClient['stream']>[1] | null = null;
+    const stream = api.stream.bind(api);
+    vi.spyOn(api, 'stream').mockImplementation((id, h) => {
+      handlers = h;
+      return stream(id, h);
+    });
+    const focus = vi.spyOn(api, 'focus');
+    const health = vi.spyOn(api, 'health');
+    const session = createSession(api, { focusDebounceMs: 10 });
+    const opened = session.openGame(FIXTURE_ID);
+    await vi.advanceTimersByTimeAsync(1);
+    await opened;
+    handlers!.onPlyError!(40, 'engine crashed');
+    expect(session.progress.value.failed).toBe(1);
+    expect(health).toHaveBeenCalled();
+    session.goToMainPly(40);
+    await nextTick();
+    await vi.advanceTimersByTimeAsync(20);
+    expect(session.errorFor(session.current.value)).toBe('engine crashed');
+    expect(focus).not.toHaveBeenCalled();
+    session.retryPly(40);
+    expect(focus).toHaveBeenCalledWith(FIXTURE_ID, 40);
+    expect(session.errorFor(session.current.value)).toBeNull();
+    expect(session.isPending(session.current.value)).toBe(true);
+
+    handlers!.onConnectionError!('lost');
+    expect(session.state.connectionError).toBe('lost');
+    handlers!.onOpen!();
+    expect(session.state.connectionError).toBeNull();
   });
 
   it('reports unknown games', async () => {

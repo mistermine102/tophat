@@ -48,6 +48,25 @@ export function scoreLeader(score: Score | null | undefined, mated: Color | null
   return score.cp > 0 ? 'white' : 'black';
 }
 
+/** Explains the sign convention wherever a White-POV eval is shown. */
+export const EVAL_POV_HINT = 'Engine evaluation in pawns from White’s side: + means White is better, − means Black is better. M3 = White mates in 3, -M3 = Black mates in 3.';
+
+/** Plain-words verdict for a White POV score, e.g. "White is winning", "Black mates in 2", "about equal". */
+export function positionVerdict(score: Score | null | undefined, mated: Color | null = null): string {
+  if (mated) return `${mated === 'white' ? 'Black' : 'White'} won by checkmate`;
+  if (!score) return '';
+  if (score.mate !== undefined) {
+    if (score.mate === 0) return 'Black won by checkmate'; // White POV mate 0 = White is mated
+    return `${score.mate > 0 ? 'White' : 'Black'} mates in ${Math.abs(score.mate)}`;
+  }
+  const w = whiteWinPercent(score);
+  const side = w >= 50 ? 'White' : 'Black';
+  const d = Math.abs(w - 50);
+  if (d < 10) return 'about equal';
+  if (d < 25) return `${side} is better`;
+  return `${side} is winning`;
+}
+
 /** "13.2%" (one decimal, no sign). */
 export function formatPercent(x: number, digits = 1): string {
   return `${x.toFixed(digits)}%`;

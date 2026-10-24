@@ -67,7 +67,7 @@ export function parseGamePgn(pgn: string): ParsedGame {
     pos.play(move);
     moves.push({ ply, san, uci: p.uci, color: p.color, fenBefore, fenAfter: makeFen(pos.toSetup()) });
   }
-  if (moves.length === 0) throw new PgnImportError('the game has no moves');
+  if (moves.length === 0) throw new PgnImportError('no moves found — paste the whole PGN of a game (chess.com: Share → PGN)');
   const headers: Record<string, string> = {};
   for (const [k, v] of g.headers) headers[k] = v;
   const id = sha1(`${startFen} ${moves.map((m) => m.uci).join(' ')}`);
@@ -104,6 +104,8 @@ interface GameState {
   keys: string[];
   analyses: Map<number, MoveAnalysis>;
   errors: Map<number, string>;
+  /** Plies whose analysis job is in flight (initial run or a focus retry of a failed ply). */
+  retrying: Set<number>;
   listeners: Set<GameListener>;
   doneWaiters: (() => void)[];
 }
@@ -117,9 +119,15 @@ export interface GameManagerDeps {
 
 const DEFAULT_USER_SETTINGS: Settings = { username: null };
 
+/** Analysis progress log (env `LOG_ANALYSIS=1`): finished plies with their run time, focus bumps. */
+function log(msg: string): void {
+  if (process.env.LOG_ANALYSIS === '1') console.log(`[analysis] ${new Date().toISOString().slice(11, 23)} ${msg}`);
+}
+
 export class GameManager {
   private games = new Map<string, GameState>();
   private readonly settingsKey: string;
+  private injectedFailures = 0;
 
   constructor(private readonly deps: GameManagerDeps) {
     this.settingsKey = settingsHash(deps.settings);
@@ -174,10 +182,19 @@ export class GameManager {
     const st = this.state(id);
     if (!st) return false;
     const sched = this.deps.scheduler;
+    const bumped: number[] = [];
+    const retried: number[] = [];
     for (const p of [ply, ply + 1]) {
       const key = st.keys[p - 1];
-      if (key && sched) sched.bump(`move:${key}`, Priority.FOCUS);
+      if (!key || !sched) continue;
+      if (sched.bump(`move:${key}`, Priority.FOCUS)) bumped.push(p);
+      else if (st.errors.has(p) && !st.retrying.has(p)) {
+        // a failed ply is analysed again when the user looks at it (e.g. after an engine crash)
+        retried.push(p);
+        void this.analysePly(st, p, Priority.FOCUS);
+      }
     }
+    log(`focus ${id.slice(0, 8)} ply ${ply}: bumped [${bumped.join(', ')}]${retried.length ? ` retried [${retried.join(', ')}]` : ''}`);
     return true;
   }
 
@@ -237,6 +254,11 @@ export class GameManager {
     return this.run(input, Priority.SIDELINE);
   }
 
+  /** Test hook: the next `n` analysis attempts fail with an EngineError (each ply is tried twice). */
+  injectFailures(n: number): void {
+    this.injectedFailures = Math.max(0, Math.floor(n));
+  }
+
   // --- internals --------------------------------------------------------------------------------------------
 
   private state(id: string): GameState | undefined {
@@ -263,6 +285,7 @@ export class GameManager {
       keys: inputs.map((inp) => analysisKey(this.settingsKey, inp)),
       analyses: new Map(),
       errors: new Map(),
+      retrying: new Set(),
       listeners: new Set(),
       doneWaiters: [],
     };
@@ -278,22 +301,29 @@ export class GameManager {
     return st;
   }
 
-  private async analysePly(st: GameState, ply: number): Promise<void> {
+  private async analysePly(st: GameState, ply: number, priority: Priority = Priority.BACKGROUND): Promise<void> {
     const input = st.inputs[ply - 1]!;
+    st.retrying.add(ply);
     try {
       if (!this.deps.scheduler) throw new Error('engine not running');
-      const analysis = await this.run(input, Priority.BACKGROUND, () => {
+      let started = 0;
+      const analysis = await this.run(input, priority, () => {
+        started = Date.now();
         // the previous ply's job stores its result before resolving, so the db has it even if our state lags
         const prev = st.analyses.get(ply - 1) ?? (ply > 1 ? this.deps.db.get<MoveAnalysis>('analyses', st.keys[ply - 2]!) : undefined);
         const result: PrevResult | null = prev ? { winLoss: prev.winLoss, winBefore: prev.winBefore, label: prev.label } : null;
         return input.prev ? { ...input, prev: { ...input.prev, result } } : input;
       });
+      if (started) log(`game ${st.parsed.id.slice(0, 8)} ply ${ply} done in ${Date.now() - started} ms`);
       st.analyses.set(ply, analysis);
       st.errors.delete(ply);
       this.emit(st, { type: 'analysis', ply, analysis });
     } catch (e) {
+      log(`game ${st.parsed.id.slice(0, 8)} ply ${ply} failed: ${(e as Error).message}`);
       st.errors.set(ply, (e as Error).message);
       this.emit(st, { type: 'error', ply, message: (e as Error).message });
+    } finally {
+      st.retrying.delete(ply);
     }
     const s = summarize(st.parsed, st.analyses);
     this.emit(st, { type: 'progress', done: s.done, total: s.total });
@@ -317,12 +347,19 @@ export class GameManager {
       if (again) return again;
       const ctx = { searcher: engine, cache: this.deps.searchCache, settings: this.deps.settings };
       const inp = finalInput();
+      const attempt = () => {
+        if (this.injectedFailures > 0) {
+          this.injectedFailures--;
+          return Promise.reject(new EngineError('engine failure (injected by test hook)'));
+        }
+        return analyzeMove(ctx, inp);
+      };
       let a: MoveAnalysis;
       try {
-        a = await analyzeMove(ctx, inp);
+        a = await attempt();
       } catch (e) {
         if (!(e instanceof EngineError)) throw e;
-        a = await analyzeMove(ctx, inp); // one retry: a crashed engine restarts on the next search
+        a = await attempt(); // one retry: a crashed engine restarts on the next search
       }
       this.deps.db.put('analyses', key, a);
       return a;

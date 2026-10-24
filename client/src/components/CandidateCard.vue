@@ -4,7 +4,7 @@
 import type { Candidate, MoveAnalysis } from '@chess-coach/shared';
 import { computed } from 'vue';
 import { moveNumberLabel } from '../lib/chess';
-import { formatScore } from '../lib/format';
+import { EVAL_POV_HINT, formatScore } from '../lib/format';
 import type { TreeNode } from '../lib/moveTree';
 import { pvSteps } from '../lib/pv';
 import { useSession } from '../stores/session';
@@ -60,9 +60,21 @@ function enter(i: number) {
         {{ moveNumberLabel(analysis.fenBefore) }} {{ candidate.san }}
       </button>
       <span class="text-xs text-neutral-400">
-        engine #{{ candidate.rank }} · {{ formatScore(candidate.score) }}<template v-if="candidate.winLoss > 0.05">
-          · −{{ candidate.winLoss.toFixed(1) }}% vs best</template>
+        <template v-if="candidate.rank > 0">engine #{{ candidate.rank }} · </template><span class="cursor-help" :title="EVAL_POV_HINT"
+          >eval {{ formatScore(candidate.score) }}</span
+        ><template v-if="candidate.winLoss > 0.05"> · −{{ candidate.winLoss.toFixed(1) }}% win chance vs best</template>
       </span>
+      <button
+        v-if="from"
+        class="ml-auto inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium ring-1 hover:bg-white/10"
+        :class="[accent.text, accent.ring]"
+        :data-testid="`play-${kind}`"
+        :title="`Play ${candidate.san} on the board as a side line (it gets analysed too)`"
+        @click="enter(0)"
+      >
+        <svg viewBox="0 0 16 16" class="h-3 w-3" fill="currentColor" aria-hidden="true"><path d="M4 2.5v11l9-5.5z" /></svg>
+        Play it
+      </button>
     </header>
     <p v-if="notice" class="mt-1.5 rounded bg-amber-500/10 px-2 py-1 text-xs text-amber-300" data-testid="deep-only">
       {{ notice }}
