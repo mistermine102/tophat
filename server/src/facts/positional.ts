@@ -13,7 +13,7 @@ import {
   type Position,
 } from 'chessops';
 import type { Fact, PositionalFeature } from '@chess-coach/shared';
-import { PIECE_VALUES, positionFromFen } from '../chess/attacks';
+import { PIECE_VALUES, positionFromFen } from '../chess/material';
 
 export interface KingSafety {
   square: string;

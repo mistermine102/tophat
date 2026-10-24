@@ -9,8 +9,8 @@ import {
   legalMoveCount,
   lineBehind,
   pinsAgainst,
-  positionFromFen,
 } from '../src/chess/attacks';
+import { positionFromFen } from '../src/chess/material';
 
 const sq = (s: string) => parseSquare(s)!;
 const names = (set: SquareSet) => [...set].map(makeSquare).sort();

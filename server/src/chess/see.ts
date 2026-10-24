@@ -7,7 +7,8 @@
 
 import { SquareSet, opposite, parseUci, squareRank, type Board, type Color, type Position, type Square, type NormalMove } from 'chessops';
 import { normalizeMove, castlingSide } from 'chessops/chess';
-import { PIECE_VALUES, attackersOf, kingAttackedBy, sortByValue } from './attacks';
+import { attackersOf, kingAttackedBy, sortByValue } from './attacks';
+import { PIECE_VALUES } from './material';
 
 const PROMO_BONUS = PIECE_VALUES.queen - PIECE_VALUES.pawn;
 

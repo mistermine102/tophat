@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { parseUci, type NormalMove } from 'chessops';
 import { makeFen } from 'chessops/fen';
 import type { Fact, PositionalFeature } from '@chess-coach/shared';
-import { positionFromFen } from '../src/chess/attacks';
+import { positionFromFen } from '../src/chess/material';
 import { positionalDelta, positionalFeatures } from '../src/facts/positional';
 
 /** Plays UCI moves from `fen` and returns [fenBefore, fenAfter]. */
