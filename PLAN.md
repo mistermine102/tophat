@@ -22,7 +22,10 @@ Coordinator keeps this updated. Each milestone is done by a subagent; its report
 - [x] **M1c Client UI** — full v1 screen against fixture data (no server dependency), component tests.
   - api/ (ApiClient: real + mock via ?mock=1), lib/ (move tree, formatting, labels, summary), stores/session.ts, components/ (Board/chessground, EvalBar, EvalGraph, MoveList, ExplanationPanel, Summary, dialogs). 49 vitest + 3 Playwright (mock).
   - Coordinator review of screenshot: clean layout. To fix in M2-client: label-reason sentence uses mover POV (+6.7) next to White-POV eval row (-6.7) — make POV explicit/consistent.
-- [ ] **M2 Integration** — line.ts (short-term narration + forcedness), suggest.ts, explain.ts, analyzeMove.ts, games/cache/routes/SSE, client wired to API.
+- [~] **M2 Integration** — line.ts (short-term narration + forcedness), suggest.ts, explain.ts, analyzeMove.ts, games/cache/routes/SSE, client wired to API.
+  - M2-server merged: pipeline (~5 s/ply cold, searchCache reuses deep search of next position), explain.ts templates, cache/games/routes/SSE, analyze-pgn CLI. 348 tests. Coordinator review of Opera report found: a false mid-exchange material claim, wrong hung-piece square, mistakes not explained by the refutation, over-long lines, long-term noise, a pick bug (Qb3 "hard to explain"), allowed-mate labelled Best.
+  - Running in parallel: M5a (explanation fixes + review loop on amateur games), M3 (label benchmark vs Lichess, allowed/missed-mate rules, hung-piece fix, stability, depth), M2-client (real API wiring, POV fix, real-server E2E).
+  - bench/games/lichess: 60 Lichess games (1500–1600, ≥5 min) with server analysis, fetched via puzzle GameUrls.
 - [ ] **M3 Benchmarks** — Lichess puzzles vs facts; Lichess annotated games vs labels; fix & tune; reports in bench/reports.
 - [ ] **M4 E2E + performance** — Playwright flows, screenshots reviewed, timing per game measured and tuned.
 - [ ] **M5 Explanation review loop** — independent reviewer agents grade explanations on sample games; fix; repeat.
