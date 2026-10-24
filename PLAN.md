@@ -26,6 +26,7 @@ Coordinator keeps this updated. Each milestone is done by a subagent; its report
   - M2-server merged: pipeline (~5 s/ply cold, searchCache reuses deep search of next position), explain.ts templates, cache/games/routes/SSE, analyze-pgn CLI. 348 tests. Coordinator review of Opera report found: a false mid-exchange material claim, wrong hung-piece square, mistakes not explained by the refutation, over-long lines, long-term noise, a pick bug (Qb3 "hard to explain"), allowed-mate labelled Best.
   - Running in parallel: M5a (explanation fixes + review loop on amateur games), M3 (label benchmark vs Lichess, allowed/missed-mate rules, hung-piece fix, stability, depth), M2-client (real API wiring, POV fix, real-server E2E).
   - bench/games/lichess: 60 Lichess games (1500–1600, ≥5 min) with server analysis, fetched via puzzle GameUrls.
+  - M2-client merged: real wiring verified (streaming, focus reprioritisation, side lines, reload via ?game=id), POV labelled everywhere, env ENGINE_THREADS/ENGINE_HASH_MB/ANALYSIS_PROFILE=fast/LOG_ANALYSIS, 11 E2E (3 mock + 8 real incl. engine kill, FEN start, stalemate, 160-ply). Legend, square hover highlight, Play-it.
 - [ ] **M3 Benchmarks** — Lichess puzzles vs facts; Lichess annotated games vs labels; fix & tune; reports in bench/reports.
 - [ ] **M4 E2E + performance** — Playwright flows, screenshots reviewed, timing per game measured and tuned.
 - [ ] **M5 Explanation review loop** — independent reviewer agents grade explanations on sample games; fix; repeat.
