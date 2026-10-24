@@ -1,0 +1,602 @@
+[
+  {
+    "id": "vpfyow62",
+    "white": "dishelyakov",
+    "black": "iuriiivanov",
+    "whiteElo": 1549,
+    "blackElo": 1531,
+    "timeControl": "600+0",
+    "opening": "King's Gambit Accepted: Villemson Gambit",
+    "plies": 59
+  },
+  {
+    "id": "PuBQ0CoQ",
+    "white": "abodirof",
+    "black": "Average_Shlonker",
+    "whiteElo": 1599,
+    "blackElo": 1537,
+    "timeControl": "600+0",
+    "opening": "Caro-Kann Defense: Panov Attack",
+    "plies": 48
+  },
+  {
+    "id": "ZTYpiUVm",
+    "white": "memeyski",
+    "black": "Jamigda",
+    "whiteElo": 1594,
+    "blackElo": 1539,
+    "timeControl": "300+0",
+    "opening": "French Defense",
+    "plies": 96
+  },
+  {
+    "id": "lmnbpO0B",
+    "white": "Zhumabek_Anel",
+    "black": "emam_emam",
+    "whiteElo": 1550,
+    "blackElo": 1555,
+    "timeControl": "1800+0",
+    "opening": "Pirc Defense",
+    "plies": 56
+  },
+  {
+    "id": "YMOxEowk",
+    "white": "hulinad",
+    "black": "city1612",
+    "whiteElo": 1556,
+    "blackElo": 1576,
+    "timeControl": "300+3",
+    "opening": "Danish Gambit Accepted",
+    "plies": 84
+  },
+  {
+    "id": "aywL4q14",
+    "white": "serhat39",
+    "black": "Snubbet",
+    "whiteElo": 1557,
+    "blackElo": 1522,
+    "timeControl": "600+0",
+    "opening": "Caro-Kann Defense: Hillbilly Attack",
+    "plies": 71
+  },
+  {
+    "id": "5frUvyHl",
+    "white": "JnsKng",
+    "black": "SJB87",
+    "whiteElo": 1527,
+    "blackElo": 1535,
+    "timeControl": "300+3",
+    "opening": "Scandinavian Defense: Valencian Variation",
+    "plies": 45
+  },
+  {
+    "id": "xCPIW9r6",
+    "white": "lfnando",
+    "black": "DystopianOverture",
+    "whiteElo": 1540,
+    "blackElo": 1512,
+    "timeControl": "300+3",
+    "opening": "Owen Defense",
+    "plies": 73
+  },
+  {
+    "id": "4A0II0kJ",
+    "white": "bakugan-2021",
+    "black": "Mostafa_Solo11",
+    "whiteElo": 1583,
+    "blackElo": 1554,
+    "timeControl": "600+0",
+    "opening": "English Opening: Anglo-Lithuanian Variation",
+    "plies": 104
+  },
+  {
+    "id": "8TbE0pfS",
+    "white": "wilfriedking",
+    "black": "srikantb",
+    "whiteElo": 1518,
+    "blackElo": 1538,
+    "timeControl": "600+0",
+    "opening": "Ruy Lopez: Cozio Defense",
+    "plies": 119
+  },
+  {
+    "id": "BoId1e2K",
+    "white": "thntrinias",
+    "black": "robokomodo",
+    "whiteElo": 1557,
+    "blackElo": 1566,
+    "timeControl": "600+5",
+    "opening": "Sicilian Defense: Closed",
+    "plies": 100
+  },
+  {
+    "id": "2hOytwun",
+    "white": "ashok_sai",
+    "black": "jesterian",
+    "whiteElo": 1532,
+    "blackElo": 1530,
+    "timeControl": "600+5",
+    "opening": "Queen's Pawn Game: Colle System, Anti-Colle",
+    "plies": 96
+  },
+  {
+    "id": "dmVsbMbS",
+    "white": "Alex_Optimus",
+    "black": "iggoreshek05",
+    "whiteElo": 1504,
+    "blackElo": 1506,
+    "timeControl": "300+2",
+    "opening": "Ruy Lopez: Steinitz Defense",
+    "plies": 59
+  },
+  {
+    "id": "sTBD5pRz",
+    "white": "MIRKANOF",
+    "black": "messerbill",
+    "whiteElo": 1535,
+    "blackElo": 1585,
+    "timeControl": "300+0",
+    "opening": "East Indian Defense",
+    "plies": 73
+  },
+  {
+    "id": "w6ueCJMc",
+    "white": "Juanchess57",
+    "black": "Abdul91100",
+    "whiteElo": 1558,
+    "blackElo": 1579,
+    "timeControl": "300+3",
+    "opening": "Caro-Kann Defense",
+    "plies": 64
+  },
+  {
+    "id": "QmYnd7UG",
+    "white": "s_sevhat",
+    "black": "hamed686",
+    "whiteElo": 1549,
+    "blackElo": 1507,
+    "timeControl": "600+0",
+    "opening": "French Defense: Exchange Variation, Monte Carlo Variation",
+    "plies": 106
+  },
+  {
+    "id": "EtpbYGOw",
+    "white": "lets_rematch",
+    "black": "dhiegobatista",
+    "whiteElo": 1577,
+    "blackElo": 1566,
+    "timeControl": "300+0",
+    "opening": "Sicilian Defense: Bowdler Attack",
+    "plies": 64
+  },
+  {
+    "id": "DOPXJmpt",
+    "white": "Jambo51",
+    "black": "iamer",
+    "whiteElo": 1580,
+    "blackElo": 1555,
+    "timeControl": "300+3",
+    "opening": "Scotch Game",
+    "plies": 93
+  },
+  {
+    "id": "FroOipnY",
+    "white": "erwinmistrz",
+    "black": "Faker173",
+    "whiteElo": 1514,
+    "blackElo": 1520,
+    "timeControl": "300+3",
+    "opening": "Sicilian Defense: Moscow Variation",
+    "plies": 59
+  },
+  {
+    "id": "Najtq9hR",
+    "white": "chesslad1234",
+    "black": "kaushikt",
+    "whiteElo": 1600,
+    "blackElo": 1600,
+    "timeControl": "900+10",
+    "opening": "Queen's Indian Defense: Kasparov Variation",
+    "plies": 70
+  },
+  {
+    "id": "2SYyVODQ",
+    "white": "wachalo",
+    "black": "Samuelplays94",
+    "whiteElo": 1548,
+    "blackElo": 1530,
+    "timeControl": "300+0",
+    "opening": "Indian Defense: Pawn Push Variation",
+    "plies": 67
+  },
+  {
+    "id": "ejPDKbn7",
+    "white": "elpibedelsastilleros",
+    "black": "baljoz",
+    "whiteElo": 1523,
+    "blackElo": 1537,
+    "timeControl": "600+0",
+    "opening": "Caro-Kann Defense: Exchange Variation",
+    "plies": 66
+  },
+  {
+    "id": "P1uQf5t8",
+    "white": "Tshepoprince",
+    "black": "NonSommelier",
+    "whiteElo": 1510,
+    "blackElo": 1523,
+    "timeControl": "300+0",
+    "opening": "Caro-Kann Defense: Advance Variation, Botvinnik-Carls Defense",
+    "plies": 126
+  },
+  {
+    "id": "P1JBkrwM",
+    "white": "S4M1N",
+    "black": "EtiMaximus",
+    "whiteElo": 1544,
+    "blackElo": 1548,
+    "timeControl": "600+0",
+    "opening": "Queen's Pawn Game: Accelerated London System",
+    "plies": 59
+  },
+  {
+    "id": "xmgVkKla",
+    "white": "ChuanPierre",
+    "black": "Singulare",
+    "whiteElo": 1545,
+    "blackElo": 1556,
+    "timeControl": "300+3",
+    "opening": "English Opening",
+    "plies": 99
+  },
+  {
+    "id": "vktZk22x",
+    "white": "januar06",
+    "black": "Sandeep_Raghani",
+    "whiteElo": 1531,
+    "blackElo": 1545,
+    "timeControl": "300+0",
+    "opening": "Sicilian Defense: Closed",
+    "plies": 57
+  },
+  {
+    "id": "yZalT1cV",
+    "white": "J_Cleirton",
+    "black": "jstech",
+    "whiteElo": 1514,
+    "blackElo": 1555,
+    "timeControl": "600+5",
+    "opening": "Caro-Kann Defense: Advance Variation, Botvinnik-Carls Defense",
+    "plies": 69
+  },
+  {
+    "id": "JO7B4m8Y",
+    "white": "saulomonstro",
+    "black": "SuckMYsnake",
+    "whiteElo": 1567,
+    "blackElo": 1523,
+    "timeControl": "600+0",
+    "opening": "Caro-Kann Defense: Advance Variation, Short Variation",
+    "plies": 55
+  },
+  {
+    "id": "tM14SUiA",
+    "white": "jonavon",
+    "black": "Stinsonlover",
+    "whiteElo": 1539,
+    "blackElo": 1529,
+    "timeControl": "300+0",
+    "opening": "Semi-Slav Defense",
+    "plies": 47
+  },
+  {
+    "id": "PnAHyM23",
+    "white": "Khaled651",
+    "black": "Koenjado",
+    "whiteElo": 1554,
+    "blackElo": 1531,
+    "timeControl": "600+0",
+    "opening": "Petrov's Defense: Stafford Gambit",
+    "plies": 90
+  },
+  {
+    "id": "3OKK4Maz",
+    "white": "axile21",
+    "black": "Mr_StoneDropper",
+    "whiteElo": 1591,
+    "blackElo": 1586,
+    "timeControl": "600+0",
+    "opening": "Sicilian Defense: Closed, Traditional",
+    "plies": 59
+  },
+  {
+    "id": "MBnOswMH",
+    "white": "Siegi78",
+    "black": "DougLogic",
+    "whiteElo": 1572,
+    "blackElo": 1580,
+    "timeControl": "900+10",
+    "opening": "Caro-Kann Defense: Exchange Variation",
+    "plies": 51
+  },
+  {
+    "id": "5WSUXeEN",
+    "white": "buddy16",
+    "black": "williamphi",
+    "whiteElo": 1501,
+    "blackElo": 1567,
+    "timeControl": "300+0",
+    "opening": "Caro-Kann Defense",
+    "plies": 75
+  },
+  {
+    "id": "BEKpqz4d",
+    "white": "bharath2015",
+    "black": "LiChrisVen",
+    "whiteElo": 1577,
+    "blackElo": 1588,
+    "timeControl": "300+0",
+    "opening": "Four Knights Game: Italian Variation",
+    "plies": 113
+  },
+  {
+    "id": "1ciG1v60",
+    "white": "orizzonterosso",
+    "black": "Mileanta",
+    "whiteElo": 1575,
+    "blackElo": 1595,
+    "timeControl": "600+5",
+    "opening": "King's Indian Defense: Normal Variation, King's Knight Variation",
+    "plies": 96
+  },
+  {
+    "id": "cNL3yvhL",
+    "white": "amazin1983",
+    "black": "Dirales",
+    "whiteElo": 1538,
+    "blackElo": 1556,
+    "timeControl": "300+3",
+    "opening": "Queen's Pawn Game",
+    "plies": 61
+  },
+  {
+    "id": "mcz8Z7Cr",
+    "white": "PHmaster",
+    "black": "abdishafi",
+    "whiteElo": 1517,
+    "blackElo": 1526,
+    "timeControl": "300+3",
+    "opening": "Scotch Game: Scotch Gambit",
+    "plies": 45
+  },
+  {
+    "id": "57RP5sCb",
+    "white": "Ralulo",
+    "black": "westkelp",
+    "whiteElo": 1580,
+    "blackElo": 1529,
+    "timeControl": "600+5",
+    "opening": "Queen's Indian Defense: Fianchetto Variation, Traditional Line",
+    "plies": 41
+  },
+  {
+    "id": "hCUgZ59l",
+    "white": "Karimkhani",
+    "black": "Ghanshan",
+    "whiteElo": 1519,
+    "blackElo": 1588,
+    "timeControl": "300+0",
+    "opening": "Zukertort Opening: Ross Gambit",
+    "plies": 83
+  },
+  {
+    "id": "ttJRkXea",
+    "white": "badarinadh_bbt",
+    "black": "andriu4B",
+    "whiteElo": 1577,
+    "blackElo": 1590,
+    "timeControl": "300+3",
+    "opening": "Hungarian Opening",
+    "plies": 88
+  },
+  {
+    "id": "ydB4RIzn",
+    "white": "Urbani77",
+    "black": "Piotr1661",
+    "whiteElo": 1517,
+    "blackElo": 1592,
+    "timeControl": "600+0",
+    "opening": "Sicilian Defense: Czerniak Attack",
+    "plies": 83
+  },
+  {
+    "id": "g1pUgJhQ",
+    "white": "JenniferJun",
+    "black": "Ganna-na",
+    "whiteElo": 1554,
+    "blackElo": 1538,
+    "timeControl": "300+0",
+    "opening": "Rat Defense: Small Center Defense",
+    "plies": 89
+  },
+  {
+    "id": "hx2NUlrz",
+    "white": "AbdAlrhmanAltayeb",
+    "black": "Amir_Yasser_jop",
+    "whiteElo": 1586,
+    "blackElo": 1572,
+    "timeControl": "600+5",
+    "opening": "Four Knights Game: Spanish Variation, Classical Variation",
+    "plies": 104
+  },
+  {
+    "id": "JTANm9Wa",
+    "white": "bileg-mongol",
+    "black": "MitsMT",
+    "whiteElo": 1556,
+    "blackElo": 1599,
+    "timeControl": "300+0",
+    "opening": "Caro-Kann Defense: Hector Gambit",
+    "plies": 65
+  },
+  {
+    "id": "6Vvx9xNI",
+    "white": "Einar236",
+    "black": "realwebdevs",
+    "whiteElo": 1551,
+    "blackElo": 1529,
+    "timeControl": "300+3",
+    "opening": "Sicilian Defense: Closed, Traditional",
+    "plies": 68
+  },
+  {
+    "id": "9YXxms4T",
+    "white": "Kacpere_k",
+    "black": "serg-74",
+    "whiteElo": 1523,
+    "blackElo": 1548,
+    "timeControl": "900+10",
+    "opening": "Sicilian Defense: Alapin Variation",
+    "plies": 81
+  },
+  {
+    "id": "CBerFAje",
+    "white": "alirezaakef",
+    "black": "valdoca",
+    "whiteElo": 1579,
+    "blackElo": 1571,
+    "timeControl": "300+0",
+    "opening": "Sicilian Defense: Modern Variations, Main Line",
+    "plies": 109
+  },
+  {
+    "id": "KyoqPCST",
+    "white": "CheaTer31rus",
+    "black": "alokvatsa",
+    "whiteElo": 1505,
+    "blackElo": 1510,
+    "timeControl": "300+0",
+    "opening": "French Defense: Exchange Variation",
+    "plies": 58
+  },
+  {
+    "id": "1Jk91wAq",
+    "white": "DeLaVegaC",
+    "black": "sheepx73",
+    "whiteElo": 1553,
+    "blackElo": 1572,
+    "timeControl": "600+5",
+    "opening": "Sicilian Defense: Löwenthal Variation",
+    "plies": 104
+  },
+  {
+    "id": "8I0dMWWt",
+    "white": "MiguelMtz03",
+    "black": "popka2017",
+    "whiteElo": 1530,
+    "blackElo": 1567,
+    "timeControl": "600+0",
+    "opening": "Scandinavian Defense: Main Line",
+    "plies": 154
+  },
+  {
+    "id": "o9a3P13R",
+    "white": "Callahan08",
+    "black": "azfarrasool",
+    "whiteElo": 1562,
+    "blackElo": 1571,
+    "timeControl": "300+3",
+    "opening": "Queen's Pawn Game: Modern Defense",
+    "plies": 89
+  },
+  {
+    "id": "imaoXBAh",
+    "white": "durgis",
+    "black": "hope69",
+    "whiteElo": 1552,
+    "blackElo": 1543,
+    "timeControl": "600+0",
+    "opening": "Philidor Defense",
+    "plies": 113
+  },
+  {
+    "id": "d5FR3yzG",
+    "white": "Amr_Mohamed00",
+    "black": "dfs_48",
+    "whiteElo": 1555,
+    "blackElo": 1557,
+    "timeControl": "600+0",
+    "opening": "Vienna Game: Vienna Gambit",
+    "plies": 97
+  },
+  {
+    "id": "ja9TQ0MG",
+    "white": "Ildarbaschcort",
+    "black": "vate01",
+    "whiteElo": 1582,
+    "blackElo": 1567,
+    "timeControl": "300+0",
+    "opening": "Philidor Defense",
+    "plies": 64
+  },
+  {
+    "id": "Iv4Ja4qc",
+    "white": "MarkerToSummer",
+    "black": "ivanich2055",
+    "whiteElo": 1558,
+    "blackElo": 1592,
+    "timeControl": "300+0",
+    "opening": "Queen's Gambit Declined: Marshall Defense",
+    "plies": 127
+  },
+  {
+    "id": "Vy51w3ru",
+    "white": "Veegee1",
+    "black": "megafloppy",
+    "whiteElo": 1509,
+    "blackElo": 1519,
+    "timeControl": "600+0",
+    "opening": "Owen Defense",
+    "plies": 64
+  },
+  {
+    "id": "9KMni08M",
+    "white": "Kabouche",
+    "black": "jamezilla",
+    "whiteElo": 1540,
+    "blackElo": 1523,
+    "timeControl": "300+0",
+    "opening": "Zukertort Opening: Queen's Gambit Invitation",
+    "plies": 97
+  },
+  {
+    "id": "xolgbv5h",
+    "white": "strogonoviski",
+    "black": "EugeneTi",
+    "whiteElo": 1524,
+    "blackElo": 1521,
+    "timeControl": "300+0",
+    "opening": "Italian Game",
+    "plies": 76
+  },
+  {
+    "id": "BzAJJvqI",
+    "white": "TomUr",
+    "black": "Altersheim",
+    "whiteElo": 1536,
+    "blackElo": 1528,
+    "timeControl": "300+0",
+    "opening": "Dutch Defense",
+    "plies": 94
+  },
+  {
+    "id": "5tx894KI",
+    "white": "chethanmurali",
+    "black": "Omouwa",
+    "whiteElo": 1556,
+    "blackElo": 1537,
+    "timeControl": "600+0",
+    "opening": "Queen's Pawn Game",
+    "plies": 88
+  }
+]
