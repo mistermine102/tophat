@@ -240,6 +240,7 @@ function immediateFactText(f: Fact, ctx: ExplainContext): string | null {
     case 'attack':
       // (round 8) an attacker the target could take: say so (the engine line doesn't take it — checked in analyzeMove)
       if (f.offered) return `Attacks ${owned(f.target)} with ${an(f.attacker.role)} — the ${f.attacker.role} could be taken, but the engine line doesn't take it`;
+      if (f.reason === 'outnumbered') return `Attacks ${owned(f.target)} once more — with this extra attacker ${colorName(ctx.mover)} now threatens to win it`;
       // a bigger piece attacked by a smaller one has to move whether defended or not: say so, not "undefended"
       return f.reason === 'undefended' && PIECE_VALUES[f.target.role] <= PIECE_VALUES[f.attacker.role] ? `Attacks ${owned(f.target)}, which is undefended` : `Attacks ${owned(f.target)} with ${an(f.attacker.role)}`;
     case 'fork': {
@@ -546,6 +547,10 @@ function materialResult(line: F<'line'>, mover: Color): string {
   const who = colorName(mover);
   const won = line.won ?? [];
   const lost = line.lost ?? [];
+  // (round 9) with a promotion in the line, piece lists read wrong ("gives a rook for a pawn" when the opponent queens)
+  if (line.steps.some((s) => s.facts.some((f) => f.type === 'promotion'))) {
+    return line.materialDelta > 0 ? `${who} comes out ahead in material (${points(line.materialDelta)})` : `${who} ends up behind in material (${points(line.materialDelta)})`;
+  }
   const d = `(${points(line.materialDelta)})`;
   const isExchange = (a: readonly PieceRole[], b: readonly PieceRole[]) => a.length === 1 && a[0] === 'rook' && b.length === 1 && (b[0] === 'knight' || b[0] === 'bishop');
   // "wins back": the mover started behind and the gain only makes up (part of) that deficit
@@ -709,6 +714,8 @@ export function lineText(line: F<'line'>, ctx: ExplainContext): string {
   }
   // hidden quiet moves after the last shown step: the result is measured after them
   if (result && prevTo < line.steps.length - 1) parts.push('…');
+  // (round 9) the recapture the result already counts (the PV's next move)
+  if (result && line.recapture && (line.result === 'wins-material' || line.result === 'loses-material' || line.result === 'trade')) parts.push(line.recapture);
   return `${[...parts, ...(result ? [result] : [])].join(' → ')}.`;
 }
 
@@ -843,6 +850,9 @@ function missesText(f: F<'misses'>, ctx: ExplainContext, long: readonly Fact[], 
   const line = short.find((x): x is F<'line'> => x.type === 'line');
   if (line?.result === 'loses-material') return `Nothing is lost right away, but the engine line costs ${colorName(ctx.mover)} ${points(line.materialDelta).replace(MINUS, '')} (see the short term); the engine prefers ${f.san}.`;
   const drawback = long.some((x) => x.type === 'positional' && (x.side === 'opponent' ? x.delta > 0 : x.delta < 0) && !x.at && x.feature !== 'mobility');
+  // (round 9) no "no tactical problem" claim when the move's own line is tactical (checks, captures) or unclear
+  const tactical = !!line && (line.result === 'unclear' || line.steps.some((s) => s.facts.length > 0));
+  if (tactical) return `The engine prefers ${f.san}; the difference is hard to put into words — see the engine line below.`;
   if (drawback) return `No tactical problem right away — the drawback is long-term (see below); the engine prefers ${f.san}.`;
   return `No tactical problem right away — the engine prefers ${f.san} for long-term reasons that are hard to put into words.`;
 }

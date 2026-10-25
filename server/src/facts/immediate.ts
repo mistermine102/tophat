@@ -532,15 +532,20 @@ function tacticalFacts(
     const aRole = after.board.getRole(a)!;
     for (const t of attackedPieces(after.board, a)) {
       if (after.board.king.has(t)) continue;
-      if (covered.has(key(a, t)) || attackedBefore(a, t)) continue;
-      if (!canWin(a, t)) continue;
+      if (attackedBefore(a, t)) continue;
+      // (round 9) a piece that can be won now (by any capturer) and couldn't before: the move adds the decisive attacker
+      const outnumbered = !after.board.pawn.has(t) && see(after, t, mover) > 0 && before.board.get(t)?.color === opp && see(before, t, mover) <= 0;
+      // (kept next to a pin of the same piece: if the PV shows the pin is illusory, analyzeMove drops the pin, not this)
+      if (covered.has(key(a, t)) && !(outnumbered && facts.some((f) => f.type === 'pin' && f.pinned.square === sqName(t)))) continue;
+      if (!canWin(a, t) && !outnumbered) continue;
       // (round 8) the target could take the attacker: kept as an offer (analyzeMove drops it when the reply takes)
       const offered = hitsBack(t, a) && PIECE_VALUES[after.board.getRole(t)!] > PIECE_VALUES[aRole] && !capturedBy(before, move); // (quiet moves only)
       if (hitsBack(t, a) && !offered) continue;
       const tRole = after.board.getRole(t)!;
-      let reason: 'undefended' | 'higher-value' | undefined;
+      let reason: 'undefended' | 'higher-value' | 'outnumbered' | undefined;
       if (defendersOf(after.board, t).isEmpty()) reason = 'undefended';
-      else if (aRole !== 'king' && PIECE_VALUES[tRole] > PIECE_VALUES[aRole]) reason = 'higher-value';
+      else if (aRole !== 'king' && PIECE_VALUES[tRole] > PIECE_VALUES[aRole] && canWin(a, t)) reason = 'higher-value';
+      else if (outnumbered) reason = 'outnumbered';
       if (!reason) continue;
       facts.push(offered ? { type: 'attack', attacker: ref(after, a), target: ref(after, t), reason, offered: true } : { type: 'attack', attacker: ref(after, a), target: ref(after, t), reason });
     }

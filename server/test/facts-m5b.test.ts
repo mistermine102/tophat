@@ -351,6 +351,31 @@ describe('round 7 regressions', () => {
   });
 });
 
+describe('round 9 regressions', () => {
+  it('a move that adds the decisive attacker on a piece (57RP5sCb 18.Re1 on the e4 bishop)', () => {
+    const f = immediateFacts(legalFen('4r1k1/p1p2p1p/1p3p2/8/3Nb3/6P1/PP3PBP/R5K1 w - - 1 18'), 'a1e1');
+    expect(of(f, 'attack')).toMatchObject([{ attacker: { square: 'e1' }, target: { role: 'bishop', square: 'e4' }, reason: 'outnumbered' }]);
+    // the PV answers Bc6 (the pin is illusory: the bishop keeps guarding e8) — the added attacker is what stays
+    const fen = legalFen('4r1k1/p1p2p1p/1p3p2/8/3Nb3/6P1/PP3PBP/R5K1 w - - 1 18');
+    const kept = verifyWithLine(f, fen, pv('a1e1 e4c6 e1c1'));
+    expect(of(kept, 'pin')).toHaveLength(0);
+    expect(text(kept)[0]).toBe("Attacks Black's bishop on e4 once more — with this extra attacker White now threatens to win it.");
+  });
+
+  it('the recapture a material result already counts is shown (YMOxEowk 6.Nd2 … Bxe5 dxe5, Nxe5)', () => {
+    const fen = legalFen('rnbqk1nr/pppp1ppp/8/8/1bB1P3/8/PB3PPP/RN1QK1NR w KQkq - 1 6');
+    const full = pv('b1d2 g8f6 g1f3 e8g8 e1g1 d7d6 d2b3 b8c6 d1c2 c6e5 b2e5 d6e5 f3e5');
+    const { line } = narrateLine(fen, full, { settings: S, plies: 12 });
+    if (line.recapture) expect(lineText(line, W)).toMatch(/→ Nxe5 → White wins back a pawn/);
+  });
+
+  it('a promotion in the line: no piece lists', () => {
+    const step = (ply: number, san: string, facts: Fact[] = []) => ({ ply, san, uci: 'a1a2', color: (ply % 2 ? 'white' : 'black') as 'white' | 'black', facts });
+    const line: Extract<Fact, { type: 'line' }> = { type: 'line', steps: [step(1, 'Rh8'), step(2, 'c1=R', [{ type: 'promotion', to: 'rook' }])], materialDelta: -4, result: 'loses-material', won: ['pawn'], lost: ['rook'] };
+    expect(lineText(line, W)).toMatch(/White ends up behind in material \(−4 points\)\.$/);
+  });
+});
+
 describe('no false "No forcing follow-up."', () => {
   it('a story without facts says the engine line goes on with a check', () => {
     const step = (ply: number, san: string) => ({ ply, san, uci: 'a1a2', color: (ply % 2 ? 'black' : 'white') as 'white' | 'black', facts: [] as Fact[] });

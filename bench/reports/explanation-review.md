@@ -27,6 +27,7 @@ Categories: **FALSE** (wrong on the board / contradicts the line), **MISLEADING*
 | 6 (4 new reviewer agents) | same 7 games, r6 | 239 | 10 (6 root causes, 2 introduced by r5 fixes; all fixed after) | 32 | 31 | 53 | 79 / 8 |
 | 7 (4 new reviewer agents) | same 7 games, r7 | 239 | 0 | 28 | 29 | 68 | 81 / 6 |
 | 8 (4 new reviewer agents) | same 7 games, r8 | 239 | 1 | 37 | 20 | 69 | 82 / 9 |
+| 9 (4 new reviewer agents) | same 7 games, r9 | 239 | 2 | 34 | 26 | 59 | 87 / 5 |
 
 WEAK rose from round 2 to 3 because reviewers moved on to wording once the gross errors were gone. After round 4 the
 remaining FALSE root cause (uncovered pins worded as made by the moving piece) was fixed and spot-checked on the r5
@@ -260,3 +261,20 @@ after this round:
 | YMOxEowk 21 | Bxf6 | Imm | "Still leaves the bishop on d3 hanging (−3)" (the line is level) | MISLEADING | → an already-hanging piece isn't told when the move's line loses nothing overall |
 | PnAHyM23 41 | c4 | Imm | "Allows Nc3, forking …" (the fork was there before) | MISLEADING | → a fork the reply would have made with the same targets before the move reads "Doesn't stop Nc3, forking …" |
 | KyoqPCST 21 | O-O-O (top) | Short | "White gives a knight for a pawn (−2)" for the engine's best move | MISLEADING | → the best move's losing line adds "— still the engine's best move: it rates the position as worth more than the material" |
+
+### Round 9 — 4 new independent reviewer agents, same 239 entries (r9 code)
+
+Totals: FALSE 2, MISLEADING 34, USELESS 26, WEAK 59; picks 87 good / 5 bad. Per game (F/M/U/W, picks): PnAHyM23
+0/5/7/15, 27/1 · YMOxEowk 1/6/6/6, 16/2 · 57RP5sCb 0/3/2/1, 4/0 · FroOipnY 0/2/4/6, 12/0 · KyoqPCST 0/8/3/8, 12/0 ·
+2hOytwun 1/4/3/12, 14/1 · Kasparov–Topalov 0/6/1/11, 2/1. Three of the six Kasparov–Topalov MISLEADING entries and
+one FroOipnY entry are the round-8 "still the engine's best move …" note misfiring where every alternative is mated.
+
+| Game, ply | Move | Level | Sentence | Cat. | Root cause → fix |
+|---|---|---|---|---|---|
+| 2hOytwun 33 | Bb2 | Imm | "No tactical problem right away — … long-term reasons" (its own line wins the bishop on b2) | FALSE | the honest fallback claimed "no tactical problem" for a tactical line → when the move's own line has step facts or is unclear: "The engine prefers Be3; the difference is hard to put into words — see the engine line below." |
+| YMOxEowk 17 | Bd3 | Label / Imm | "exd5 leads to winning back a pawn" (the same PV gives it back) | FALSE | the round-8 "settled material" rule needed eval agreement → it also applies when the later material holds unchanged to the PV end (≥ 2 plies) |
+| Kasparov–Topalov 58/70, FroOipnY 55, PnAH 55 | Bb7 / Kd1 / d4 / Kf2 | Short | "— still the engine's best move: it rates the position as worth more than the material" (every alternative mates / ≤ 4 legal moves) | MISLEADING | → only with > 5 legal moves, not in check, and when the 2nd best isn't much worse (a real choice) |
+| YMOxEowk 11/65 | Nd2 / Ra5 | Short | the counted recapture (Nxe5, Rxh7) missing from the shown moves | MISLEADING | → `line.recapture`: the PV's next move, already counted by the resolved pending recapture, is shown before the result |
+| YMOxEowk 75/82 | Rh8 / Rd4 | Short | "White gives a rook for a pawn" (Black promotes), "wins two queens for two pawns" | MISLEADING | → with a promotion in the line the result is "comes out ahead / ends up behind in material (N points)" |
+| KyoqPCST 33/36 | hxg5 | Long | "f2 is no longer isolated" (undone in the line) | MISLEADING | → "no longer isolated" only if the pawn is still there and still not isolated at the line end |
+| 57RP5sCb 35, YMOxEowk 49 | Re1 / Rgg8 | Imm | "Nothing special happens right away." (a second attacker wins the bishop) | USELESS | → `attack.reason: 'outnumbered'`: the move's piece adds the attacker that makes a non-pawn piece winnable ("Attacks Black's bishop on e4 once more — with this extra attacker White now threatens to win it"); kept next to a pin of the same piece, so it survives when the PV shows the pin is illusory (x-ray batteries like Rgg8 are still not detected) |

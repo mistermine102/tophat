@@ -123,6 +123,16 @@ function onBoardSquares(f: PositionalFact, fenAt: string, mover: Color): Positio
  * the end of the short line (Rxe6 "gets a passed pawn on f4" that Rxf4 takes next). Null = nothing left to say.
  */
 function stillThere(f: PositionalFact, lineEndFen: string, mover: Color): PositionalFact | null {
+  // (round 9) "no longer isolated" too: the pawn must still be there and still not isolated at the line end
+  if (f.feature === 'isolated-pawn' && !worseForSide(f) && f.squares?.length) {
+    const isolated = positionalFeatures(lineEndFen)[sideColor(f, mover)].pawns.isolated;
+    const b = positionFromFen(lineEndFen).board;
+    const squares = f.squares.filter((s) => {
+      const p = b.get(parseSquare(s)!);
+      return p?.role === 'pawn' && p.color === sideColor(f, mover) && !isolated.includes(s);
+    });
+    return squares.length ? { ...f, squares } : null;
+  }
   if ((f.feature !== 'passed-pawn' && f.feature !== 'open-file-rook') || worseForSide(f) || !f.squares?.length) return f;
   const role = f.feature === 'passed-pawn' ? 'pawn' : 'rook';
   const board = positionFromFen(lineEndFen).board;
