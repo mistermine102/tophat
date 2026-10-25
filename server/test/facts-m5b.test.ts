@@ -2,10 +2,10 @@
 // shown by the line, prophylaxis ('prevents'), mate lines for allowed / missed mates, sacrifices in the story.
 import { DEFAULT_SETTINGS, type Fact } from '@chess-coach/shared';
 import { describe, expect, it } from 'vitest';
-import { addLineFork, moverWins } from '../src/analysis/analyzeMove';
-import { betterReasons, lineText, renderExplanation } from '../src/analysis/explain';
+import { addLineFork, hangsAfterReply, moverWins, stillEnPrise, verifyWithLine } from '../src/analysis/analyzeMove';
+import { betterReasons, labelText, lineText, renderExplanation } from '../src/analysis/explain';
 import { immediateFacts } from '../src/facts/immediate';
-import { mateLineSan, narrateLine, preventsFact, pvFork, refutationFact } from '../src/facts/line';
+import { mateLineSan, narrateLine, preventsFact, pvFork, refutationFact, threatFromSearch } from '../src/facts/line';
 import { castlingLostInLine } from '../src/facts/longterm';
 import { legalFen } from './helpers/classifyHelpers';
 
@@ -207,8 +207,11 @@ describe('positional / quiet mistakes', () => {
     expect(render([{ type: 'misses', san: 'g3', uci: 'g2g3', facts: [] }], [exposed])[0]).toMatch(/drawback is long-term/);
   });
 
-  it('the misses sentence only fills an otherwise empty Immediate level of a bad move', () => {
-    expect(render([{ type: 'check' }, { type: 'misses', san: 'Rfe1', uci: 'f1e1', facts: [threat] }])).toEqual(['Gives check.']);
+  it('the misses sentence leads a bad move that only does good things; not when a negative fact explains it', () => {
+    expect(render([{ type: 'check' }, { type: 'misses', san: 'Rfe1', uci: 'f1e1', facts: [threat] }])).toEqual(["Misses Rfe1, which threatens Nf6+, uncovering an attack on Black's rook on e8 (+2 points).", 'Gives check.']);
+    const hang: Fact = { type: 'hangs', piece: { role: 'knight', square: 'c3', color: 'white' }, loss: 3 };
+    expect(render([hang, { type: 'misses', san: 'Rfe1', uci: 'f1e1', facts: [threat] }])).toEqual(['Leaves the knight on c3 hanging: Black can win it (−3 points).']);
+    expect(render([{ type: 'check' }, { type: 'misses', san: 'g3', uci: 'g2g3', facts: [] }])).toEqual(['Gives check.']);
     const good = renderExplanation({ immediate: [{ type: 'misses', san: 'g3', uci: 'g2g3', facts: [] }], short: [], long: [] }, { mover: 'white', label: 'good' }).immediate.text;
     expect(good).toEqual(['Nothing special happens right away.']);
   });
@@ -249,6 +252,61 @@ describe('story details', () => {
     const cap: Fact = { type: 'capture', captured: { role: 'pawn', square: 'a7', color: 'black' }, outcome: 'wins-material', net: 1 };
     const line: Extract<Fact, { type: 'line' }> = { type: 'line', steps: [step(1, 'm1'), step(2, 'm2'), step(3, 'm3', [cap]), step(4, 'm4'), step(5, 'm5'), step(6, 'm6')], materialDelta: 1, result: 'wins-material', won: ['pawn'] };
     expect(lineText(line, W)).toBe('m1 → m2 → m3 wins the pawn → … → White wins a pawn (+1 point).');
+  });
+});
+
+describe('round 5 regressions', () => {
+  it('a capture that wins a piece outright is named, with the right gain (Qxa1+ wins the rook, not "+3 fork")', () => {
+    const nf = legalFen('4k3/8/8/8/8/2N5/1q6/R3K2R b KQ - 0 1');
+    const t = threatFromSearch(nf, { lines: [{ multipv: 1, move: 'b2a1', score: { cp: 500 }, depth: 12, pv: ['b2a1', 'e1e2'] }] })!;
+    expect(t.gain).toBe(5);
+    expect(text([t], B)).toEqual(['Threatens Qxa1+, winning a rook (+5 points).']);
+  });
+
+  it('no discovered attack on a piece that simply takes the attacker', () => {
+    expect(of(immediateFacts(legalFen('3k4/4q3/8/8/4N3/8/8/4R1K1 w - - 0 1'), 'e4c3'), 'discovered-attack')).toHaveLength(0);
+  });
+
+  it('a pin the opponent ignores at once is dropped; an escape the reply attacks again too', () => {
+    const fen = legalFen('rnbqkb1r/pppp1ppp/5n2/4p3/4P3/2N5/PPPP1PPP/R1BQKBNR w KQkq - 2 3');
+    const pin: Fact = { type: 'pin', pinner: { role: 'bishop', square: 'g5', color: 'white' }, pinned: { role: 'knight', square: 'f6', color: 'black' }, behind: { role: 'queen', square: 'd8', color: 'black' }, absolute: false };
+    expect(verifyWithLine([pin], fen, pv('h2h3 f6e4'))).toEqual([]);
+    expect(verifyWithLine([pin], fen, pv('h2h3 b8c6'))).toEqual([pin]);
+    // …Nh4 "saved" the knight, but Kh3 attacks it again
+    expect(hangsAfterReply(legalFen('6k1/8/8/5n2/8/8/7K/8 b - - 0 1'), pv('f5h4 h2h3'), 'h4')).toBe(true);
+  });
+
+  it('a threat counts as stopped only if the threatened piece is safe now', () => {
+    expect(stillEnPrise(legalFen('6k1/8/8/3b4/8/8/8/3R2K1 w - - 0 1'), 'd1d5')).toBe(true);
+    expect(stillEnPrise(legalFen('6k1/8/4p3/3b4/8/8/8/3R2K1 w - - 0 1'), 'd1d5')).toBe(false);
+  });
+
+  it('wording: under-protected pieces, threats that were already there, half-open files, mates the label names', () => {
+    expect(text([{ type: 'hangs', piece: { role: 'knight', square: 'e5', color: 'white' }, loss: 1 }])).toEqual(['Leaves the knight on e5 under-protected: Black wins material by taking on e5 (−1 point).']);
+    const threat: Fact = { type: 'threat', move: 'h7a7', san: 'Rxa7', gain: 1, facts: [{ type: 'capture', captured: { role: 'pawn', square: 'a7', color: 'black' }, outcome: 'wins-material', net: 1 }] };
+    const allows: Fact = { type: 'allows', reply: { san: 'Kh2', uci: 'g1h2' }, facts: [threat], targets: [{ role: 'pawn', square: 'a7', color: 'black' }], gain: 1, already: true };
+    expect(text([allows], { mover: 'black', label: 'miss' })).toEqual(["Doesn't deal with White's threat Rxa7, winning a pawn (+1 point for White)."]);
+    expect(betterReasons([{ type: 'positional', feature: 'open-file-rook', delta: 1, side: 'own', detail: '0->1', squares: ['e8'] }], [], 'black')).toEqual(['gives the rook on e8 a file without its own pawns']);
+    const lt = labelText({
+      label: 'blunder', color: 'white', uci: 'f5e6', san: 'fxe6', bestSan: 'Rf8', bestUci: 'f1f8',
+      labelReason: { winChance: 'mistake', material: { playedLine: -8, bestLine: 0, loss: 8, evalDropCp: 900, label: 'blunder' } },
+      evalBefore: { cp: 200 }, evalAfter: { mate: -7 }, winBefore: 68, winAfter: 0, winLoss: 50,
+    }, S);
+    expect(lt).toMatch(/^Blunder \?\? — fxe6 allows a forced mate in 7\./);
+  });
+});
+
+describe('sacrifices in the Immediate level', () => {
+  it('24.Rxd4!! (Kasparov–Topalov): a losing capture the line wins back is a sacrifice for a good move', () => {
+    const fen = legalFen('b2r3r/k4p1p/p2q1np1/NppP4/3p1Q2/P4PPB/1PP4P/1K1RR3 w - - 1 24');
+    const p = pv('d1d4 a7b6 b2b4 d6f4 d4f4 f6d5 f4f7 c5b4 a3b4 d5b4');
+    const { line } = narrateLine(fen, p, { settings: S, score: { cp: 0 } });
+    const imm = immediateFacts(fen, 'd1d4');
+    const best = renderExplanation({ immediate: imm, short: [line], long: [] }, { mover: 'white', label: 'best' }).immediate.text;
+    expect(line.result).toBe('trade');
+    expect(best[0]).toMatch(/as a sacrifice \(−3 points\) — the engine line wins the material back/);
+    const bad = renderExplanation({ immediate: imm, short: [line], long: [] }, { mover: 'white', label: 'mistake' }).immediate.text;
+    expect(bad[0]).not.toMatch(/sacrifice/);
   });
 });
 

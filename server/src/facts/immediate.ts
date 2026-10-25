@@ -370,6 +370,12 @@ function tacticalFacts(
     const b = back(a);
     return before.board.get(b)?.color === mover && attacksFrom(before.board, b).has(t);
   };
+  // (M5b) the target can take the attacker and win material (…e7 opening f7-d5 for both queen and bishop)
+  const hitsBack = (t: Square, a: Square) => {
+    if (!attacksFrom(after.board, t).has(a)) return false;
+    const g = seeCaptureWith(after, t, a);
+    return g !== undefined && g > 0;
+  };
   const canWin = (a: Square, t: Square) => {
     const g = seeCaptureWith(after, a, t);
     return g !== undefined && g > 0;
@@ -452,7 +458,7 @@ function tacticalFacts(
       if (after.board.king.has(t) || after.board.pawn.has(t)) continue;
       if (attacksFrom(before.board, a).has(t)) continue;
       if (!vacated.some((v) => between(a, t).has(v))) continue;
-      if (!canWin(a, t)) continue;
+      if (!canWin(a, t) || hitsBack(t, a)) continue;
       if (covered.has(key(a, t))) continue;
       facts.push({ type: 'discovered-attack', moved: ref(after, toSq), attacker: ref(after, a), target: ref(after, t) });
       covered.add(key(a, t));
@@ -516,7 +522,7 @@ function tacticalFacts(
     for (const t of attackedPieces(after.board, a)) {
       if (after.board.king.has(t)) continue;
       if (covered.has(key(a, t)) || attackedBefore(a, t)) continue;
-      if (!canWin(a, t)) continue;
+      if (!canWin(a, t) || hitsBack(t, a)) continue;
       const tRole = after.board.getRole(t)!;
       let reason: 'undefended' | 'higher-value' | undefined;
       if (defendersOf(after.board, t).isEmpty()) reason = 'undefended';

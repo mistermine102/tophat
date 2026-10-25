@@ -277,6 +277,7 @@ export function pvFork(fen: string, pv: readonly string[]): ForkFact | null {
   const replies = [...pos.allDests()];
   const kingSq = pos.board.kingOf(pos.turn)!;
   const kingMustMove = replies.every(([from, d]) => from === kingSq || d.isEmpty());
+  if (!attacksFrom(pos.board, to).has(kingSq)) return null; // the forking piece itself gives check (not a discovered check)
   const m1 = legalMove(pos, legal[1]!)!;
   const replySan = makeSan(pos, m1);
   if (m1.to === to) return null; // the checking piece is taken
@@ -398,8 +399,8 @@ export function narrationPlies(fenBefore: string, pv: readonly string[], setting
   if (end === undefined) {
     // never quiet: the material result will be resolved or 'unclear' — but don't stop right after a capture
     // whose recapture is the next move (…Bxf6+ gxf6)
-    for (let k = Math.min(max, n); k > lo; k--) if (!info.captured[k]) return k;
-    return Math.min(max, n);
+    for (let k = Math.min(Math.max(max, lo), n); k > lo; k--) if (!info.captured[k]) return k;
+    return Math.min(Math.max(max, lo), n);
   }
   const target = opts.targetDelta;
   if (target !== undefined && info.delta[end]! > target + 0.5) {
@@ -490,12 +491,14 @@ function netPieces(moves: LineMoves, mover: Color, extra: { role: PieceRole; by:
     }
   }
   if (extra) add(extra.by, extra.role);
-  // cancel equal roles
-  for (let i = won.length - 1; i >= 0; i--) {
-    const j = lost.indexOf(won[i]!);
+  // cancel equal values, earliest first (M5b: a knight traded for a bishop, then a bishop lost = "loses a bishop",
+  // not "loses a knight"; knights and bishops are both 3)
+  for (let i = 0; i < won.length; i++) {
+    const j = lost.findIndex((r) => PIECE_VALUES[r] === PIECE_VALUES[won[i]!]);
     if (j >= 0) {
       lost.splice(j, 1);
       won.splice(i, 1);
+      i--;
     }
   }
   const byValue = (a: PieceRole, b: PieceRole) => PIECE_VALUES[b] - PIECE_VALUES[a];
@@ -588,9 +591,16 @@ export function narrateLine(fenBefore: string, pv: readonly string[], opts: Narr
   }
 
   // a "trapped" piece is only told when the line then wins it (the side that trapped it captures it later)
+  // (M5b) likewise a fork or a discovered attack in a story step: only when the line then wins one of its targets
+  // (and, for a fork / trap, the tactic piece isn't simply taken on the next move)
   for (const [i, step] of steps.entries()) {
-    const t = step.facts.find((f): f is Extract<Fact, { type: 'trapped' }> => f.type === 'trapped');
-    if (t && !sideWinsPiece(steps, i, t.piece.square)) step.facts = step.facts.filter((f) => f !== t);
+    const takenNext = steps[i + 1]?.uci.slice(2, 4) === step.uci.slice(2, 4);
+    step.facts = step.facts.filter((f) => {
+      if (f.type === 'trapped') return !takenNext && sideWinsPiece(steps, i, f.piece.square);
+      if (f.type === 'fork') return (!takenNext || !!f.followUp) && f.targets.some((t) => t.role !== 'king' && sideWinsPiece(steps, i, t.square));
+      if (f.type === 'discovered-attack') return sideWinsPiece(steps, i, f.target.square);
+      return true;
+    });
   }
 
   // material at the end of the narrated line: a quiet point, or a pending recapture resolved with SEE
@@ -677,24 +687,33 @@ export function threatFromSearch(nullFen: string, result: Pick<SearchResult, 'li
   const pv = legalPrefix(nullFen, best.pv.length ? best.pv : [best.move]);
   const lm = lineMaterial(nullFen, pv, { horizonPlies: THREAT_HORIZON });
   const mates = (best.score.mate ?? 0) > 0 && best.score.mate! <= THREAT_MAX_MATE;
-  const facts = stepFacts(immediateFactsFromPosition(pos, best.move));
+  const allFacts = immediateFactsFromPosition(pos, best.move);
+  const facts = stepFacts(allFacts);
+  // (M5b) a capture is always kept (the wording names a piece won outright: Qxa1+ wins the rook, whatever else it hits)
+  const capFact = allFacts.find((f) => f.type === 'capture');
+  if (capFact && !facts.includes(capFact)) facts.push(capFact);
   if (!mates) {
     if (lm.delta < THREAT_MIN_GAIN) return null;
     // the threat move itself must be the point: a winning capture or a double attack
     const winningCapture = !!capturedBy(pos, move) && seeMove(pos, best.move) >= THREAT_MIN_GAIN;
     const tactic = facts.some((f) => f.type === 'fork' || f.type === 'skewer' || f.type === 'discovered-attack');
-    if (!winningCapture && !tactic) return null;
+    const promotes = !!move.promotion; // (M5b) a pawn about to queen is a threat too
+    if (!winningCapture && !tactic && !promotes) return null;
   }
   // the gain told is the net value of the threat move itself (a capture: its SEE; a fork/skewer: the line's gain,
   // at most the best target) — the null-move line can add captures the opponent would never allow
   let gain = Math.max(0, lm.delta);
   if (!mates) {
-    if (capturedBy(pos, move)) gain = Math.min(gain, Math.max(THREAT_MIN_GAIN, seeMove(pos, best.move)));
-    const tactic = facts.find((f) => f.type === 'fork' || f.type === 'skewer');
+    // M5b: a tactic's gain is bounded by its best (non-king) target plus what the move itself captures — not by
+    // the capture's SEE alone (Bxh7+ uncovering an attack on the queen wins the queen, not a pawn)
+    const captured = capturedBy(pos, move);
+    const capValue = captured ? PIECE_VALUES[captured.role] : 0;
+    const tactic = facts.find((f) => f.type === 'fork' || f.type === 'skewer' || f.type === 'discovered-attack');
     if (tactic) {
-      const targets = tactic.type === 'fork' ? tactic.targets : [tactic.behind];
-      gain = Math.min(gain, Math.max(...targets.map((t) => PIECE_VALUES[t.role])));
-    }
+      const targets = tactic.type === 'fork' ? tactic.targets : tactic.type === 'skewer' ? [tactic.behind] : [tactic.target];
+      const top = Math.max(0, ...targets.filter((t) => t.role !== 'king').map((t) => PIECE_VALUES[t.role]));
+      gain = Math.min(gain, Math.max(top + capValue, captured ? seeMove(pos, standardUci(pos, move)) : 0));
+    } else if (captured) gain = Math.min(gain, Math.max(THREAT_MIN_GAIN, seeMove(pos, best.move)));
   }
   const fact: ThreatFact = { type: 'threat', move: standardUci(pos, move), san: makeSan(pos, move), gain, facts };
   if (mates) fact.mateIn = best.score.mate!;
@@ -775,7 +794,11 @@ export function refutationFact(input: RefutationInput): AllowsFact | null {
   const replyLoose = !after.isEnd() && hangingLoss(after, reply.to) > 0;
   const targets = replyLoose ? [] : fresh.length >= 2 ? fresh.slice(0, 3) : fresh.filter((t) => lineTakes(t.square) && input.line.result === 'loses-material');
 
-  const threat = replyLoose ? null : input.replyThreat ?? null;
+  // (M5b) the reply's threat is told only when it is mate or the line carries it out: an attacked piece that simply
+  // steps away (…Rfc8 "threatening" Rxc7 — Qd7) is not what refutes the move
+  const rt = input.replyThreat ?? null;
+  const threatPlayed = !!rt && (rt.mateIn !== undefined || lineTakes(rt.move.slice(2, 4)) || input.line.steps.some((s, i) => i >= 2 && s.color !== mover && s.uci === rt.move));
+  const threat = replyLoose || !threatPlayed ? null : rt;
   if (threat && !kept.some((f) => f.type === 'checkmate')) kept.push(threat);
 
   const out: AllowsFact = { type: 'allows', reply: { san, uci: standardUci(afterMove, reply) }, facts: kept };
