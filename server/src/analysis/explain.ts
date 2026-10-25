@@ -18,8 +18,14 @@
 //  - Long term: at most MAX_LONG_SENTENCES sentences (longterm.ts already keeps only meaningful changes).
 //  - `Level.facts` keeps every fact of the level (structured data for a later rephrasing step); `Level.text`
 //    holds the rendered sentences (not 1:1 with the facts).
+//  - (UI round) `Level.tones[i]` says whether `text[i]` is good / bad / neutral for the mover: the tone of the fact
+//    behind the sentence (`factTone`, shared/src/tones.ts) unless the sentence words it otherwise (a hang that is a
+//    sound sacrifice = good, a capture whose gain the line gives back = neutral, …). For a bad move the Immediate
+//    sentences are ordered bad → neutral → good before they are capped. The Short-term story also comes split
+//    into its steps (`Level.story`), each with a tone (the mover's tactic = good, the opponent's = bad).
 
-import type { AnalysisSettings, Color, Explanation, Fact, Label, Level, LineStep, MaterialCheck, MoveAnalysis, PieceRef, PieceRole, Score } from '@chess-coach/shared';
+import type { AnalysisSettings, Color, Explanation, Fact, Label, Level, LineStep, MaterialCheck, MoveAnalysis, PieceRef, PieceRole, Score, StoryPart, Tone } from '@chess-coach/shared';
+import { BAD_MOVE_TONE_ORDER, factTone, lineTone } from '@chess-coach/shared';
 import { parseSquare } from 'chessops/util';
 import { PIECE_VALUES, positionFromFen } from '../chess/material';
 import { hangingLoss } from '../chess/see';
@@ -120,9 +126,8 @@ function mateLinePhrase(n: number, line: readonly string[]): string {
 }
 
 function targetsPhrase(targets: readonly PieceRef[]): string {
-  // "Black's king on e8 and rook on a8" (targets of one colour)
-  const color = targets[0]?.color ?? 'black';
-  return `${colorName(color)}'s ${joinList(targets.map((t) => `${t.role} on ${t.square}`))}`;
+  // "Black's king on e8 and rook on a8", "White's knights on c3 and e3" (targets of one colour)
+  return piecesOn(targets);
 }
 
 function captureText(f: F<'capture'>): string {
@@ -335,7 +340,19 @@ function immediateFactText(f: Fact, ctx: ExplainContext): string | null {
   }
 }
 
-function renderImmediate(facts: readonly Fact[], ctx: ExplainContext, line?: F<'line'>): string[] {
+/** (UI round) A rendered sentence with its tone for the mover. */
+export interface ToneLine {
+  text: string;
+  tone: Tone;
+}
+
+/** (UI round) A bad move's sentences: what hurts first (stable within a tone); other moves keep their order. */
+export function orderByTone(lines: readonly ToneLine[], label: Label | undefined): ToneLine[] {
+  if (!label || !BAD_LABELS.has(label)) return [...lines];
+  return lines.map((l, i) => ({ l, i })).sort((a, b) => BAD_MOVE_TONE_ORDER[a.l.tone] - BAD_MOVE_TONE_ORDER[b.l.tone] || a.i - b.i).map((x) => x.l);
+}
+
+function renderImmediate(facts: readonly Fact[], ctx: ExplainContext, line?: F<'line'>): ToneLine[] {
   let fs = [...facts];
   // the refutation is only told for bad moves
   if (!ctx.label || !BAD_LABELS.has(ctx.label)) fs = fs.filter((f) => f.type !== 'allows');
@@ -396,6 +413,8 @@ function renderImmediate(facts: readonly Fact[], ctx: ExplainContext, line?: F<'
 
   // the refutation merged with what it refutes: a hang the reply takes, a mate in one the reply delivers
   const merged = new Map<Fact, string>();
+  // (UI round) tone of a merged sentence, when it differs from its fact's own tone
+  const mergedTone = new Map<Fact, Tone>();
   if (allows) {
     const cap = allows.facts.find((x): x is F<'capture'> => x.type === 'capture');
     // (M5c) not when the refutation mates: the mate is the point, not the hanging piece
@@ -422,14 +441,19 @@ function renderImmediate(facts: readonly Fact[], ctx: ExplainContext, line?: F<'
     if (allows && fs.includes(allows)) {
       const a = allowsText(allows, ctx);
       merged.set(givenBack, `${base}, but ${a.charAt(0).toLowerCase()}${a.slice(1)}`);
+      mergedTone.set(givenBack, 'bad');
       fs = fs.filter((f) => f !== allows);
-    } else merged.set(givenBack, base);
+    } else {
+      merged.set(givenBack, base);
+      mergedTone.set(givenBack, 'neutral');
+    }
   }
 
   // (M5b) not "an even trade" when the line goes on to win material (…Bxc4 also uncovering an attack on d3)
   const evenButWins = fs.find((f): f is F<'capture'> => f.type === 'capture' && f.outcome === 'even-trade');
   if (evenButWins && line?.result === 'wins-material' && realGain > 0 && !merged.has(evenButWins)) {
     merged.set(evenButWins, `Takes ${owned(evenButWins.captured)}${fs.some((f) => f.type === 'check' && !f.double && !f.discovered) ? ', with check' : ''} — an even trade, and then the engine line wins material`);
+    mergedTone.set(evenButWins, 'good');
   }
 
   const rank = (t: Fact['type']) => {
@@ -441,7 +465,7 @@ function renderImmediate(facts: readonly Fact[], ctx: ExplainContext, line?: F<'
   const lead = [...merged.keys()];
   fs = [...lead, ...fs.filter((f) => !merged.has(f))];
 
-  const out: string[] = [];
+  const out: ToneLine[] = [];
   const check = fs.find((f): f is F<'check'> => f.type === 'check');
   // a capture also 'saves' the capturing piece when it takes its attacker: the capture sentence says enough
   if (fs.some((f) => f.type === 'capture')) fs = fs.filter((f) => f.type !== 'escape');
@@ -459,13 +483,17 @@ function renderImmediate(facts: readonly Fact[], ctx: ExplainContext, line?: F<'
       done.add(f.attacker.square);
       const group = attacksByAttacker.get(f.attacker.square)!;
       if (group.length > 1) {
-        out.push(`Attacks ${targetsPhrase(group.map((g) => g.target))} at once`);
+        out.push({ text: `Attacks ${targetsPhrase(group.map((g) => g.target))} at once`, tone: 'good' });
         continue;
       }
     }
     let text = merged.get(f) ?? immediateFactText(f, ctx);
+    let tone: Tone = mergedTone.get(f) ?? factTone(f, ctx.mover);
     // (M5c) a pawn left en prise by a book move is a gambit, not a blunder
-    if (ctx.label === 'book' && f.type === 'hangs' && !f.already && f.piece.role === 'pawn') text = `Offers ${the(f.piece)} as a gambit: ${colorName(other(ctx.mover))} can take it`;
+    if (ctx.label === 'book' && f.type === 'hangs' && !f.already && f.piece.role === 'pawn') {
+      text = `Offers ${the(f.piece)} as a gambit: ${colorName(other(ctx.mover))} can take it`;
+      tone = 'neutral';
+    }
     // (M5c) a capture threat the engine line answers by simply moving the piece away: an attack, not a win of N points
     if (f.type === 'threat' && !f.mateIn && line && !merged.has(f)) {
       const target = f.move.slice(2, 4);
@@ -474,27 +502,45 @@ function renderImmediate(facts: readonly Fact[], ctx: ExplainContext, line?: F<'
       const quietStep = !!reply && !reply.facts.some((x) => x.type === 'capture' || x.type === 'check' || x.type === 'checkmate') && !reply.san.includes('x') && !reply.san.includes('+');
       // (a tactic fact already names this target: the threat adds nothing)
       if (cap && fs.some((x) => (x.type === 'discovered-attack' && x.target.square === target) || (x.type === 'skewer' && x.front.square === target))) continue;
-      if (cap && reply && quietStep && reply.uci.slice(0, 2) === target && !(line.result === 'wins-material' && line.materialDelta >= f.gain)) text = `Attacks ${owned(cap.captured)} — in the engine line it steps away (${reply.san})`;
+      if (cap && reply && quietStep && reply.uci.slice(0, 2) === target && !(line.result === 'wins-material' && line.materialDelta >= f.gain)) {
+        text = `Attacks ${owned(cap.captured)} — in the engine line it steps away (${reply.san})`;
+        tone = 'neutral';
+      }
     }
-    if (f.type === 'escape-check' && ownCastlingLost) text = `Steps out of check with the king — ${colorName(ctx.mover)} can no longer castle`;
-    if (paysOff && f.type === 'hangs' && !f.already) text = `Sacrifices ${the(f.piece)} (${points(-f.loss)}) — ${paysOff}`;
-    if (paysOff && f.type === 'capture' && f.outcome === 'loses-material') text = `Takes ${owned(f.captured)} as a sacrifice (${points(f.net)}) — ${paysOff}`;
+    if (f.type === 'escape-check' && ownCastlingLost) {
+      text = `Steps out of check with the king — ${colorName(ctx.mover)} can no longer castle`;
+      tone = 'bad';
+    }
+    if (paysOff && f.type === 'hangs' && !f.already) {
+      text = `Sacrifices ${the(f.piece)} (${points(-f.loss)}) — ${paysOff}`;
+      tone = 'good';
+    }
+    if (paysOff && f.type === 'capture' && f.outcome === 'loses-material') {
+      text = `Takes ${owned(f.captured)} as a sacrifice (${points(f.net)}) — ${paysOff}`;
+      tone = 'good';
+    }
     else if (!paysOff && f.type === 'capture' && f.outcome === 'loses-material' && !f.desperado && line && !(ctx.label && BAD_LABELS.has(ctx.label)) && ctx.uci) {
       // (M5b, round 6) a losing capture by a good move: the line either takes the piece and wins the material back
       // (a sacrifice), or doesn't take it at all (24.Rxd4!! Kb6 — the offer is declined)
       const dest = ctx.uci.slice(2, 4);
       const taken = line.steps.some((s, i) => i > 0 && s.color !== ctx.mover && s.uci.slice(2, 4) === dest);
       const role = line.steps[0] ? sanRole(line.steps[0].san) : 'piece';
-      if (!taken) text = `Takes ${owned(f.captured)} and leaves the ${role} where it can be taken, but in the engine line ${colorName(other(ctx.mover))} doesn't take it`;
-      else if ((line.result === 'trade' || line.result === 'wins-material') && line.materialDelta >= 0) text = `Takes ${owned(f.captured)} as a sacrifice (${points(f.net)}) — the engine line wins the material back`;
+      if (!taken) {
+        text = `Takes ${owned(f.captured)} and leaves the ${role} where it can be taken, but in the engine line ${colorName(other(ctx.mover))} doesn't take it`;
+        tone = 'neutral';
+      } else if ((line.result === 'trade' || line.result === 'wins-material') && line.materialDelta >= 0) {
+        text = `Takes ${owned(f.captured)} as a sacrifice (${points(f.net)}) — the engine line wins the material back`;
+        tone = 'good';
+      }
     }
     if (!text) continue;
     if (f === capture && check && !check.double && !check.discovered && !merged.has(f)) text += ', with check';
-    out.push(text);
+    out.push({ text, tone });
   }
   // a move that starts a forced mate: that is the point, told first
-  if (line?.result === 'mate' && line.mateIn && line.mateIn > 1 && !fs.some((f) => f.type === 'checkmate') && !out.some((s) => s.includes('mate'))) out.unshift(`Starts a forced mate in ${line.mateIn}`);
-  return out.slice(0, MAX_SENTENCES).map((s) => `${s}.`);
+  if (line?.result === 'mate' && line.mateIn && line.mateIn > 1 && !fs.some((f) => f.type === 'checkmate') && !out.some((s) => s.text.includes('mate'))) out.unshift({ text: `Starts a forced mate in ${line.mateIn}`, tone: 'good' });
+  // (UI round) a bad move: what hurts first, so the cap never drops it
+  return orderByTone(out, ctx.label).slice(0, MAX_SENTENCES).map((s) => ({ ...s, text: `${s.text}.` }));
 }
 
 // --- Short term ---------------------------------------------------------------------------------------------------
@@ -556,7 +602,12 @@ function stepClause(step: LineStep, mayWin = true, back?: boolean): string {
     case 'stalemate':
       return ' is stalemate';
     case 'fork':
-      return ` forks the ${joinList(f.targets.map((t) => t.role))}`;
+{
+      // "forks the king and rook", "forks both knights"
+      const roles = f.targets.map((t) => t.role);
+      if (roles.length > 1 && new Set(roles).size === 1) return ` forks ${roles.length === 2 ? 'both' : 'the'} ${roles[0]}s`;
+      return ` forks the ${joinList(roles)}`;
+    }
     case 'skewer':
       return ` skewers the ${f.front.role} and ${f.behind.role}`;
     case 'pin':
@@ -655,12 +706,17 @@ interface Unit {
   to: number;
   text: string;
   weight: number;
+  /** (UI round) for the mover: the mover's tactic / capture = good, the opponent's = bad, a plain move or a trade = neutral. */
+  tone: Tone;
 }
 
 function storyUnits(steps: readonly LineStep[], result?: F<'line'>['result']): Unit[] {
   const mover = steps[0]?.color;
   // "wins" only for the side that comes out of the line ahead: a pawn grab that loses a knight just "takes"
   const mayWin = (s: LineStep) => (s.color === mover ? result === 'wins-material' || result === 'mate' : result === 'loses-material' || result === 'mated');
+  // (UI round) in a mating line, the losing side's steps help nothing (Nxb8 "takes the queen" walks into Rd8#)
+  const doomed = (s: LineStep) => (result === 'mated' && s.color === mover) || (result === 'mate' && s.color !== mover);
+  const toneOf = (s: LineStep, t: Tone): Tone => (doomed(s) ? 'neutral' : t);
   const units: Unit[] = [];
   let bal = 0; // the mover's material change so far in the line
   const backAt = steps.map((s, i) => {
@@ -681,17 +737,21 @@ function storyUnits(steps: readonly LineStep[], result?: F<'line'>['result']): U
     const traded = i >= 1 ? tradeAt(steps, i) : null; // the move itself always stands alone
     if (traded && traded !== 'pawn') {
       const t = steps[i + 1]!;
-      units.push({ from: i, to: i + 1, text: `${s.san} ${t.san} (${traded === 'king' ? 'kings' : `${traded}s`} are traded)`, weight: 3 });
+      units.push({ from: i, to: i + 1, text: `${s.san} ${t.san} (${traded === 'king' ? 'kings' : `${traded}s`} are traded)`, weight: 3, tone: 'neutral' });
       i++;
       continue;
     }
     if (isSacrifice(steps, i, result)) {
       const cap = capOf(s);
       const role = sanRole(s.san);
-      units.push({ from: i, to: i, text: cap ? `${s.san} takes the ${cap.captured.role}, sacrificing the ${role}` : `${s.san} sacrifices the ${role}`, weight: 4 });
+      units.push({ from: i, to: i, text: cap ? `${s.san} takes the ${cap.captured.role}, sacrificing the ${role}` : `${s.san} sacrifices the ${role}`, weight: 4, tone: toneOf(s, s.color === mover ? 'good' : 'bad') });
       continue;
     }
-    units.push({ from: i, to: i, text: `${s.san}${stepClause(s, mayWin(s), backAt[i])}${s.forced ? ' (forced)' : ''}`, weight: stepWeight(s) });
+    const clause = stepClause(s, mayWin(s), backAt[i]);
+    // (UI round) a step that does something is good for its side; a forced reply without a clause = the opponent had no choice
+    const blocks = clause === ' blocks the check';
+    const tone: Tone = clause && !blocks ? (s.color === mover ? 'good' : 'bad') : s.forced && s.color !== mover ? 'good' : 'neutral';
+    units.push({ from: i, to: i, text: `${s.san}${clause}${s.forced ? ' (forced)' : ''}`, weight: stepWeight(s), tone: toneOf(s, tone) });
   }
   return units;
 }
@@ -714,26 +774,52 @@ export function shownUnits(steps: readonly LineStep[], result?: F<'line'>['resul
 }
 
 /** "material is level", "White is a pawn up", "Black is 3 points up" (balance = mover POV). */
-function balanceText(balance: number, mover: Color): string {
-  if (balance === 0) return 'material is level';
+function balanceText(balance: number, mover: Color, verb: 'is' | 'was' = 'is'): string {
+  if (balance === 0) return `material ${verb} level`;
   const who = colorName(balance > 0 ? mover : other(mover));
   const n = Math.abs(balance);
-  return `${who} is ${n === 1 ? 'a pawn' : `${n} points`} up`;
+  return `${who} ${verb} ${n === 1 ? 'a pawn' : `${n} points`} up`;
 }
 
+/** The Short-term sentence of a line (`lineStory` without its parts). */
 export function lineText(line: F<'line'>, ctx: ExplainContext): string {
+  return lineStory(line, ctx).text;
+}
+
+/**
+ * The material balance after a material result, when material wasn't level before the line (mover POV).
+ * Root cause of "White gives a knight for two pawns (−1 point); material is level" reading as a contradiction: the
+ * balance was appended without the balance it started from. When the change wipes out a side's lead (or turns it
+ * around), both ends are named: "White was a pawn up before, so material is now level".
+ */
+export function balanceAfter(line: Pick<F<'line'>, 'balance' | 'materialDelta'>, mover: Color): string | null {
+  if (line.balance === undefined) return null;
+  const end = line.balance;
+  const start = end - line.materialDelta;
+  if (start === 0) return null;
+  // (M5c) "loses material (−2); Black is still 2 points up" — the lead shrinks but stays
+  if ((line.materialDelta < 0 && end > 0) || (line.materialDelta > 0 && end < 0)) return balanceText(end, mover).replace(/ is /, ' is still ');
+  // the change goes against the side that was ahead and wipes the lead out (or turns it around)
+  const lostLead = (line.materialDelta < 0 && start > 0) || (line.materialDelta > 0 && start < 0 && end > 0);
+  if (lostLead) return `${balanceText(start, mover, 'was')} before, ${end === 0 ? 'so material is now level' : `now ${balanceText(end, mover)}`}`;
+  return balanceText(end, mover);
+}
+
+/** (UI round) The Short-term sentence and its parts (each story unit with its tone for the mover). */
+export function lineStory(line: F<'line'>, ctx: ExplainContext): { text: string; story?: StoryPart[] } {
   const mover = ctx.mover;
   const story = line.steps.some((s) => s.forced || s.facts.length > 0);
   if (!story && !line.draw && (line.result === 'quiet' || line.result === 'trade' || line.result === 'unclear')) {
     // (M5b) not "no forcing follow-up" when the engine line goes on with a check or capture right after
-    if (line.nextForcing) return `${line.steps.map((s) => s.san).join(' → ')}; the engine line then goes on with ${line.nextForcing}.`;
-    return 'No forcing follow-up.';
+    if (line.nextForcing) return { text: `${line.steps.map((s) => s.san).join(' → ')}; the engine line then goes on with ${line.nextForcing}.` };
+    return { text: 'No forcing follow-up.' };
   }
-  const parts: string[] = [];
+  const parts: StoryPart[] = [];
+  const gap = (): StoryPart => ({ text: '…', tone: 'neutral' });
   let prevTo = -1;
   for (const u of shownUnits(line.steps, line.result)) {
-    if (u.from > prevTo + 1) parts.push('…');
-    parts.push(u.text);
+    if (u.from > prevTo + 1) parts.push(gap());
+    parts.push({ text: u.text, tone: u.tone, plies: [u.from, u.to] });
     prevTo = u.to;
   }
   const mated = line.steps.some((s) => s.facts.some((f) => f.type === 'checkmate'));
@@ -748,14 +834,10 @@ export function lineText(line: F<'line'>, ctx: ExplainContext): string {
     case 'wins-material':
     case 'loses-material': {
       // the change, plus the resulting balance when material wasn't level before ("Black loses a pawn (−1
-      // point); material is level" = a gambit pawn given back)
+      // point); Black was a pawn up before, so material is now level" = a gambit pawn given back)
       result = materialResult(line, mover);
-      const start = line.balance !== undefined ? line.balance - line.materialDelta : 0;
-      if (line.balance !== undefined && start !== 0) {
-        // (M5c) "loses material (−2); Black is still 2 points up" — not two claims that read as a contradiction
-        const still = (line.materialDelta < 0 && line.balance > 0) || (line.materialDelta > 0 && line.balance < 0);
-        result += `; ${still ? balanceText(line.balance, mover).replace(/ is /, ' is still ') : balanceText(line.balance, mover)}`;
-      }
+      const after = balanceAfter(line, mover);
+      if (after) result += `; ${after}`;
       break;
     }
     case 'trade': {
@@ -774,10 +856,11 @@ export function lineText(line: F<'line'>, ctx: ExplainContext): string {
       : 'the position repeats: a draw by repetition';
   }
   // hidden quiet moves after the last shown step: the result is measured after them
-  if (result && prevTo < line.steps.length - 1) parts.push('…');
+  if (result && prevTo < line.steps.length - 1) parts.push(gap());
   // (round 9) the recapture the result already counts (the PV's next move)
-  if (result && line.recapture && (line.result === 'wins-material' || line.result === 'loses-material' || line.result === 'trade')) parts.push(line.recapture);
-  return `${[...parts, ...(result ? [result] : [])].join(' → ')}.`;
+  if (result && line.recapture && (line.result === 'wins-material' || line.result === 'loses-material' || line.result === 'trade')) parts.push({ text: line.recapture, tone: 'neutral' });
+  if (result) parts.push({ text: result, tone: lineTone(line) });
+  return { text: `${parts.map((x) => x.text).join(' → ')}.`, story: parts };
 }
 
 // --- Long term ----------------------------------------------------------------------------------------------------
@@ -937,46 +1020,57 @@ function negativeSize(facts: readonly Fact[]): number {
 
 export function renderExplanation(all: AllFacts, ctx: ExplainContext): Explanation {
   const line = all.short.find((f): f is F<'line'> => f.type === 'line');
-  let immediateText = renderImmediate(all.immediate.filter((f) => f.type !== 'nothing-notable' && f.type !== 'misses'), ctx, line);
+  let immediateLines = renderImmediate(all.immediate.filter((f) => f.type !== 'nothing-notable' && f.type !== 'misses'), ctx, line);
   const misses = all.immediate.find((f): f is F<'misses'> => f.type === 'misses');
   if (misses && ctx.label && BAD_LABELS.has(ctx.label)) {
-    if (immediateText.length === 0) immediateText = [missesText(misses, ctx, all.long, all.short)];
+    const missesLine: ToneLine = { text: missesText(misses, ctx, all.long, all.short), tone: 'bad' };
+    if (immediateLines.length === 0) immediateLines = [missesLine];
     else {
       // (M5b) a bad move whose Immediate level only tells what it does well (stops a threat, takes back, develops):
       // what it misses leads, when that has a verified reason
       const negative = all.immediate.some((f) => f.type === 'allows' || f.type === 'hangs' || f.type === 'allows-mate' || f.type === 'misses-mate' || (f.type === 'capture' && f.outcome === 'loses-material'));
       // (M5c) …and also without a verified reason: the honest fallback, so a Mistake doesn't read as a list of merits
-      if (!negative) immediateText = [missesText(misses, ctx, all.long, all.short), ...immediateText].slice(0, MAX_SENTENCES);
+      if (!negative) immediateLines = [missesLine, ...immediateLines].slice(0, MAX_SENTENCES);
       else if (ctx.hedge && !misses.partial) {
         // (M5c) the negative facts told are small next to the eval drop: say so, with the engine's own numbers
         const big = (ctx.label === 'mistake' || ctx.label === 'blunder' || ctx.label === 'miss') && ctx.hedge.dropPawns >= PARTIAL_MIN_DROP && negativeSize(all.immediate) < ctx.hedge.dropPawns / 2;
         if (big) {
-          const h = `The engine sees more than this: it rates the move about ${(Math.round(ctx.hedge.dropPawns * 2) / 2).toFixed(1)} pawns worse than ${ctx.hedge.bestSan}.`;
-          immediateText = immediateText.length >= MAX_SENTENCES ? [...immediateText.slice(0, MAX_SENTENCES - 1), h] : [...immediateText, h];
+          const h: ToneLine = { text: `The engine sees more than this: it rates the move about ${(Math.round(ctx.hedge.dropPawns * 2) / 2).toFixed(1)} pawns worse than ${ctx.hedge.bestSan}.`, tone: 'bad' };
+          // (UI round) right after the other bad sentences; the last other sentence makes room
+          const lines = immediateLines.length >= MAX_SENTENCES ? immediateLines.slice(0, MAX_SENTENCES - 1) : immediateLines;
+          const at = lines.filter((l) => l.tone === 'bad').length;
+          immediateLines = [...lines.slice(0, at), h, ...lines.slice(at)];
         }
       }
     }
   }
   // Book: opening theory needs no narration unless the move itself is forcing
   const bookQuiet = ctx.label === 'book' && !!line && !(line.steps[0]?.facts.length) && !all.immediate.some((f) => f.type === 'threat');
-  const shortText = line && line.steps.length > 0 ? [bookQuiet ? NOTHING.short : lineText(line, ctx)] : [];
+  const told = line && line.steps.length > 0 && !bookQuiet ? lineStory(line, ctx) : null;
+  const shortLines: ToneLine[] = line && line.steps.length > 0 ? [bookQuiet ? { text: NOTHING.short, tone: 'neutral' } : { text: told!.text, tone: told!.story ? lineTone(line) : 'neutral' }] : [];
   const mates = all.immediate.some((f) => f.type === 'checkmate');
   const forcedMate = line?.result === 'mate' || line?.result === 'mated';
   // the verdict of a Great / Forced move already says "the only good / legal move"
   const longFacts = ctx.label === 'great' || ctx.label === 'forced' ? all.long.filter((f) => f.type !== 'necessary') : all.long;
-  const longText = mates
-    ? ['The game is over.']
+  const longLines: ToneLine[] = mates
+    ? [{ text: 'The game is over.', tone: 'neutral' }]
     : forcedMate
-      ? ['There is a forced mate, so long-term features don\'t matter here.']
-      : longFacts.map((f) => longFactText(f, ctx, all)).filter((t): t is string => !!t).slice(0, MAX_LONG_SENTENCES);
-  const level = (facts: readonly Fact[], text: string[], kind: keyof typeof NOTHING): Level => {
-    if (facts.length === 0) return { facts: [{ type: 'nothing-notable' }], text: [NOTHING[kind]] };
-    return { facts: [...facts], text: text.length ? text : [NOTHING[kind]] };
+      ? [{ text: 'There is a forced mate, so long-term features don\'t matter here.', tone: 'neutral' }]
+      : longFacts
+          .map((f) => ({ text: longFactText(f, ctx, all), tone: factTone(f, ctx.mover) }))
+          .filter((l): l is ToneLine => !!l.text)
+          .slice(0, MAX_LONG_SENTENCES);
+  const level = (facts: readonly Fact[], lines: ToneLine[], kind: keyof typeof NOTHING): Level => {
+    if (facts.length === 0) return { facts: [{ type: 'nothing-notable' }], text: [NOTHING[kind]], tones: ['neutral'] };
+    if (!lines.length) return { facts: [...facts], text: [NOTHING[kind]], tones: ['neutral'] };
+    return { facts: [...facts], text: lines.map((l) => l.text), tones: lines.map((l) => l.tone) };
   };
+  const short = level(all.short, shortLines, 'short');
+  if (told?.story && short.text[0] === told.text) short.story = told.story;
   return {
-    immediate: level(all.immediate, immediateText, 'immediate'),
-    short: level(all.short, shortText, 'short'),
-    long: level(all.long, longText, 'long'),
+    immediate: level(all.immediate, orderByTone(immediateLines, ctx.label), 'immediate'),
+    short,
+    long: level(all.long, longLines, 'long'),
   };
 }
 
@@ -994,22 +1088,29 @@ const noPeriod = (s: string) => s.replace(/\.$/, '');
  */
 export function contrastWithPlayed(e: Explanation, played: Explanation, playedSan: string): Explanation {
   const pi = new Set(played.immediate.text);
-  const imm = e.immediate.text;
-  const shared = imm.filter((s) => pi.has(s));
+  // (UI round) sentences travel with their tones
+  const imm: ToneLine[] = e.immediate.text.map((text, i) => ({ text, tone: e.immediate.tones?.[i] ?? 'neutral' }));
+  const shared = imm.filter((s) => pi.has(s.text));
   let immediate = imm;
   if (shared.length) {
-    const own = imm.filter((s) => !pi.has(s));
-    const verbs = shared.filter((s) => VERB_START.test(s));
-    const rest = shared.filter((s) => !VERB_START.test(s));
-    const folded: string[] = [];
+    const own = imm.filter((s) => !pi.has(s.text));
+    const verbs = shared.filter((s) => VERB_START.test(s.text));
+    const rest = shared.filter((s) => !VERB_START.test(s.text));
+    const folded: ToneLine[] = [];
     const verbPhrase = (s: string) => noPeriod(s.charAt(0).toLowerCase() + s.slice(1)).replace(/^takes back: captures /, 'takes back ');
-    if (verbs.length) folded.push(`Like ${playedSan}, it ${own.length ? 'also ' : ''}${verbs.map(verbPhrase).join('; it also ')}.`);
-    for (const s of rest) folded.push(s === NOTHING.immediate ? `Nothing special happens right away (as with ${playedSan}).` : `${noPeriod(s)} — as with ${playedSan}.`);
+    // one folded sentence: its tone when all its parts agree, else neutral
+    const oneTone = (ls: readonly ToneLine[]): Tone => (ls.every((l) => l.tone === ls[0]!.tone) ? ls[0]!.tone : 'neutral');
+    if (verbs.length) folded.push({ text: `Like ${playedSan}, it ${own.length ? 'also ' : ''}${verbs.map((v) => verbPhrase(v.text)).join('; it also ')}.`, tone: oneTone(verbs) });
+    for (const s of rest) folded.push(s.text === NOTHING.immediate ? { text: `Nothing special happens right away (as with ${playedSan}).`, tone: 'neutral' } : { text: `${noPeriod(s.text)} — as with ${playedSan}.`, tone: s.tone });
     immediate = [...own, ...folded];
   }
   const pl = new Set(played.long.text.filter((s) => s !== NOTHING.long));
   const long = e.long.text.map((s) => (pl.has(s) ? `${noPeriod(s)} — as after ${playedSan}.` : s));
-  return { immediate: { ...e.immediate, text: immediate }, short: e.short, long: { ...e.long, text: long } };
+  return {
+    immediate: { ...e.immediate, text: immediate.map((l) => l.text), tones: immediate.map((l) => l.tone) },
+    short: e.short,
+    long: { ...e.long, text: long },
+  };
 }
 
 // --- Comparison with the better move ------------------------------------------------------------------------------

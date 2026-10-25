@@ -200,7 +200,7 @@ describe('review round 2: claims checked against the engine line', () => {
 
   it('results state the resulting balance when material was not level (a gambit pawn given back)', () => {
     const line: LineF = { type: 'line', steps: [{ ply: 1, san: 'Be6', uci: 'c8e6', color: 'black', facts: [] }, { ply: 2, san: 'cxd4', uci: 'c3d4', color: 'white', facts: [{ type: 'capture', captured: { role: 'pawn', square: 'd4', color: 'black' }, outcome: 'wins-material', net: 1 }] }], materialDelta: -1, result: 'loses-material', lost: ['pawn'], balance: 0 };
-    expect(lineText(line, B)).toBe('Be6 → cxd4 wins the pawn → Black loses a pawn (−1 point); material is level.');
+    expect(lineText(line, B)).toBe('Be6 → cxd4 wins the pawn → Black loses a pawn (−1 point); Black was a pawn up before, so material is now level.');
     const trade: LineF = { ...line, materialDelta: 0, result: 'trade', balance: 1, lost: undefined as never };
     delete (trade as { lost?: unknown }).lost;
     expect(lineText(trade, B)).toMatch(/the material balance doesn't change \(Black is a pawn up\)\.$/);

@@ -307,7 +307,7 @@ export type PositionalFeature =
 
 export interface LineStep { ply: number; san: string; uci: string; color: Color; facts: Fact[]; forced?: boolean }
 
-export interface Level { facts: Fact[]; text: string[] }        // text[i] renders facts (not necessarily 1:1)
+export interface Level { facts: Fact[]; text: string[]; tones?: Tone[]; story?: StoryPart[] }  // text[i] renders facts (not necessarily 1:1); tones / story: UI round, below
 export interface Explanation { immediate: Level; short: Level; long: Level }
 
 export interface Candidate {
@@ -496,6 +496,31 @@ renders `Level.text`, so no client change is needed):
   (`reasonsArePartial`): the told reasons are worth less than half of the eval drop (≥ 2 pawns), or a Mistake /
   Blunder / Miss has only quiet reasons → "— but the engine sees more than this".
 
+Additions made in the UI round (tones; all additive optional fields, `ANALYSIS_VERSION` 5):
+- `Level.tones?: Tone[]` (`Tone = 'good' | 'bad' | 'neutral'`), parallel to `Level.text`: whether each sentence helps
+  or hurts **the mover**. The base mapping is `factTone(fact, mover)` in `shared/src/tones.ts` (pure data, also used by
+  the client's mock fixtures): bad = hangs, allows, allows-mate, misses-mate, misses, a capture that loses material
+  (not a desperado), the mover's own `castling-lost`, a positional change against the mover; good = checkmate, a
+  winning capture / recapture, promotion, castling, development, attacks and tactics (fork, pin, skewer, discovered
+  attack, trapped, attack-pinned), threat, defends-threat, defend, escape, prevents, the opponent's castling-lost, a
+  positional change for the mover, positional-gain; neutral = everything else (check, even trades, check evasions,
+  deep-payoff, necessary, nothing-notable). A `line` fact's tone comes from its result (`lineTone`: mate /
+  wins-material good, mated / loses-material bad, trade / quiet / unclear / a draw neutral). explain.ts overrides the
+  base tone where a sentence words the fact otherwise (a hang told as a sound sacrifice = good, a book gambit pawn or
+  a capture whose gain the line gives back = neutral, a merged "takes …, but allows …" = bad, the honest hedge "the
+  engine sees more than this" = bad). For Inaccuracy / Mistake / Blunder / Miss the Immediate sentences are ordered
+  bad → neutral → good (stable) **before** the 4-sentence cap.
+- `Level.story?: StoryPart[]` (Short-term level of a narrated line only): `text[0]` split at its ` → ` arrows,
+  `{ text, tone, plies?: [from, to] }` per part (`plies` = indexes into the line fact's `steps`; absent for `…`, the
+  counted recapture and the result). A step that does something is good for its side (the mover's tactic / capture
+  = good, the opponent's = bad), a plain move, a trade unit or a blocked check is neutral, the opponent's forced
+  reply is good; the result part has the line's tone. Invariant: `parts.map(p => p.text).join(' → ') + '.' === text[0]`.
+- Balance wording (`balanceAfter`): when a line's material change wipes out (or turns around) a side's lead, both ends
+  are named — "White gives a knight for two pawns (−1 point); White was a pawn up before, so material is now level"
+  (was "…(−1 point); material is level", which read as a contradiction). Fork steps of one role read "forks both
+  knights"; same-role targets are grouped ("White's knights on c3 and e3").
+- Client: layouts `?ui=classic|a|b|c` (see "Client layouts" below).
+
 ## Facts → text, suggestions (M2)
 
 - `facts/line.ts`: narration = the story of the move up to its payoff: the first quiet point (no piece of either
@@ -595,6 +620,32 @@ M2-client additions (client wired to the real server end to end):
   (`e2e/real/*.spec.ts`: own server on 5194 with a fresh temp sqlite, `ANALYSIS_PROFILE=fast`, `ENGINE_THREADS=2`,
   test hooks; client on 5193; skipped without Stockfish). `E2E_REAL=0` runs only the mock project. Screenshots of
   real data: `client/e2e/screenshots/real-<size>-*.png`.
+
+## Client layouts (UI round: prototypes)
+
+`?ui=classic|a|b|c` (`client/src/lib/uiMode.ts`; default `classic`, a switch in the header keeps the URL in sync).
+`App.vue` = header + dialogs + one layout from `client/src/layouts/`; every layout uses the same session store —
+only presentation differs. Shared presentation pieces:
+- `BoardView` (chessground + arrows + promotion + previews) with `BoardBadge`: an absolutely positioned overlay over
+  chessground's `cg-container` (ResizeObserver; position from square + orientation) showing the viewed move's label
+  glyph at the top-right corner of its destination square (main line and side lines), a spinner while it is analysed,
+  "!" when it failed, or a ✓ / ✗ marker given by `Preview.marker` (replays). `Preview` (session) also got optional
+  `arrows` (brushes `pick|best|threat|played|good|bad|neutral`).
+- `lib/tones.ts` (`levelLines`, `storyParts` — `Level.story`, else the sentence split at its arrows), `lib/verdict.ts`
+  (`moveVerdict`: label name + the first bad sentence of a bad move / good sentence of a good one, else the label
+  reason; `keyPoints`; `betterMove` = pick, else engine's top; `candidatePoints`), `lib/useMove.ts` (the viewed move,
+  eval change, rule note, preview / play a candidate), `lib/replay.ts` (frames of a narrated line → `setPreview`).
+  These only pick and join explain.ts sentences — no chess prose on the client.
+- Components: `ToneList` (✓ / ✗ / • sentences, hovering a square name highlights it), `StoryChips` (the story as
+  coloured chips), `ToneLevels` (three levels: "Right now / Next few moves / Long term"), `SummaryCompact`,
+  `GameOverview` (start position; also used by the classic panel), `MoveList badges` (bigger glyphs, tinted errors).
+
+Layouts: `ClassicLayout` (v1 screen, unchanged); `BoardFirstLayout` (A: verdict bubble beside the board, level with
+the moved piece's rank, key points, Better, Details); `CoachLayout` (B: coach card, "Show me why" / "Show better move"
+replay the line on the board — arrows + markers + caption bar under the board, ←/→/space/Esc while it runs —
+consequences as a chip timeline); `GoodBadLayout` (C: label · move · eval chip, "What goes wrong ✗" / "What it does
+well ✓" blocks, Better card with Play, labelled move list). E2E: `e2e/prototypes.spec.ts` (mock),
+`e2e/real/prototypes-real.spec.ts` (real server).
 
 ## Cache
 

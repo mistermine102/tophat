@@ -1,12 +1,14 @@
 <script setup lang="ts">
-// v1 screen: header, board column (eval bar, board, navigation, eval graph), summary + move list, explanation.
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import BoardArea from './components/BoardArea.vue';
-import ExplanationPanel from './components/ExplanationPanel.vue';
-import MoveList from './components/MoveList.vue';
+// Header (players, progress, layout switch, dialogs) + the screen layout picked with `?ui=` (lib/uiMode.ts):
+// classic (default), A board-first, B coach + replay, C good vs bad. All layouts share the session store.
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import PgnDialog from './components/PgnDialog.vue';
 import SettingsDialog from './components/SettingsDialog.vue';
-import SummaryPanel from './components/SummaryPanel.vue';
+import BoardFirstLayout from './layouts/BoardFirstLayout.vue';
+import ClassicLayout from './layouts/ClassicLayout.vue';
+import CoachLayout from './layouts/CoachLayout.vue';
+import GoodBadLayout from './layouts/GoodBadLayout.vue';
+import { setUiMode, uiMode, UI_MODES } from './lib/uiMode';
 import { useSession } from './stores/session';
 
 const session = useSession();
@@ -42,33 +44,6 @@ onMounted(async () => {
   showPgn.value = true;
 });
 
-// Explanation column: back to the top for every new move, and a "More below" hint while text is cut off.
-const exCol = ref<HTMLElement | null>(null);
-const moreBelow = ref(false);
-function updateMore() {
-  const el = exCol.value;
-  moreBelow.value = !!el && el.scrollHeight - el.scrollTop - el.clientHeight > 12;
-}
-function scrollMore() {
-  exCol.value?.scrollBy({ top: Math.max(120, (exCol.value.clientHeight * 2) / 3), behavior: 'smooth' });
-}
-let exObserver: ResizeObserver | null = null;
-watch(exCol, (el) => {
-  exObserver?.disconnect();
-  if (!el) return;
-  exObserver = new ResizeObserver(updateMore);
-  exObserver.observe(el);
-  if (el.firstElementChild) exObserver.observe(el.firstElementChild);
-});
-watch(
-  () => session.current.value?.id,
-  async () => {
-    await nextTick();
-    if (exCol.value) exCol.value.scrollTop = 0;
-    updateMore();
-  },
-);
-
 function onKey(e: KeyboardEvent) {
   const t = e.target as HTMLElement | null;
   if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
@@ -90,7 +65,6 @@ function onKey(e: KeyboardEvent) {
 onMounted(() => window.addEventListener('keydown', onKey));
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKey);
-  exObserver?.disconnect();
   session.dispose();
 });
 </script>
@@ -116,6 +90,21 @@ onBeforeUnmount(() => {
         <span class="ml-2 font-semibold text-neutral-200">{{ players.result }}</span>
       </div>
       <div class="ml-auto flex items-center gap-2">
+        <div class="mr-1 flex items-center rounded-md bg-neutral-800 p-0.5 ring-1 ring-white/5" role="group" aria-label="Screen layout" data-testid="ui-switch">
+          <span class="px-1.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Layout</span>
+          <button
+            v-for="m in UI_MODES"
+            :key="m.id"
+            class="h-7 rounded px-2 text-xs font-medium transition"
+            :class="uiMode === m.id ? 'bg-amber-500 text-neutral-950' : 'text-neutral-300 hover:bg-white/10'"
+            :title="`${m.name}: ${m.hint}`"
+            :aria-pressed="uiMode === m.id"
+            :data-testid="`ui-${m.id}`"
+            @click="setUiMode(m.id)"
+          >
+            {{ m.short }}
+          </button>
+        </div>
         <span
           v-if="game"
           class="inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-xs"
@@ -153,28 +142,12 @@ onBeforeUnmount(() => {
       </div>
     </header>
 
-    <main v-if="game" class="flex min-h-0 flex-1 gap-4 p-4">
-      <BoardArea class="shrink-0" />
-      <div class="flex min-h-0 w-[292px] shrink-0 flex-col gap-3">
-        <SummaryPanel />
-        <MoveList />
-      </div>
-      <div class="relative min-h-0 min-w-[300px] flex-1">
-        <div ref="exCol" class="h-full overflow-y-auto pr-1" @scroll="updateMore">
-          <ExplanationPanel />
-        </div>
-        <template v-if="moreBelow">
-          <div class="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-[#141416] to-transparent"></div>
-          <button
-            class="absolute bottom-1.5 left-1/2 -translate-x-1/2 rounded-full bg-neutral-700 px-3 py-1 text-xs font-medium text-neutral-100 shadow-lg ring-1 ring-white/10 hover:bg-neutral-600"
-            data-testid="more-below"
-            @click="scrollMore"
-          >
-            More below ↓
-          </button>
-        </template>
-      </div>
-    </main>
+    <template v-if="game">
+      <BoardFirstLayout v-if="uiMode === 'a'" />
+      <CoachLayout v-else-if="uiMode === 'b'" />
+      <GoodBadLayout v-else-if="uiMode === 'c'" />
+      <ClassicLayout v-else />
+    </template>
 
     <main v-else class="flex flex-1 flex-col items-center justify-center gap-3 text-center">
       <template v-if="booting || session.state.loading">

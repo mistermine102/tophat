@@ -3,7 +3,7 @@
 // Win-chance values are percentages (0..100) from the mover's point of view; cp values are centipawns.
 
 /** Bump whenever analysis output semantics change. Part of the cache key, so bumping invalidates the cache. */
-export const ANALYSIS_VERSION = 4; // 2 (M3): mate rules, Great exclusions + window, truthful hung piece, verify near thresholds; 3 (M5b): new explanation facts; 4 (M5c): explanation round 3 (pawn forks, batteries, perpetuals, payoff horizon, contrasted suggestions)
+export const ANALYSIS_VERSION = 5; // 5 (UI round): Level.tones / Level.story, bad-first order for bad moves, balance wording; 2 (M3): mate rules, Great exclusions + window, truthful hung piece, verify near thresholds; 3 (M5b): new explanation facts; 4 (M5c): explanation round 3 (pawn forks, batteries, perpetuals, payoff horizon, contrasted suggestions)
 
 export interface LabelThresholds {
   /** Best: engine #1 or winLoss <= this. */

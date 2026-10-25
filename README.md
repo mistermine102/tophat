@@ -55,6 +55,11 @@ one is used.
 - **Play a suggestion:** **Play it** next to "Try this" or "Engine's top" plays that move on the board. Hovering a
   move of the engine's line shows it on the board; clicking it plays the line up to there.
 - Hover over a square name in an explanation (like "f7") to see that square highlighted on the board.
+- **Try a different screen layout (prototypes):** the **Layout** switch in the header (or `?ui=a`, `?ui=b`, `?ui=c`
+  in the address) shows three experimental screens: **A** board-first (the verdict next to the moved piece),
+  **B** coach + replay ("Show me why" plays the consequences on the board), **C** good vs bad. In all three the
+  move's label sits on the board, and every sentence is marked ✓ (good for the side that moved) or ✗ (bad).
+  **Classic** is the normal screen.
 - Recently opened games are listed in the **Open PGN** window. Reopening one is instant.
 
 ## What the labels mean
