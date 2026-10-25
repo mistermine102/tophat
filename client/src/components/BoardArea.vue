@@ -117,12 +117,14 @@ const shownKinds = computed(() => new Set(shapes.value.map((s) => s.brush)));
         :can-prev="!!node?.parent"
         :can-next="!!node?.children.length"
         :in-side-line="!!tree?.inSideLine"
+        :can-mistake="session.nextMistakePly.value !== null"
         @first="session.first()"
         @prev="session.prev()"
         @next="session.next()"
         @last="session.last()"
         @flip="session.flip()"
         @back="session.backToGame()"
+        @mistake="session.nextMistake()"
       />
     </div>
     <div class="board-row flex h-4 items-center gap-3 text-[11px] text-neutral-500">

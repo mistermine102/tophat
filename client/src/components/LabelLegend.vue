@@ -29,13 +29,13 @@ onBeforeUnmount(() => (open.value = false));
 <template>
   <div ref="root" class="relative">
     <button
-      class="flex h-5 w-5 items-center justify-center rounded-full bg-neutral-700 text-[11px] font-bold text-neutral-200 hover:bg-neutral-600"
+      class="flex h-5 items-center gap-1 rounded-full bg-neutral-700 pl-1.5 pr-2 text-[11px] font-semibold text-neutral-200 hover:bg-neutral-600"
       title="What do the symbols mean?"
       aria-label="Label legend"
       data-testid="legend-button"
       @click="open = !open"
     >
-      ?
+      <span class="font-bold">?</span> Label guide
     </button>
     <div
       v-if="open"

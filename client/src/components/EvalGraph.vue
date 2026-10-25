@@ -115,6 +115,7 @@ const hoverInfo = computed(() => {
     ref="root"
     class="relative h-full w-full cursor-pointer select-none overflow-hidden rounded-md bg-neutral-800 ring-1 ring-white/5"
     data-testid="eval-graph"
+    title="Who was winning during the game: the higher the light area, the better for White. Dots mark mistakes and great moves. Click to jump to that move."
     @mousemove="hover = plyAt($event)"
     @mouseleave="hover = null"
     @click="emit('select', plyAt($event))"
@@ -128,12 +129,14 @@ const hoverInfo = computed(() => {
         stroke="#f59e0b" stroke-width="2" vector-effect="non-scaling-stroke"
       />
     </svg>
+    <span class="pointer-events-none absolute left-1 top-0.5 rounded bg-neutral-900/70 px-1 text-[9px] leading-tight text-neutral-400">White ahead</span>
+    <span class="pointer-events-none absolute bottom-0.5 left-1 rounded bg-neutral-900/70 px-1 text-[9px] leading-tight text-neutral-400">Black ahead</span>
     <span
       v-for="mk in marks"
       :key="mk.ply"
       class="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 rounded-full"
       :class="n > 80 ? 'h-1.5 w-1.5 ring-1 ring-neutral-900' : 'h-2.5 w-2.5 ring-2 ring-neutral-900'"
-      :style="{ left: `${mk.left}%`, top: `${Math.min(94, Math.max(6, mk.top))}%`, background: mk.color }"
+      :style="{ left: `${mk.left}%`, top: `clamp(6px, ${mk.top}%, calc(100% - 6px))`, background: mk.color }"
       :title="mk.title"
       :data-label="mk.label"
     ></span>

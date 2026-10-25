@@ -59,6 +59,9 @@ export class MoveTree {
     this.current = this.root;
   }
 
+  /** See backToGame(). Set by the session when an alternative to a game move is played from its panel. */
+  returnTo: TreeNode | null = null;
+
   get lastMainPly(): number {
     return this.mainLine.length - 1;
   }
@@ -150,9 +153,16 @@ export class MoveTree {
     this.current = n;
   }
 
-  /** "Back to game": return to the main-line position the current side line branched from. */
+  /**
+   * "Back to game": return to the main-line position the current side line branched from — or to `returnTo`, the
+   * game move the user was looking at when they played an alternative to it (e.g. "Play it" on a suggestion for a
+   * blunder returns to the blunder, not to the move before it).
+   */
   backToGame(): void {
-    this.current = this.branchPoint(this.current);
+    const bp = this.branchPoint(this.current);
+    const r = this.returnTo;
+    this.returnTo = null;
+    this.current = r && r.mainPly !== null && r.parent?.id === bp.id && this.current.mainPly === null ? r : bp;
   }
 
   /** Nodes from the root (exclusive) to `node` (inclusive). */
