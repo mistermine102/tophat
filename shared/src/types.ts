@@ -19,7 +19,7 @@ export type Fact =
   | { type: 'promotion'; to: PieceRole }
   | { type: 'castle'; side: 'king' | 'queen' }
   | { type: 'develop'; piece: PieceRef }
-  | { type: 'attack'; attacker: PieceRef; target: PieceRef; reason: 'undefended' | 'higher-value' | 'king' }
+  | { type: 'attack'; attacker: PieceRef; target: PieceRef; reason: 'undefended' | 'higher-value' | 'king'; offered?: boolean }  // offered (M5b): the target could take the attacker (kept only when the engine line doesn't)
   | { type: 'fork'; attacker: PieceRef; targets: PieceRef[]; followUp?: { reply: string; capture: string; kingMustMove?: boolean } }  // followUp (M5b): a checking fork shown by the engine line — the reply (SAN), then the forking piece's capture (SAN); kingMustMove: every legal reply is a king move
   | { type: 'pin'; pinner: PieceRef; pinned: PieceRef; behind: PieceRef; absolute: boolean }
   | { type: 'skewer'; attacker: PieceRef; front: PieceRef; behind: PieceRef }

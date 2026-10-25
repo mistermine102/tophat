@@ -533,13 +533,16 @@ function tacticalFacts(
     for (const t of attackedPieces(after.board, a)) {
       if (after.board.king.has(t)) continue;
       if (covered.has(key(a, t)) || attackedBefore(a, t)) continue;
-      if (!canWin(a, t) || hitsBack(t, a)) continue;
+      if (!canWin(a, t)) continue;
+      // (round 8) the target could take the attacker: kept as an offer (analyzeMove drops it when the reply takes)
+      const offered = hitsBack(t, a) && PIECE_VALUES[after.board.getRole(t)!] > PIECE_VALUES[aRole] && !capturedBy(before, move); // (quiet moves only)
+      if (hitsBack(t, a) && !offered) continue;
       const tRole = after.board.getRole(t)!;
       let reason: 'undefended' | 'higher-value' | undefined;
       if (defendersOf(after.board, t).isEmpty()) reason = 'undefended';
       else if (aRole !== 'king' && PIECE_VALUES[tRole] > PIECE_VALUES[aRole]) reason = 'higher-value';
       if (!reason) continue;
-      facts.push({ type: 'attack', attacker: ref(after, a), target: ref(after, t), reason });
+      facts.push(offered ? { type: 'attack', attacker: ref(after, a), target: ref(after, t), reason, offered: true } : { type: 'attack', attacker: ref(after, a), target: ref(after, t), reason });
     }
   }
 }

@@ -102,7 +102,7 @@ export const THREAT_MAX_MATE = 3;
 export function stepFacts(facts: readonly Fact[]): Fact[] {
   const kept = facts.filter((f) => {
     if (!STEP_FACT_TYPES.has(f.type)) return false;
-    if (f.type === 'attack') return f.target.role !== 'pawn';
+    if (f.type === 'attack') return f.target.role !== 'pawn' && !f.offered; // (an offered attacker: told only in the Immediate level, checked against the PV)
     return true;
   });
   return sortFacts(kept).slice(0, MAX_STEP_FACTS);
@@ -405,6 +405,23 @@ export function narrationPlies(fenBefore: string, pv: readonly string[], setting
     if (!close(end)) {
       const later = first(end + 1, (k) => (stopOk(k) || claimOk(k)) && close(k));
       if (later !== undefined) end = later;
+    }
+  }
+  // (round 8) material the line changes again later (a pawn given back, a loss that grows) is no result yet: run on
+  // to the first stop point that already has the material of the last stop point within the horizon
+  if (end !== undefined) {
+    let lastStop: number | undefined;
+    for (let k = n; k > end; k--) {
+      if (stopOk(k) || claimOk(k)) {
+        lastStop = k;
+        break;
+      }
+    }
+    // (only when the later material agrees better with the deep eval: a PV cut mid-exchange proves nothing)
+    const fits = (k: number) => (evalPawns === null ? Infinity : Math.abs(info.start + info.delta[k]! - evalPawns));
+    if (lastStop !== undefined && Math.abs(info.delta[lastStop]! - info.delta[end]!) >= 1 && fits(lastStop) < fits(end)) {
+      const settled = first(end + 1, (k) => (stopOk(k) || claimOk(k)) && info.delta[k] === info.delta[lastStop!]);
+      if (settled !== undefined) end = settled;
     }
   }
   if (end === undefined) {
@@ -880,6 +897,9 @@ export function refutationFact(input: RefutationInput): AllowsFact | null {
   // a plain check (or nothing) is no refutation worth a sentence — unless the line then costs material
   const quietCost = (out.gain ?? 0) >= QUIET_REFUTATION_MIN_LOSS && input.bestLineDelta != null && input.line.materialDelta <= input.bestLineDelta - QUIET_REFUTATION_MIN_LOSS;
   if (!kept.some((f) => f.type !== 'check') && targets.length === 0 && out.mateIn === undefined && !((out.gain ?? 0) >= 1 && kept.length) && !quietCost) return null;
+  // (round 8) a reply whose tactic costs nothing in the line (dxe4 uncovering an attack on a bishop that is simply
+  // recaptured; Nxf6+ uncovering an attack on a defended rook) refutes nothing
+  if (!((out.gain ?? 0) >= 1) && out.mateIn === undefined && !kept.some((f) => f.type === 'threat' || f.type === 'checkmate') && targets.length === 0 && input.line.result !== 'unclear') return null;
   if (replyWasAlreadyThere(input.fenBefore, replyUci, kept, targets)) out.already = true;
   return out;
 }
@@ -909,6 +929,17 @@ function replyWasAlreadyThere(fenBefore: string, replyUci: string, facts: readon
   }
   const cap = facts.find((f): f is Extract<Fact, { type: 'capture' }> => f.type === 'capture');
   if (cap && !(capturedBy(pos, m) && seeMove(pos, replyUci) >= cap.net)) return false;
+  // (round 8) a fork the reply would have made just the same before the move (same targets): the move didn't stop it
+  const fork = facts.find((f): f is Extract<Fact, { type: 'fork' }> => f.type === 'fork');
+  if (fork && !facts.some((f) => f.type === 'checkmate' || f.type === 'skewer' || f.type === 'discovered-attack')) {
+    try {
+      const was = immediateFactsFromPosition(pos, replyUci).find((f): f is Extract<Fact, { type: 'fork' }> => f.type === 'fork');
+      if (was && fork.targets.every((t) => was.targets.some((w) => w.square === t.square && w.role === t.role))) return true;
+    } catch {
+      // not legal there
+    }
+    return false;
+  }
   if (facts.some((f) => f.type === 'fork' || f.type === 'checkmate' || f.type === 'skewer' || f.type === 'discovered-attack')) return false;
   if (!cap && targets.length === 0) return false;
   pos.play(m);

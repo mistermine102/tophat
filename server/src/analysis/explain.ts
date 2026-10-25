@@ -34,6 +34,8 @@ export interface ExplainContext {
   mover: Color;
   /** The move's label (played move only): bad labels lead with the refutation; Book keeps the short level brief. */
   label?: Label;
+  /** (M5b) The move is the engine's #1: a line that loses material is a sacrifice the engine judges worth it. */
+  best?: boolean;
   /** The move (UCI): tells a pin made by the moving piece from one it uncovers. */
   uci?: string;
 }
@@ -236,6 +238,8 @@ function immediateFactText(f: Fact, ctx: ExplainContext): string | null {
     case 'develop':
       return `Develops the ${f.piece.role} to ${f.piece.square}`;
     case 'attack':
+      // (round 8) an attacker the target could take: say so (the engine line doesn't take it — checked in analyzeMove)
+      if (f.offered) return `Attacks ${owned(f.target)} with ${an(f.attacker.role)} — the ${f.attacker.role} could be taken, but the engine line doesn't take it`;
       // a bigger piece attacked by a smaller one has to move whether defended or not: say so, not "undefended"
       return f.reason === 'undefended' && PIECE_VALUES[f.target.role] <= PIECE_VALUES[f.attacker.role] ? `Attacks ${owned(f.target)}, which is undefended` : `Attacks ${owned(f.target)} with ${an(f.attacker.role)}`;
     case 'fork': {
@@ -320,7 +324,8 @@ function renderImmediate(facts: readonly Fact[], ctx: ExplainContext, line?: F<'
   const oppTakesLater = (sq: string) => !!line?.steps.some((s, i) => i > 0 && s.color !== ctx.mover && s.uci.slice(2, 4) === sq && s.facts.some((x) => x.type === 'capture'));
   fs = fs.filter((f) => !(f.type === 'escape' && oppTakesLater(f.piece.square)));
   // (round 7) an under-protected piece (small SEE loss) whose line loses nothing: the engine doesn't let it cost material
-  if (line && line.result !== 'unclear' && line.result !== 'mated' && line.materialDelta >= 0) fs = fs.filter((f) => !(f.type === 'hangs' && !f.already && f.loss <= PIECE_VALUES[f.piece.role] / 2));
+  // (round 8) …nor a piece that was already en prise, when the move's line loses nothing overall (Bxf6 trading it off)
+  if (line && line.result !== 'unclear' && line.result !== 'mated' && line.materialDelta >= 0) fs = fs.filter((f) => !(f.type === 'hangs' && (f.already || f.loss <= PIECE_VALUES[f.piece.role] / 2)));
   // "stops the threat on X" and "saves / defends X" say the same thing once
   const stopped = new Set(fs.filter((f): f is F<'defends-threat'> => f.type === 'defends-threat').map((f) => f.move.slice(2, 4)));
   fs = fs.filter((f) => !((f.type === 'escape' && stopped.has(f.from)) || (f.type === 'defend' && stopped.has(f.piece.square))));
@@ -688,6 +693,7 @@ export function lineText(line: F<'line'>, ctx: ExplainContext): string {
       // the change, plus the resulting balance when material wasn't level before ("Black loses a pawn (−1
       // point); material is level" = a gambit pawn given back)
       result = materialResult(line, mover);
+      if (ctx.best && line.result === 'loses-material') result += " — still the engine's best move: it rates the position as worth more than the material";
       const start = line.balance !== undefined ? line.balance - line.materialDelta : 0;
       if (line.balance !== undefined && start !== 0) result += `; ${balanceText(line.balance, mover)}`;
       break;

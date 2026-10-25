@@ -293,6 +293,7 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
     const short: Fact[] = [narrated.line, ...narrated.forcedReplies];
     shortFacts.set(w.uci, short);
     const ectx: ExplainContext = label ? { mover, label, uci: w.uci } : { mover, uci: w.uci };
+    if (isBest && !(label && BAD_LABELS.has(label))) ectx.best = true;
     allFacts.set(w.uci, { immediate, short, long, ctx: ectx });
     const e = renderExplanation({ immediate, short, long }, ectx);
     factsMs += now() - tf;
@@ -462,6 +463,8 @@ export function verifyWithLine(facts: Fact[], fen: string, pv: readonly string[]
     .filter((f) => f.type !== 'trapped' || moverWins(fen, pv, f.piece.square, TRAPPED_VERIFY_PLIES))
     // (M5b) a pin the opponent ignores at once (the pinned piece moves in the reply: 6.Bg5? Nxe4!) isn't one
     .filter((f) => !(f.type === 'pin' && pv[1]?.slice(0, 2) === f.pinned.square))
+    // (round 8) an offered attacker the reply simply takes attacks nothing
+    .filter((f) => !(f.type === 'attack' && f.offered && (!pv[1] || pv[1].slice(2, 4) === f.attacker.square)))
     // (M5b) "saves the piece" only if the reply doesn't attack it again (…Nh4+ Kg3)
     .filter((f) => f.type !== 'escape' || !hangsAfterReply(fen, pv, f.piece.square))
     .map((f) => {

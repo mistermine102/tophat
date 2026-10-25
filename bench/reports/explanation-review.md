@@ -26,6 +26,7 @@ Categories: **FALSE** (wrong on the board / contradicts the line), **MISLEADING*
 | 5 (4 reviewer agents, M5b) | 7 fresh games, r5 | 239 | 6 | 50 | 21 | 59 | 77 / 7 |
 | 6 (4 new reviewer agents) | same 7 games, r6 | 239 | 10 (6 root causes, 2 introduced by r5 fixes; all fixed after) | 32 | 31 | 53 | 79 / 8 |
 | 7 (4 new reviewer agents) | same 7 games, r7 | 239 | 0 | 28 | 29 | 68 | 81 / 6 |
+| 8 (4 new reviewer agents) | same 7 games, r8 | 239 | 1 | 37 | 20 | 69 | 82 / 9 |
 
 WEAK rose from round 2 to 3 because reviewers moved on to wording once the gross errors were gone. After round 4 the
 remaining FALSE root cause (uncovered pins worded as made by the moving piece) was fixed and spot-checked on the r5
@@ -241,3 +242,21 @@ Not fixed (recorded for later): pawn forks whose forking pawn can be captured ar
 suggestions whose Immediate level equals the played move's (Bd5 / Bb1, h3 / Kf1); "The only good move here" in the
 Long-term level; "deep engine move — hard to explain" on suggestions with a concrete story; perpetual checks /
 repetitions are not recognised; no passed-pawn-race facts.
+
+### Round 8 — 4 new independent reviewer agents, same 239 entries (r8 code)
+
+Totals: FALSE 1, MISLEADING 37, USELESS 20, WEAK 69; picks 82 good / 9 bad. Per game (F/M/U/W, picks): PnAHyM23
+0/9/4/15, 25/3 · YMOxEowk 0/8/3/16, 18/3 · 57RP5sCb 0/4/1/3, 4/0 · FroOipnY 0/5/3/7, 10/1 · KyoqPCST 0/4/6/6, 12/0 ·
+2hOytwun 0/5/2/9, 11/1 · Kasparov–Topalov 1/2/1/13, 2/1. The r7 → r8 code changes were small (r7 fixes), so the
+rise in MISLEADING (28 → 37) is mostly reviewer variance: about two thirds of the r8 MISLEADING entries are sentences
+that earlier reviewers saw and passed (or rated WEAK). The recurring root causes across rounds 6–8 were fixed
+after this round:
+
+| Game, ply | Move | Level | Sentence | Cat. | Root cause → fix |
+|---|---|---|---|---|---|
+| Kasparov–Topalov 71 | 36.Bf1 | Imm | "Nothing special happens right away." (attacks the queen on c4) | FALSE | an attack whose attacker the target could take was dropped → kept as `attack.offered` for quiet moves, told "— the bishop could be taken, but the engine line doesn't take it", dropped when the PV reply takes it |
+| FroOipnY 24/31, KyoqPCST 30/42/52, 57RP 24, YMO 17 (pick) | various | Short | "Black wins a pawn (+1)" (given back later in the same line), "loses a pawn" (loses a rook later) | MISLEADING | → when a later stop point within the horizon has different material that agrees better with the deep eval, the story runs on to the first stop point that already has that material |
+| YMOxEowk 17, 57RP5sCb 24 | Bd3 / Re8 | Imm | "Allows dxe4, uncovering an attack on White's bishop" (recaptured, nothing lost) | MISLEADING | → a refutation without material gain, mate, threat or targets (the line loses nothing) is no refutation |
+| YMOxEowk 21 | Bxf6 | Imm | "Still leaves the bishop on d3 hanging (−3)" (the line is level) | MISLEADING | → an already-hanging piece isn't told when the move's line loses nothing overall |
+| PnAHyM23 41 | c4 | Imm | "Allows Nc3, forking …" (the fork was there before) | MISLEADING | → a fork the reply would have made with the same targets before the move reads "Doesn't stop Nc3, forking …" |
+| KyoqPCST 21 | O-O-O (top) | Short | "White gives a knight for a pawn (−2)" for the engine's best move | MISLEADING | → the best move's losing line adds "— still the engine's best move: it rates the position as worth more than the material" |
