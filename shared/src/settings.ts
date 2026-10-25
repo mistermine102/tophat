@@ -3,7 +3,7 @@
 // Win-chance values are percentages (0..100) from the mover's point of view; cp values are centipawns.
 
 /** Bump whenever analysis output semantics change. Part of the cache key, so bumping invalidates the cache. */
-export const ANALYSIS_VERSION = 1;
+export const ANALYSIS_VERSION = 2; // 2 (M3): mate rules, Great exclusions + window, truthful hung piece, verify near thresholds
 
 export interface LabelThresholds {
   /** Best: engine #1 or winLoss <= this. */
@@ -28,6 +28,10 @@ export interface GreatRule {
   throwsAwayWinBelow: number;
   /** Great requires at least this many legal moves. */
   minLegalMoves: number;
+  /** Not Great: a check evasion with at most this many legal moves (an obvious only-move). */
+  maxLegalMovesInCheck: number;
+  /** Not Great: a capture whose static exchange wins at least this many pawns (taking free material). */
+  freeCaptureMinGain: number;
 }
 
 export interface MaterialRule {
@@ -39,6 +43,11 @@ export interface MaterialRule {
   mistakeMinEvalDropCp: number;
   /** PV plies examined when resolving the line's material outcome to a quiet point. */
   quietHorizonPlies: number;
+  /**
+   * Already lost: if the best move's eval is <= -this (cp, mover POV; or mated), the rule only fires for a piece
+   * hung right after the move (MaterialCheck.hung) — line-vs-line material differences are noise there.
+   */
+  lostPositionCp: number;
 }
 
 export interface MissRule {
@@ -48,6 +57,18 @@ export interface MissRule {
   keepGainFraction: number;
   /** The played move must lose more than this (an inaccuracy's worth). */
   playedMinLoss: number;
+}
+
+export interface MateRule {
+  /**
+   * Allowed mate: the played move allows a forced mate in <= this many moves (engine score of the played move)
+   * that the best move doesn't allow -> at least Blunder, even when win% was already ~0 (classify.ts).
+   */
+  allowedMaxMoves: number;
+  /** ... a forced mate after the best move too counts as "doesn't allow" only if it is at least this many moves longer. */
+  allowedMuchLongerBy: number;
+  /** Missed mate: the best move forces mate in <= this many moves and the played move doesn't force mate -> at least Miss. */
+  missedMaxMoves: number;
 }
 
 export interface SuggestionRule {
@@ -86,6 +107,11 @@ export interface SearchBudget {
    * 68 s, d18 MultiPV 1 > 120 s in the Opera game).
    */
   maxMs: number;
+  /**
+   * Optional node cap (M3): a stop condition that doesn't depend on CPU load. With Threads=1 and no time cap
+   * hit, a fixed-depth/nodes search is exactly reproducible (bench/reports/labels.md "Stability").
+   */
+  maxNodes?: number;
 }
 
 export interface AnalysisBudget {
@@ -99,6 +125,22 @@ export interface AnalysisBudget {
   forcedness: SearchBudget;
   /** Number of plies of the short line in which opponent replies are checked for forcedness. */
   forcednessPlies: number;
+  /** 5. Label verification near thresholds (analysis/label.ts `verifyNearThreshold`). */
+  verify: VerifyBudget;
+}
+
+/**
+ * Stability (M3): when a label sits within `margin` win% of a threshold that decides it (winLoss vs the
+ * Excellent / Good / Inaccuracy / Mistake bounds, or the 2nd best's loss vs Great's bound), the two moves are
+ * re-searched together (`searchmoves=[best, other]`, MultiPV 2) at deep depth + `depthPlus` and the label is
+ * taken from that search. Not hysteresis: the deeper verdict wins in both directions. `margin` 0 disables it —
+ * the default: measured on 10 games (bench/reports/labels.md) it cut severity-class flips between two independent
+ * analyses only from 4.9 % to 4.4 % for +13 % engine time (the flips are multi-thread search noise at the bounds).
+ */
+export interface VerifyBudget {
+  margin: number;
+  depthPlus: number;
+  maxMs: number;
 }
 
 export interface AnalysisSettings {
@@ -106,6 +148,7 @@ export interface AnalysisSettings {
   great: GreatRule;
   material: MaterialRule;
   miss: MissRule;
+  mate: MateRule;
   suggest: SuggestionRule;
   explain: ExplanationRule;
   budget: AnalysisBudget;
@@ -122,9 +165,11 @@ export const DEFAULT_SETTINGS: AnalysisSettings = {
   great: {
     secondBestMinLoss: 10,
     minWinAfterBest: 10,
-    maxWinAfterBest: 97,
+    maxWinAfterBest: 70,
     throwsAwayWinBelow: 70,
     minLegalMoves: 2,
+    maxLegalMovesInCheck: 3,
+    freeCaptureMinGain: 1,
   },
   material: {
     blunderMinLoss: 3,
@@ -132,11 +177,17 @@ export const DEFAULT_SETTINGS: AnalysisSettings = {
     mistakeMinLoss: 2,
     mistakeMinEvalDropCp: 150,
     quietHorizonPlies: 12,
+    lostPositionCp: 900,
   },
   miss: {
     opponentMinLoss: 10,
     keepGainFraction: 0.5,
     playedMinLoss: 5,
+  },
+  mate: {
+    allowedMaxMoves: 3,
+    allowedMuchLongerBy: 3,
+    missedMaxMoves: 3,
   },
   suggest: {
     candidates: 5,
@@ -159,6 +210,7 @@ export const DEFAULT_SETTINGS: AnalysisSettings = {
     threat: { depth: 12, multipv: 1, maxMs: 500 },
     forcedness: { depth: 12, multipv: 2, maxMs: 500 },
     forcednessPlies: 6,
+    verify: { margin: 0, depthPlus: 2, maxMs: 8000 }, // off: measured in M3, 4.9 -> 4.4 % class flips for +13 % engine time
   },
 };
 

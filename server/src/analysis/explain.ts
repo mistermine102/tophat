@@ -19,7 +19,7 @@
 //  - `Level.facts` keeps every fact of the level (structured data for a later rephrasing step); `Level.text`
 //    holds the rendered sentences (not 1:1 with the facts).
 
-import type { AnalysisSettings, Color, Explanation, Fact, Label, Level, LineStep, MoveAnalysis, PieceRef, PieceRole, Score } from '@chess-coach/shared';
+import type { AnalysisSettings, Color, Explanation, Fact, Label, Level, LineStep, MaterialCheck, MoveAnalysis, PieceRef, PieceRole, Score } from '@chess-coach/shared';
 import { PIECE_VALUES } from '../chess/material';
 
 export const MAX_SENTENCES = 4;
@@ -806,6 +806,8 @@ export type LabelTextInput = Pick<MoveAnalysis, 'label' | 'labelReason' | 'color
   verifiedHang?: { piece: PieceRef; loss: number; already?: boolean } | null;
 };
 
+const mateIn = (n: number): string => (n === 1 ? 'mate in one' : `a forced mate in ${n}`);
+
 /** One or two sentences: label name + why (mover-neutral). */
 export function labelText(a: LabelTextInput, settings: AnalysisSettings): string {
   const me = colorName(a.color);
@@ -837,9 +839,18 @@ export function labelText(a: LabelTextInput, settings: AnalysisSettings): string
     case 'inaccuracy':
       return `${name} — ${a.bestSan} was better (${loss}).${why}`;
     case 'miss':
+      if (a.labelReason.missedMate) return `${name} — ${a.bestSan} was ${mateIn(a.labelReason.missedMate.mateIn)}, and this move doesn't force mate (${loss}).`;
       return `${name} — ${opp}'s last move was a mistake, and ${a.bestSan} would have punished it (${loss}).${why}`;
     case 'mistake':
     case 'blunder': {
+      // M3 mate rules: an allowed / missed short mate is the reason, even when win% hardly moves
+      const am = a.labelReason.allowedMate;
+      if (am && a.label === 'blunder') {
+        const avoid = am.bestMatedIn ? `${a.bestSan} would have lasted ${am.bestMatedIn} moves` : `${a.bestSan} would have avoided it`;
+        const already = a.labelReason.winChance !== 'blunder' ? ` ${me} was already losing, but ${avoid} — watch for mating threats.` : ` ${avoid}.`;
+        return `${name} — this allows ${am.matedIn === 1 ? 'mate in one' : `a forced mate in ${am.matedIn}`}.${already}`;
+      }
+      if (a.labelReason.missedMate && a.label === 'blunder') return `${name} — ${a.bestSan} was ${mateIn(a.labelReason.missedMate.mateIn)}. ${capitalize(chances)}.`;
       // the hung piece is named only from the move's own verified 'hangs' fact (a piece standing on that square
       // after the move, confirmed by the engine line), with that fact's number; otherwise the line's net loss
       const vh = a.verifiedHang;

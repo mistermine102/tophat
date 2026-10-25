@@ -250,7 +250,10 @@ export interface Candidate {
   explanation?: Explanation;          // present for played move, pick and best
 }
 
-export interface MaterialCheck { playedLine: number; bestLine: number; loss: number; evalDropCp: number; label?: Label; hung?: PieceRef }
+export interface LostPiece extends PieceRef { ply: number }     // M3
+export interface MaterialCheck { playedLine: number; bestLine: number; loss: number; evalDropCp: number; label?: Label; hung?: PieceRef; hungLoss?: number; hungAlready?: boolean; lostInLine?: LostPiece[] }
+export interface AllowedMate { matedIn: number; bestMatedIn?: number }   // M3
+export interface MissedMate { mateIn: number }                          // M3
 
 export interface MoveAnalysis {
   version: number;
@@ -262,7 +265,7 @@ export interface MoveAnalysis {
   winLoss: number;
   accuracy: number;                    // per-move accuracy %
   label: Label;
-  labelReason: { winChance: Label; material?: MaterialCheck; miss?: boolean; great?: { secondBestLoss: number }; book?: { eco: string; name: string } };
+  labelReason: { winChance: Label; material?: MaterialCheck; miss?: boolean; great?: { secondBestLoss: number }; book?: { eco: string; name: string }; allowedMate?: AllowedMate; missedMate?: MissedMate };
   played: Candidate;                   // the played move as a candidate, with explanation
   best: Candidate;
   pick: Candidate | null;              // explainable pick; null if none
@@ -315,6 +318,40 @@ Additions made in the explanation-quality pass (M5 prep; additive):
 - Settings: `explain.shortLineMinPlies` 4 → 2 (a story stops at its payoff; see below).
 - Analysis budget: one extra threat search (budget.threat) per bad played move, at the null-move position after
   the opponent's PV reply (for the `allows` fact); forcedness searches only run for replies under pressure.
+
+Additions made in M3 (label quality; all additive, `ANALYSIS_VERSION` 2):
+- `labelReason.allowedMate?: AllowedMate` = `{ matedIn, bestMatedIn? }`: the played move allows a forced mate in
+  `matedIn` ≤ `settings.mate.allowedMaxMoves` (3) moves that the best move avoids (or only allows `bestMatedIn` ≥
+  matedIn + `allowedMuchLongerBy` (3) moves later) → label at least Blunder, even when win% was already ~0 (the
+  clamp makes −10 and "mated" equal). `labelReason.missedMate?: MissedMate` = `{ mateIn }`: the best move mated in
+  ≤ `settings.mate.missedMaxMoves` (3) and the played move doesn't force mate → at least Miss (a Blunder stays).
+  Neither applies to the engine's #1 move, a checkmating move or a single legal move. `labelReason.miss` keeps its
+  meaning (the "punish the opponent's mistake" rule only).
+- `MaterialCheck.hung` now names only a piece that is en prise **right after the move** (on its square, untouched by
+  the line until captured, opponent SEE > 0) and `MaterialCheck.hungLoss` is its static-exchange loss (the same number
+  as the Immediate `hangs` fact; `loss` stays the line-based comparison); `MaterialCheck.lostInLine?: LostPiece[]` (`PieceRef & { ply }`, ply 1 =
+  the move, 2 = the reply, …) lists the mover's pieces lost in losing exchanges of the line, first lost first (when
+  `hung` is absent the loss happens in the follow-up; labelText names a hanging piece only from the verified
+  Immediate `hangs` fact, see the M5 pass below).
+- `labelText` (explain.ts, minimal M3 change): "Blunder ?? — this allows a forced mate in 2. Black was already losing,
+  but Qxd7 would have avoided it — watch for mating threats." / "Miss — Qh5 was a forced mate in 2, and this move
+  doesn't force mate (−3% winning chances)."
+- Great exclusions (classify.ts `isGreat`; settings `great.maxLegalMovesInCheck` (3), `great.freeCaptureMinGain`
+  (1)): besides take-backs, no Great for a check evasion with ≤ 3 legal moves, a capture whose SEE alone wins ≥ 1,
+  or the move right after an opponent move that was their only legal move (continuation of a combination).
+  Settings change: `great.maxWinAfterBest` 97 → 70 (with `throwsAwayWinBelow` 70): when already winning, Great only
+  if the 2nd best throws the win away.
+- `analysis/label.ts`: `labelMove(settings, search, input)` = searches 1/1b/6 + `classifyMove` (moved out of
+  analyzeMove, which calls it first); the label benchmark (`bench/label-benchmark.ts`) calls the same function.
+  Optional search 7 (`settings.budget.verify`, **off by default**, `margin` 0): when winLoss is within `margin` win% of
+  a label bound, re-search `[best, played]` (or `[best, 2nd]` for Great) with MultiPV 2 at deep depth + 2 and label from
+  that. Measured: it barely reduces run-to-run flips (see bench/reports/labels.md), so it stays off.
+- Material rule (M3 fixes): the baseline after an opponent capture is raised only by what the exchange on that
+  square can win back (`materialBaseline`); when the best move is already ≤ −`material.lostPositionCp` (900) or mated,
+  only a piece the move itself leaves hanging fires the rule (`hung` and not `hungAlready`). New settings
+  `material.lostPositionCp`, `mate.*`, `great.maxLegalMovesInCheck`, `great.freeCaptureMinGain`, `budget.verify`.
+- Label benchmark: `npx tsx bench/label-benchmark.ts run|report` → bench/reports/labels.md (+ labels-details.md);
+  hand verdicts in bench/labels.eyeball.json, hand-written analysis in bench/labels.analysis.md.
 
 ## Facts → text, suggestions (M2)
 

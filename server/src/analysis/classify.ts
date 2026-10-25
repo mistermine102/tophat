@@ -8,11 +8,13 @@
 //    to +-1000, mate for the mover = +1000 cp, mated = -1000 cp.
 //  - Each rule is documented once, at the function that implements it.
 
-import type { Color, Label, MaterialCheck, MoveAnalysis, PieceRef, Score } from '@chess-coach/shared';
+import type { AllowedMate, Color, Label, LostPiece, MaterialCheck, MissedMate, MoveAnalysis, PieceRef, Score } from '@chess-coach/shared';
 import { type AnalysisSettings, winPercentFromScore } from '@chess-coach/shared';
 import { normalizeMove } from 'chessops/chess';
 import type { NormalMove } from 'chessops/types';
-import { parseUci } from 'chessops/util';
+import { parseSquare, parseUci } from 'chessops/util';
+import { hangingLoss, see, seeMove } from '../chess/see';
+import { makeBoardFen } from 'chessops/fen';
 import { type LineMaterialResult, type LineMove, lineMaterial, materialBalance, PIECE_VALUES, positionFromFen } from '../chess/material';
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -207,8 +209,10 @@ const moverMates = (line: LineMaterialResult, score: Score) => line.mate === 'mo
  *   point with `lineMaterial` (`settings.material.quietHorizonPlies` plies, extended through captures and
  *   promotions) and the mover's material balance there is taken.
  * - Reference = the best line's balance, capped at the *baseline* = the material the mover already has: the
- *   balance at fenBefore, or — if the opponent's previous move changed it (e.g. they just captured and a
- *   recapture is pending) — the higher balance before that move (`prevFenBefore`). The cap means a material
+ *   balance at fenBefore, or — if the opponent's previous move changed it and a recapture is pending — the higher
+ *   balance before that move (`prevFenBefore`), but only as far as the exchange on that square can win it back
+ *   (see `materialBaseline`; M3 fix: 42.Kxe3 taking a queen that can't be recaptured left the old baseline in
+ *   place, so every later move "threw away" 8 pawns). The cap means a material
  *   *gain* the played move fails to make (not taking a hanging piece) is not counted as material thrown away;
  *   that is the job of the win-chance label and Miss. (Interpretation: SPEC compares with the best line directly,
  *   which would turn every missed free piece into a "material" Blunder and make Miss unreachable.)
@@ -224,7 +228,14 @@ const moverMates = (line: LineMaterialResult, score: Score) => line.mate === 'mo
  *   else `loss >= mistakeMinLoss` (2) and `evalDropCp >= mistakeMinEvalDropCp` (150) -> at least Mistake.
  *   The eval-drop guard exempts correct sacrifices (material goes, eval doesn't); even trades lose no material.
  * - A played move that still forces mate is never flagged (material is irrelevant when you mate).
- * - `hung`: best-effort, the mover's piece that is first captured for nothing in the played line (see `findHung`).
+ * - Already lost (M3): when even the best move leaves the mover at <= -`material.lostPositionCp` (9 pawns, win% <= 3.5) or
+ *   mated, the rule fires only for a piece the move leaves hanging (`hung`, not `hungAlready`). In a lost position the winning side
+ *   has many winning plans and its PV picks one arbitrarily, so the material difference between two lines measured
+ *   12 plies deep is noise (benchmark: promotion races in dead-lost pawn endings, spite checks in the PV) —
+ *   whereas leaving a piece en prise is still the habit to fix.
+ * - `lostInLine` (when loss > 0): the mover's pieces lost for nothing in the played line, with the ply (see
+ *   `lostInLine`); `hung`: one of them that is en prise right after the move (see `findHung`), else absent;
+ *   `hungLoss`: its static-exchange loss (`hungSeeLoss`, = the Immediate 'hangs' number).
  */
 export function materialCheck(input: MaterialCheckInput, settings: AnalysisSettings): MaterialCheck {
   const m = settings.material;
@@ -233,16 +244,7 @@ export function materialCheck(input: MaterialCheckInput, settings: AnalysisSetti
   const best = lineMaterial(input.fenBefore, input.bestPv, opts);
   const evalDropCp = guardCp(input.bestScore) - guardCp(input.playedScore);
 
-  let baseline = played.startBalance;
-  if (input.prevFenBefore) {
-    try {
-      const prevPos = positionFromFen(input.prevFenBefore);
-      // the previous move was the opponent's: at prevFenBefore the opponent is to move
-      if (prevPos.turn !== played.mover) baseline = Math.max(baseline, materialBalance(prevPos.board, played.mover));
-    } catch {
-      // ignore an unusable prevFenBefore
-    }
-  }
+  const baseline = input.prevFenBefore ? materialBaseline(input.fenBefore, input.prevFenBefore, played.startBalance) : played.startBalance;
 
   const reference = moverMates(best, input.bestScore) ? baseline : Math.min(best.balance, baseline);
   if (moverMates(played, input.playedScore)) {
@@ -253,19 +255,64 @@ export function materialCheck(input: MaterialCheckInput, settings: AnalysisSetti
   if (loss >= m.blunderMinLoss && evalDropCp >= m.blunderMinEvalDropCp) result.label = 'blunder';
   else if (loss >= m.mistakeMinLoss && evalDropCp >= m.mistakeMinEvalDropCp) result.label = 'mistake';
   if (loss > 0) {
-    const hung = findHung(played.moves, played.mover);
-    if (hung) result.hung = hung;
+    const lost = lostInLine(played.moves, played.mover);
+    if (lost.length) result.lostInLine = lost;
+    const hung = findHung(input.fenBefore, played.moves, played.mover, lost);
+    if (hung) {
+      result.hung = hung;
+      const hl = hungSeeLoss(input.fenBefore, input.playedPv[0]!, hung.square);
+      if (hl > 0) result.hungLoss = hl;
+      if (wasHangingBefore(input.fenBefore, input.playedPv[0]!, hung.square)) result.hungAlready = true;
+    }
   }
+  // already lost: only a piece the move itself leaves hanging counts (see the doc comment)
+  if (result.label && !(result.hung && !result.hungAlready) && guardCp(input.bestScore) <= -m.lostPositionCp) delete result.label;
   return result;
 }
 
 /**
- * Best-effort "hung piece" of a line. The line is split into exchanges = maximal runs of consecutive captures
- * landing on the same square. The first exchange in which the opponent captures a mover's piece and the mover
- * comes out behind (net material < 0) gives the hung piece: the first mover piece captured in it.
- * (An even trade such as Qxd8 Rxd8 nets 0 and is not a hung piece; Qxd5 exd5 nets -8 and hangs the queen.)
+ * Material baseline for the material rule: the mover's balance now, raised towards the balance before the
+ * opponent's previous move only by what the mover can win back on that move's destination square (static
+ * exchange `see`, mover to move). A capture that can be recaptured keeps the mover's entitlement (QxP, PxQ
+ * pending: baseline = before); a capture that can't be answered (the king took an undefended queen) doesn't.
  */
-export function findHung(moves: readonly LineMove[], mover: Color): PieceRef | undefined {
+export function materialBaseline(fenBefore: string, prevFenBefore: string, balanceNow: number): number {
+  try {
+    const pos = positionFromFen(fenBefore);
+    const prevPos = positionFromFen(prevFenBefore);
+    // the previous move was the opponent's: at prevFenBefore the opponent is to move
+    if (prevPos.turn === pos.turn) return balanceNow;
+    const prevBalance = materialBalance(prevPos.board, pos.turn);
+    if (prevBalance <= balanceNow) return balanceNow;
+    // the opponent's move: the legal move from prevFenBefore that reaches fenBefore's board
+    const target = makeBoardFen(pos.board);
+    for (const [from, dests] of prevPos.allDests()) {
+      for (const to of dests) {
+        const promos = prevPos.board.pawn.has(from) && (to >> 3 === 0 || to >> 3 === 7) ? (['queen', 'rook', 'bishop', 'knight'] as const) : [undefined];
+        for (const promotion of promos) {
+          const next = prevPos.clone();
+          next.play(promotion ? { from, to, promotion } : { from, to });
+          if (makeBoardFen(next.board) !== target) continue;
+          const sq = next.board.get(to) ? to : undefined;
+          const winBack = sq === undefined ? 0 : see(pos, sq, pos.turn);
+          return Math.max(balanceNow, Math.min(prevBalance, balanceNow + winBack));
+        }
+      }
+    }
+    return balanceNow;
+  } catch {
+    return balanceNow; // an unusable prevFenBefore
+  }
+}
+
+/**
+ * The mover's pieces lost in a line. The line is split into exchanges = maximal runs of consecutive captures
+ * landing on the same square. Every exchange in which the opponent captures a mover's piece and the mover comes
+ * out behind (net material < 0) contributes its first captured mover piece, with the line ply of that capture
+ * and the square it was captured on. (An even trade such as Qxd8 Rxd8 nets 0; Qxd5 exd5 nets -8 and loses the queen.)
+ */
+export function lostInLine(moves: readonly LineMove[], mover: Color): LostPiece[] {
+  const out: LostPiece[] = [];
   let i = 0;
   while (i < moves.length) {
     if (!moves[i]!.captured) {
@@ -274,7 +321,7 @@ export function findHung(moves: readonly LineMove[], mover: Color): PieceRef | u
     }
     const to = moves[i]!.uci.slice(2, 4);
     let net = 0;
-    let first: PieceRef | undefined;
+    let first: LostPiece | undefined;
     let j = i;
     for (; j < moves.length; j++) {
       const mv = moves[j]!;
@@ -283,13 +330,64 @@ export function findHung(moves: readonly LineMove[], mover: Color): PieceRef | u
         net += PIECE_VALUES[mv.captured.role];
       } else {
         net -= PIECE_VALUES[mv.captured.role];
-        first ??= { role: mv.captured.role, square: mv.captured.square, color: mover };
+        first ??= { role: mv.captured.role, square: mv.captured.square, color: mover, ply: mv.ply };
       }
     }
-    if (first && net < 0) return first;
+    if (first && net < 0) out.push(first);
     i = j;
   }
+  return out;
+}
+
+/**
+ * The "hung" piece of a line: a lost piece (`lostInLine`) that is en prise RIGHT AFTER the move — it stands on the
+ * square where it is later captured, untouched by the line until then, and the opponent's SEE against it is > 0 in
+ * the position after the move. A piece that only becomes loose later in the line (it moves there, or a defender is
+ * deflected first) is not "hung" — the loss happens in the follow-up, and `MaterialCheck.lostInLine` says so.
+ * (M3 fix: before, the first lost piece of the whole line was called hung, e.g. Opera game 10...cxb5 "leaves the
+ * knight on d7 hanging" for a knight that only reached d7 three moves later.)
+ */
+export function findHung(fenBefore: string, moves: readonly LineMove[], mover: Color, lost: readonly LostPiece[] = lostInLine(moves, mover)): PieceRef | undefined {
+  if (moves.length === 0) return undefined;
+  const pos = positionFromFen(fenBefore);
+  const first = parseUci(moves[0]!.uci);
+  if (!first || !pos.isLegal(first)) return undefined;
+  pos.play(normalizeMove(pos, first));
+  for (const l of lost) {
+    const sq = parseSquare(l.square);
+    if (sq === undefined) continue;
+    const piece = pos.board.get(sq);
+    if (!piece || piece.color !== mover || piece.role !== l.role) continue;
+    // the piece must stand there untouched from the move until it is captured
+    const touched = moves.some((m) => m.ply > 1 && m.ply < l.ply && (m.uci.slice(0, 2) === l.square || m.uci.slice(2, 4) === l.square));
+    if (touched) continue;
+    if (hangingLoss(pos, sq) > 0) return { role: l.role, square: l.square, color: mover };
+  }
   return undefined;
+}
+
+/** The piece on `square` after the move stood there before the move (it isn't the moved piece) and was en prise already. */
+export function wasHangingBefore(fenBefore: string, uci: string, square: string): boolean {
+  if (uci.slice(2, 4) === square || uci.slice(0, 2) === square) return false;
+  const sq = parseSquare(square);
+  if (sq === undefined) return false;
+  return hangingLoss(positionFromFen(fenBefore), sq) > 0;
+}
+
+/**
+ * Static-exchange loss of the hung piece right after the move — the same number as the Immediate 'hangs' fact
+ * (facts/immediate.ts): for the moved piece the move's net SEE (`-seeMove`, so a capture's gain is counted), for
+ * another piece the opponent's SEE against it. MaterialCheck.loss is the line-based comparison with the best move
+ * and can differ (the line may win something back, or lose more).
+ */
+export function hungSeeLoss(fenBefore: string, uci: string, square: string): number {
+  const pos = positionFromFen(fenBefore);
+  const move = parseUci(uci);
+  if (!move || !('from' in move) || !pos.isLegal(move)) return 0;
+  if (uci.slice(2, 4) === square) return Math.max(0, -seeMove(pos, uci));
+  pos.play(normalizeMove(pos, move));
+  const sq = parseSquare(square);
+  return sq === undefined ? 0 : hangingLoss(pos, sq);
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -301,9 +399,16 @@ export function findHung(moves: readonly LineMove[], mover: Color): PieceRef | u
  * after the best move within [great.minWinAfterBest, great.maxWinAfterBest], or the 2nd best throws away a win
  * (win% after best >= maxWinAfterBest and win% after 2nd best < great.throwsAwayWinBelow). Requires
  * >= great.minLegalMoves legal moves.
- * Interpretation (not in SPEC): an obvious take-back — the played move captures on the square the opponent's
- * previous move just landed on (recapture, or taking the piece that just moved) — is not Great: it is "only move"
- * by the numbers, but praising every recapture would drown the label. Needs `prev.uci`.
+ * Interpretation (not in SPEC): obvious only-moves are not Great — they are "only move" by the numbers, but
+ * praising them would drown the label (chess.com gives Great rarely; M3 benchmark: 60 Lichess games). Excluded:
+ *  - a take-back: the played move captures on the square the opponent's previous move just landed on (recapture,
+ *    or taking the piece that just moved). Needs `prev.uci`.
+ *  - a check evasion with few options: in check with <= `great.maxLegalMovesInCheck` (3) legal moves.
+ *  - grabbing free material: a capture whose static exchange alone wins >= `great.freeCaptureMinGain` (1) pawn
+ *    (`seeMove`), e.g. taking a hanging piece or a free pawn. A capture that only works tactically (SEE <= 0)
+ *    can still be Great.
+ *  - the continuation of a combination: the opponent's previous move was their only legal move (`prev.fenBefore`),
+ *    so this position was already on the board when the mover chose the previous move.
  * Returns the 2nd best's winLoss if Great, else null.
  */
 function isGreat(input: ClassifyInput, playedIsBest: boolean, winBest: number, settings: AnalysisSettings): number | null {
@@ -317,6 +422,10 @@ function isGreat(input: ClassifyInput, playedIsBest: boolean, winBest: number, s
   const throwsAwayWin = winBest >= g.maxWinAfterBest && winSecond < g.throwsAwayWinBelow;
   if (!undecided && !throwsAwayWin) return null;
   if (input.prev?.uci && isTakeBack(input.fenBefore, input.played.uci, input.prev.uci)) return null;
+  const pos = positionFromFen(input.fenBefore);
+  if (pos.isCheck() && input.legalMoveCount <= g.maxLegalMovesInCheck) return null;
+  if (seeMove(pos, input.played.uci) >= g.freeCaptureMinGain) return null;
+  if (input.prev?.fenBefore && countLegalMoves(input.prev.fenBefore) === 1) return null;
   return secondBestLoss;
 }
 
@@ -347,6 +456,34 @@ function missApplies(prev: PrevMoveContext | null | undefined, winBest: number, 
   return winLoss > r.playedMinLoss;
 }
 
+/**
+ * Mate rules (M3, user requirement — same philosophy as the material rule: honest labels for bad habits even when
+ * the position is already decided, where the win% clamp hides everything). Only for a played move that isn't the
+ * engine's #1 move and doesn't itself deliver mate; scores are the deep scores, mover POV.
+ * - **Allowed mate**: the played move's score is mated-in-n with n <= `mate.allowedMaxMoves` (3) and the best
+ *   move is not mated, or only in m >= n + `mate.allowedMuchLongerBy` (3) moves -> at least **Blunder**.
+ *   E.g. Opera game 15...Nxd7?? (mate in 2: 16.Qb8+! Nxb8 17.Rd8#) when 15...Qxd7 (-10) avoids mate: both are ~2 %
+ *   by win chance (clamped to -1000 cp), so it used to be Best. "Much longer" (not just "longer"): when every move
+ *   gets mated soon, choosing the mate in 2 over a mate in 3 is not a habit worth a Blunder.
+ * - **Missed mate**: the best move mates in n <= `mate.missedMaxMoves` (3) and the played move's score is not a
+ *   forced mate for the mover -> at least **Miss** (a Blunder stays a Blunder). A slower mate is not missed.
+ */
+export function mateRules(input: ClassifyInput, settings: AnalysisSettings): { allowedMate?: AllowedMate; missedMate?: MissedMate } {
+  const r = settings.mate;
+  const out: { allowedMate?: AllowedMate; missedMate?: MissedMate } = {};
+  const pm = input.played.score.mate;
+  const bm = input.best.score.mate;
+  if (pm !== undefined && pm <= 0) {
+    const n = Math.max(1, -pm); // mate: 0 here would mean mated on the board; treat as mate in 1
+    const bestMated = bm !== undefined && bm <= 0 ? Math.max(1, -bm) : undefined;
+    if (n <= r.allowedMaxMoves && (bestMated === undefined || bestMated >= n + r.allowedMuchLongerBy)) {
+      out.allowedMate = { matedIn: n, ...(bestMated !== undefined ? { bestMatedIn: bestMated } : {}) };
+    }
+  }
+  if (bm !== undefined && bm > 0 && bm <= r.missedMaxMoves && !(pm !== undefined && pm > 0)) out.missedMate = { mateIn: bm };
+  return out;
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // classifyMove
 
@@ -360,7 +497,9 @@ function missApplies(prev: PrevMoveContext | null | undefined, winBest: number, 
  *     is classified by the win% that remains; in lost positions the clamp keeps losses small.
  *  4. **Great** (`isGreat`) upgrades Best; **Miss** (`missApplies`) replaces Inaccuracy/Mistake.
  *  5. **Material rule** (`materialCheck`, skipped when the played move is the best move): the final label is the
- *     worse of 4. and the material label (`LABEL_SEVERITY`).
+ *     worse of 4. and the material label (`LABEL_SEVERITY`). Then the **mate rules** (`mateRules`, same skip): an
+ *     allowed short mate -> at least Blunder (`labelReason.allowedMate`), a missed short mate -> at least Miss
+ *     (`labelReason.missedMate`).
  *  6. **Book** — SPEC: the position after the move is in the opening book and every earlier move was book
  *     (`book.after`, `book.beforeIsStartOrBook`, `book.earlierMovesAllBook !== false`). Interpretation: the Lichess
  *     list also names traps and their victims' moves (e.g. "Barnes Opening: Fool's Mate" 2.g4?? Qh4#, "Noah's Ark
@@ -413,6 +552,15 @@ export function classifyMove(input: ClassifyInput, settings: AnalysisSettings): 
     );
     reason.material = material;
     label = worseLabel(label, material.label);
+    const mate = mateRules(input, settings);
+    if (mate.allowedMate) {
+      reason.allowedMate = mate.allowedMate;
+      label = worseLabel(label, 'blunder');
+    }
+    if (mate.missedMate) {
+      reason.missedMate = mate.missedMate;
+      label = worseLabel(label, 'miss');
+    }
   }
 
   const book = input.book;

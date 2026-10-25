@@ -7,6 +7,9 @@ import {
   classifyMove,
   countLegalMoves,
   findHung,
+  lostInLine,
+  hungSeeLoss,
+  materialBaseline,
   guardCp,
   labelFromWinLoss,
   materialCheck,
@@ -157,18 +160,53 @@ describe('classifyMove: mate scores', () => {
     const r = classifyMove(mkInput({ best: line('d2d4', { mate: 2 }), played: line('e2e4', { mate: 9 }) }), S);
     expect(r).toMatchObject({ label: 'best', winLoss: 0 });
   });
-  it('had mate and lost it -> classified by the remaining win%', () => {
-    expect(classifyMove(mkInput({ best: line('d2d4', { mate: 3 }), played: line('e2e4', { cp: 900 }) }), S).label).toBe('excellent');
-    expect(classifyMove(mkInput({ best: line('d2d4', { mate: 3 }), played: line('e2e4', { cp: 500 }) }), S).label).toBe('mistake');
-    expect(classifyMove(mkInput({ best: line('d2d4', { mate: 3 }), played: line('e2e4', { cp: 0 }) }), S).label).toBe('blunder');
+  it('had a long mate and lost it -> classified by the remaining win%', () => {
+    expect(classifyMove(mkInput({ best: line('d2d4', { mate: 5 }), played: line('e2e4', { cp: 900 }) }), S).label).toBe('excellent');
+    expect(classifyMove(mkInput({ best: line('d2d4', { mate: 5 }), played: line('e2e4', { cp: 500 }) }), S).label).toBe('mistake');
+    expect(classifyMove(mkInput({ best: line('d2d4', { mate: 5 }), played: line('e2e4', { cp: 0 }) }), S).label).toBe('blunder');
+  });
+  it('missed mate: had mate in <= 3 and played a non-mating move -> at least Miss (Blunder stays)', () => {
+    const r = classifyMove(mkInput({ best: line('d2d4', { mate: 3 }), played: line('e2e4', { cp: 900 }) }), S);
+    expect(r).toMatchObject({ label: 'miss', labelReason: { winChance: 'excellent', missedMate: { mateIn: 3 } } });
+    expect(r.labelReason.miss).toBeUndefined(); // the "punish the opponent's mistake" Miss is a different rule
+    expect(classifyMove(mkInput({ best: line('d2d4', { mate: 1 }), played: line('e2e4', { cp: 500 }) }), S).label).toBe('miss');
+    const b = classifyMove(mkInput({ best: line('d2d4', { mate: 2 }), played: line('e2e4', { cp: 0 }) }), S);
+    expect(b).toMatchObject({ label: 'blunder', labelReason: { missedMate: { mateIn: 2 } } });
+    // a slower mate is not a missed mate; neither is a mate in 4 (outside missedMaxMoves)
+    expect(classifyMove(mkInput({ best: line('d2d4', { mate: 1 }), played: line('e2e4', { mate: 6 }) }), S).labelReason.missedMate).toBeUndefined();
+    expect(classifyMove(mkInput({ best: line('d2d4', { mate: 4 }), played: line('e2e4', { cp: 900 }) }), S).labelReason.missedMate).toBeUndefined();
+    // setting
+    const s5 = withSettings((x) => (x.mate.missedMaxMoves = 5));
+    expect(classifyMove(mkInput({ best: line('d2d4', { mate: 5 }), played: line('e2e4', { cp: 900 }) }), s5).label).toBe('miss');
   });
   it('allowing a mate is a Blunder', () => {
     const r = classifyMove(mkInput({ best: line('d2d4', { cp: 50 }), played: line('e2e4', { mate: -3 }) }), S);
     expect(r.label).toBe('blunder');
   });
-  it('getting mated faster when mated anyway is Best', () => {
-    const r = classifyMove(mkInput({ best: line('d2d4', { mate: -8 }), played: line('e2e4', { mate: -2 }) }), S);
+  it('getting mated a little faster when mated anyway is Best (no allowed-mate: not "much" longer)', () => {
+    const r = classifyMove(mkInput({ best: line('d2d4', { mate: -4 }), played: line('e2e4', { mate: -2 }) }), S);
     expect(r).toMatchObject({ label: 'best', winLoss: 0 });
+    expect(r.labelReason.allowedMate).toBeUndefined();
+    // a long forced mate against the mover is "allowed" by any move
+    expect(classifyMove(mkInput({ best: line('d2d4', { mate: -8 }), played: line('e2e4', { mate: -6 }) }), S).label).toBe('best');
+  });
+  it('allowed mate: a mate in <= 3 the best move avoids (or delays by >= 3 moves) -> Blunder even at ~0 %', () => {
+    // already totally lost by win% (-10 vs mated: both ~2.5 %), but the move walks into mate in 2
+    const r = classifyMove(mkInput({ best: line('d2d4', { cp: -1010 }), played: line('e2e4', { mate: -2 }) }), S);
+    expect(r).toMatchObject({ label: 'blunder', labelReason: { winChance: 'best', allowedMate: { matedIn: 2 } } });
+    expect(r.winLoss).toBeLessThan(0.5);
+    // the best move is mated too, but much later
+    const l = classifyMove(mkInput({ best: line('d2d4', { mate: -8 }), played: line('e2e4', { mate: -2 }) }), S);
+    expect(l).toMatchObject({ label: 'blunder', labelReason: { allowedMate: { matedIn: 2, bestMatedIn: 8 } } });
+    // mate in 4 is outside allowedMaxMoves (3): win% decides
+    expect(classifyMove(mkInput({ best: line('d2d4', { cp: -1010 }), played: line('e2e4', { mate: -4 }) }), S).label).toBe('best');
+    // the engine's own #1 move is never "allowing" (every move is at least as bad)
+    const own = classifyMove(mkInput({ best: line('e2e4', { mate: -1 }), played: line('e2e4', { mate: -1 }), playedIsBest: true }), S);
+    expect(own.label).toBe('best');
+    // a single legal move stays Forced
+    expect(classifyMove(mkInput({ legalMoveCount: 1, best: line('d2d4', { cp: -1010 }), played: line('e2e4', { mate: -1 }) }), S).label).toBe('forced');
+    const s2 = withSettings((x) => (x.mate.allowedMaxMoves = 1));
+    expect(classifyMove(mkInput({ best: line('d2d4', { cp: -1010 }), played: line('e2e4', { mate: -2 }) }), s2).label).toBe('best');
   });
   it('a move that delivers checkmate is Best, whatever the engine data says', () => {
     const fen = '6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1';
@@ -225,9 +263,39 @@ describe('classifyMove: Great', () => {
       classifyMove(mkInput({ played: line('e2e4', scoreForWin(wb)), best: line('e2e4', scoreForWin(wb)), playedIsBest: true, second: line('d2d4', scoreForWin(ws)) }), s).label;
     expect(g(20.001, 5)).toBe('great');
     expect(g(19.999, 5)).toBe('best'); // already lost: the choice is irrelevant
-    expect(great(96.999, 80).label).toBe('great');
+    expect(great(69.999, 55).label).toBe('great');
+    // M3: winning (>= 70 after the best move) and still winning after the 2nd best -> the choice doesn't change the result
+    expect(great(94, 82).label).toBe('best');
+    expect(great(94, 69.9).label).toBe('great'); // ... unless the 2nd best throws the win away
   });
-  it('already totally winning: Great only if the 2nd best throws away the win', () => {
+  it('M3: obvious only-moves are not Great (check evasion with <= 3 moves, free capture, combination continuation)', () => {
+    // 11...g6 blocking Qh5+ (3 legal moves; Kd7/Ke7 lose) — vpfyow62
+    const CHECK = 'r2qkbnr/pb4pp/2pp4/4p2Q/B3P3/2N5/PPP3PP/R3K1NR b KQkq - 1 11';
+    const inCheck = (s = S) =>
+      classifyMove(mkInput({ fenBefore: CHECK, legalMoveCount: countLegalMoves(CHECK), played: line('g7g6', { cp: -8 }), best: line('g7g6', { cp: -8 }), playedIsBest: true, second: line('e8d7', { cp: -163 }) }), s);
+    expect(countLegalMoves(CHECK)).toBe(3);
+    expect(inCheck().label).toBe('best');
+    expect(inCheck(withSettings((x) => (x.great.maxLegalMovesInCheck = 2))).label).toBe('great');
+    // taking a hanging knight (SEE +3)
+    const FREE = '4k3/8/8/3n4/8/8/8/3QK3 w - - 0 1';
+    const take = classifyMove(mkInput({ fenBefore: FREE, legalMoveCount: countLegalMoves(FREE), played: line('d1d5', { cp: 600 }), best: line('d1d5', { cp: 600 }), playedIsBest: true, second: line('d1d2', { cp: 0 }) }), S);
+    expect(take.label).toBe('best');
+    // 24.Qe8+ (mate in 2) after the forced 23...Rxd8 — the combination began with 23.Rxd8+ (PuBQ0CoQ)
+    const CONT = '3r2k1/5ppp/p7/8/4Q3/8/q4PPP/4R1K1 w - - 0 24';
+    const prevFen = 'r2R2k1/5ppp/p7/8/4Q3/8/q4PPP/4R1K1 b - - 0 23';
+    expect(countLegalMoves(prevFen)).toBe(1);
+    const cont = (prevFenBefore: string | undefined) =>
+      classifyMove(
+        mkInput({
+          fenBefore: CONT, legalMoveCount: countLegalMoves(CONT), played: line('e4e8', { mate: 2 }), best: line('e4e8', { mate: 2 }), playedIsBest: true, second: line('h2h4', { cp: -16 }),
+          prev: { winLoss: 0, winBefore: 2.5, winAfter: 2.5, uci: 'a8d8', ...(prevFenBefore ? { fenBefore: prevFenBefore } : {}) },
+        }),
+        S,
+      ).label;
+    expect(cont(prevFen)).toBe('best');
+    expect(cont(undefined)).toBe('great'); // (without the context it would be)
+  });
+  it('already winning (>= 70): Great only if the 2nd best throws away the win', () => {
     expect(great(97.5, 80).label).toBe('best'); // still winning after the 2nd best: choice irrelevant
     expect(great(97.5, 70.01).label).toBe('best');
     expect(great(97.5, 69.99).label).toBe('great'); // 2nd best throws away the win
@@ -253,9 +321,11 @@ describe('classifyMove: Great', () => {
       playedIsBest: true,
       second: line('g8f6', { cp: -150 }),
     };
-    expect(classifyMove(mkInput(base), S).label).toBe('great'); // no prev info: the numbers say "only move"
+    const noFree = withSettings((x) => (x.great.freeCaptureMinGain = 99)); // isolate the take-back rule (Qxd5 also wins a pawn)
+    expect(classifyMove(mkInput(base), noFree).label).toBe('great'); // no prev info: the numbers say "only move"
+    expect(classifyMove(mkInput(base), S).label).toBe('best'); // free pawn by SEE
     const prev = { winLoss: 0, winBefore: 50, winAfter: 50, uci: 'e4d5' };
-    expect(classifyMove(mkInput({ ...base, prev }), S).label).toBe('best');
+    expect(classifyMove(mkInput({ ...base, prev }), noFree).label).toBe('best');
     // a non-capturing only move after the same previous move stays Great
     const r = classifyMove(mkInput({ ...base, played: line('g8f6', { cp: 0 }), best: line('g8f6', { cp: 0 }), second: line('d8d5', { cp: -150 }), prev }), S);
     expect(r.label).toBe('great');
@@ -392,18 +462,71 @@ describe('materialCheck (SPEC material rule)', () => {
   });
 });
 
-describe('findHung', () => {
+describe('M3: material baseline and already-lost positions', () => {
+  it('materialBaseline: a pending recapture keeps the entitlement, an unanswerable capture does not', () => {
+    // 1.Qxd5 (Black can recapture exd5): Black's baseline is the balance before the capture
+    expect(materialBaseline('k7/8/4p3/3Q4/8/8/8/4K3 b - - 0 1', 'k7/8/4p3/3p4/8/8/8/3QK3 w - - 0 1', -8)).toBe(-7);
+    // 1.Kxe2 took an undefended queen (regression: 1ciG1v60 42.Kxe3 — every later Black move "threw away" 8)
+    expect(materialBaseline('k7/8/8/8/8/8/4K3/8 b - - 0 1', 'k7/8/8/8/8/8/4q3/4K3 w - - 0 1', 0)).toBe(0);
+    // the opponent's move didn't change the material
+    expect(materialBaseline(after('e2e4 e7e5'), after('e2e4'), 0)).toBe(0);
+  });
+  it('already lost (best <= -10): only a piece hung right after the move fires the rule', () => {
+    // 1.Kg1 lets ...a1=Q, the best line (Kg2) is cut before the promotion: a horizon effect, not thrown material
+    const fen = '7k/8/8/8/8/8/p7/7K w - - 0 1';
+    const mc = (bestCp: number) => materialCheck({ fenBefore: fen, playedPv: ['h1g1', 'a2a1q'], bestPv: ['h1g2'], playedScore: { cp: bestCp - 800 }, bestScore: { cp: bestCp } }, S);
+    expect(mc(-500)).toMatchObject({ loss: 8, label: 'blunder' });
+    expect(mc(-1200).label).toBeUndefined();
+    expect(mc(-1200).loss).toBe(8); // the data is still there
+    // a real hang still counts when lost: 1.Qd5?? exd5 at -12
+    const q = materialCheck({ fenBefore: '4k3/8/4p3/3p4/8/8/8/3QK3 w - - 0 1', playedPv: ['d1d5', 'e6d5'], bestPv: ['e1e2'], playedScore: { cp: -2000 }, bestScore: { cp: -1200 } }, S);
+    expect(q).toMatchObject({ label: 'blunder', hung: { role: 'queen' } });
+  });
+});
+
+describe('findHung / lostInLine', () => {
   const moves = (fen: string, pv: string[]) => lineMaterial(fen, pv, { horizonPlies: 99 }).moves;
+  const hung = (fen: string, pv: string[], mover: 'white' | 'black' = 'white') => findHung(fen, moves(fen, pv), mover);
   it('queen takes a defended pawn -> hung queen', () => {
     const fen = '4k3/8/4p3/3p4/8/8/8/3QK3 w - - 0 1';
-    expect(findHung(moves(fen, ['d1d5', 'e6d5']), 'white')).toEqual({ role: 'queen', square: 'd5', color: 'white' });
+    expect(hung(fen, ['d1d5', 'e6d5'])).toEqual({ role: 'queen', square: 'd5', color: 'white' });
+    expect(lostInLine(moves(fen, ['d1d5', 'e6d5']), 'white')).toEqual([{ role: 'queen', square: 'd5', color: 'white', ply: 2 }]);
+  });
+  it('a quiet move that leaves another piece en prise -> that piece is hung', () => {
+    // 1.Ke2?? leaves the undefended rook on a5 en prise to the black rook (SEE > 0 right after the move)
+    const fen = '4k3/8/8/R6r/8/8/8/4K3 w - - 0 1';
+    expect(hung(fen, ['e1e2', 'h5a5'])).toEqual({ role: 'rook', square: 'a5', color: 'white' });
+  });
+  it('hungSeeLoss / MaterialCheck.hungLoss = the static-exchange number (as the Immediate "hangs" fact)', () => {
+    expect(hungSeeLoss('4k3/8/4p3/3p4/8/8/8/3QK3 w - - 0 1', 'd1d5', 'd5')).toBe(8); // Q for a pawn
+    expect(hungSeeLoss('4k3/8/8/R6r/8/8/8/4K3 w - - 0 1', 'e1e2', 'a5')).toBe(5);
+    const m = materialCheck({ fenBefore: '4k3/8/4p3/3p4/8/8/8/3QK3 w - - 0 1', playedPv: ['d1d5', 'e6d5'], bestPv: ['e1e2'], playedScore: { cp: -800 }, bestScore: { cp: 0 } }, S);
+    expect(m).toMatchObject({ hung: { role: 'queen', square: 'd5' }, hungLoss: 8, loss: 8, label: 'blunder' });
   });
   it('even trades and mover-favourable exchanges are not hung pieces', () => {
-    expect(findHung(moves(TRADE, ['d1d8', 'f8d8', 'a1d1']), 'white')).toBeUndefined();
-    expect(findHung(moves('4k3/8/8/3p4/4P3/8/8/4K3 w - - 0 1', ['e4d5', 'e8d7']), 'white')).toBeUndefined();
+    expect(hung(TRADE, ['d1d8', 'f8d8', 'a1d1'])).toBeUndefined();
+    expect(lostInLine(moves(TRADE, ['d1d8', 'f8d8', 'a1d1']), 'white')).toEqual([]);
+    expect(hung('4k3/8/8/3p4/4P3/8/8/4K3 w - - 0 1', ['e4d5', 'e8d7'])).toBeUndefined();
   });
   it('no captures -> undefined', () => {
-    expect(findHung(moves(INITIAL_FEN, ['e2e4', 'e7e5']), 'white')).toBeUndefined();
+    expect(hung(INITIAL_FEN, ['e2e4', 'e7e5'])).toBeUndefined();
+  });
+  it('regression (Opera game 10...cxb5): a piece lost later in the line is not "hung" right after the move', () => {
+    // 10...cxb5 11.Bxb5+ Kd8 12.O-O-O+ Kc8 13.Rd3 Qb4 14.Rc3+ Nc6 15.Rxc6+: the knight only reaches c6 at ply 9
+    const fen = 'rn2kb1r/p3qppp/2p2n2/1N2p1B1/2B1P3/1Q6/PPP2PPP/R3K2R b KQkq - 0 10';
+    const pv = ['c6b5', 'c4b5', 'e8d8', 'e1c1', 'd8c8', 'd1d3', 'e7b4', 'd3c3', 'b8c6', 'c3c6', 'c8b7', 'b3f7', 'f8e7'];
+    expect(hung(fen, pv, 'black')).toBeUndefined();
+    expect(lostInLine(moves(fen, pv), 'black')).toEqual([{ role: 'knight', square: 'c6', color: 'black', ply: 10 }, { role: 'pawn', square: 'f7', color: 'black', ply: 12 }]);
+    const m = materialCheck({ fenBefore: fen, playedPv: pv, bestPv: ['e7b4', 'b3b4', 'f8b4'], playedScore: { cp: -717 }, bestScore: { cp: -540 } }, S);
+    expect(m.hung).toBeUndefined();
+    expect(m.lostInLine?.[0]).toMatchObject({ role: 'knight', square: 'c6', ply: 10 });
+  });
+  it('a piece that is attacked right after the move but moved before it is lost is not "hung"', () => {
+    // 1.Ke2 (rook a5 en prise) Rh2+ 2.Kd3 ... the rook later goes to a4 and is lost there: lost, but not hung on a4
+    const fen = '4k3/8/8/R6r/8/8/8/4K3 w - - 0 1';
+    const pv = ['e1e2', 'h5h2', 'e2d3', 'h2h3', 'd3c4', 'e8d7', 'a5a4', 'h3h4', 'c4b5', 'h4a4'];
+    expect(hung(fen, pv)).toBeUndefined();
+    expect(lostInLine(moves(fen, pv), 'white')).toEqual([{ role: 'rook', square: 'a4', color: 'white', ply: 10 }]);
   });
 });
 

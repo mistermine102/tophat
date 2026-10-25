@@ -14,20 +14,19 @@
 //      null-move position after the opponent's PV reply -> the 'allows' fact (what the reply threatens)
 //   6. prev      if the previous ply's result isn't supplied: deep (+searchmoves) at prev.fenBefore — the same
 //                searches that ply's own analysis uses (cached), to build the Miss / book-chain context.
-// Classification (classify.ts) gets mover-POV scores from search 1/1b, the previous ply's winLoss/win% (Miss),
-// prev.fenBefore (material baseline), prev.uci (Great take-back rule) and the book chain.
+// Searches 1, 1b, 6 and the classification live in label.ts (`labelMove`), shared with the label benchmark.
 // Explanations: the played move's narration runs on until the material rule's loss is shown (targetDelta), its
 // Immediate level leads with the refutation for bad labels, and the label text says why the best move is better
 // (explain.ts betterReasons, from the best move's own verified facts).
 
 import type { AnalysisSettings, Arrow, Candidate, Color, Fact, Label, MaterialCheck, MoveAnalysis, Score } from '@chess-coach/shared';
 import { ANALYSIS_VERSION, moveAccuracy, toWhitePov, winPercentForColor, winPercentFromScore } from '@chess-coach/shared';
-import { bookInfo } from './book';
-import { type ClassifyInput, type EngineMoveLine, type PrevMoveContext, classifyMove, countLegalMoves, materialCheck, sameMoveUci } from './classify';
+import { materialCheck, sameMoveUci } from './classify';
 import { BAD_LABELS, betterReasons, labelText, renderExplanation, verdictText } from './explain';
+import { type PrevResult, deepParams as labelDeepParams, labelMove } from './label';
 import { type SearchParams, type Searcher, SearchCache } from './searchCache';
 import { type ReasonCode, lineDelta, suggest } from './suggest';
-import { legalMove as legalMoveAt, legalPrefix, normalizeFen, playMove, positionStatus, pvToSan, uciSquares } from '../chess/notation';
+import { legalMove as legalMoveAt, legalPrefix, playMove, positionStatus, pvToSan, uciSquares } from '../chess/notation';
 import { hangingLoss, seeMove } from '../chess/see';
 import { parseSquare } from 'chessops/util';
 import type { PvLine, SearchResult } from '../engine/uci';
@@ -42,11 +41,7 @@ export interface AnalyzeContext {
   settings: AnalysisSettings;
 }
 
-export interface PrevResult {
-  winLoss: number;
-  winBefore: number;
-  label: Label;
-}
+export type { PrevResult };
 
 export interface PrevInput {
   fenBefore: string;
@@ -97,26 +92,12 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
     else timings[name] = Math.round((timings[name] ?? 0) + (now() - t));
     return o.result;
   };
-  const deepParams: SearchParams = { depth: B.deep.depth, multipv: B.deep.multipv, maxMs: B.deep.maxMs };
+  const deepParams: SearchParams = labelDeepParams(settings); // = the next ply's deep search (label.ts)
 
-  const fen = normalizeFen(input.fenBefore);
-  const played = playMove(fen, input.uci);
-  const mover: Color = played.color;
+  // 1. + 6. + classification (label.ts: deep, searchmoves, previous-move context, classifyMove)
+  const lw = await labelMove(settings, search, input);
+  const { fen, played, mover, legalMoves, prevMove, lines, best, playedLine, cr } = lw;
   const opp: Color = mover === 'white' ? 'black' : 'white';
-  const legalMoves = countLegalMoves(fen);
-  const prevMove = input.prev ? { fenBefore: normalizeFen(input.prev.fenBefore), uci: input.prev.uci } : null;
-
-  // 1. deep search + played line
-  const deep = await search('deep', fen, deepParams);
-  const lines = deep.lines.filter((l) => legalPrefix(fen, [l.move]).length === 1);
-  if (lines.length === 0) throw new Error(`engine returned no lines for ${fen}`);
-  const best = lines[0]!;
-  let playedLine: PvLine | undefined = lines.find((l) => sameMoveUci(fen, l.move, played.uci));
-  if (!playedLine) {
-    const r = await search('searchmoves', fen, { depth: B.deep.depth, multipv: 1, maxMs: B.deep.maxMs, searchmoves: [played.uci] });
-    playedLine = r.lines[0];
-    if (!playedLine) throw new Error(`searchmoves ${played.uci} returned nothing in ${fen}`);
-  }
 
   // 2. evaluation after the move (= next ply's deep search)
   const status = positionStatus(played.fenAfter);
@@ -128,27 +109,6 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
     const s = after.lines[0]?.score;
     evalAfter = s ? toWhitePov(s, opp) : toWhitePov(playedLine.score, mover);
   }
-
-  // 6. previous move context
-  const tPrev = now();
-  const prevInfo = prevMove ? await prevContext(ctx, search, prevMove, fen, input.prev?.result ?? null, input.earlierMovesAllBook) : null;
-  timings.prevTotal = Math.round(now() - tPrev);
-
-  // classification
-  const info = bookInfo(fen, played.fenAfter);
-  const chain = input.earlierMovesAllBook !== false && (prevInfo?.label === undefined || prevInfo.label === 'book');
-  const toLine = (l: PvLine): EngineMoveLine => ({ uci: l.move, score: l.score, pv: l.pv });
-  const classifyInput: ClassifyInput = {
-    fenBefore: fen,
-    legalMoveCount: legalMoves,
-    played: toLine(playedLine),
-    playedIsBest: sameMoveUci(fen, best.move, played.uci),
-    best: toLine(best),
-    second: lines[1] ? toLine(lines[1]) : null,
-    book: { after: info.after, beforeIsStartOrBook: info.beforeIsStartOrBook, earlierMovesAllBook: chain },
-    prev: prevInfo?.ctx ?? null,
-  };
-  const cr = classifyMove(classifyInput, settings);
 
   // 3. shallow search
   const shallow = await search('shallow', fen, { depth: B.shallow.depth, multipv: B.shallow.multipv, maxMs: B.shallow.maxMs });
@@ -441,47 +401,5 @@ function pruneRefuted(facts: Fact[], uci: string, reply: string | undefined): Fa
   return facts.filter((f) => !(f.type === 'attack' && f.attacker.square === to));
 }
 
-type SearchFn = (name: string, fen: string, p: SearchParams) => Promise<SearchResult>;
-
-/** Previous-move context for classify (Miss, baseline, take-back) and its label (book chain). */
-async function prevContext(
-  ctx: AnalyzeContext,
-  search: SearchFn,
-  prev: { fenBefore: string; uci: string },
-  fenNow: string,
-  known: PrevResult | null,
-  earlierMovesAllBook: boolean | undefined,
-): Promise<{ ctx: PrevMoveContext; label?: Label }> {
-  if (known) {
-    return { ctx: { winLoss: known.winLoss, winBefore: known.winBefore, winAfter: known.winBefore - known.winLoss, fenBefore: prev.fenBefore, uci: prev.uci }, label: known.label };
-  }
-  const B = ctx.settings.budget;
-  const p = playMove(prev.fenBefore, prev.uci);
-  if (normalizeFen(p.fenAfter) !== fenNow) throw new Error(`prev move ${prev.uci} does not lead to ${fenNow}`);
-  const deep = await search('prev', prev.fenBefore, { depth: B.deep.depth, multipv: B.deep.multipv, maxMs: B.deep.maxMs });
-  const best = deep.lines[0];
-  if (!best) throw new Error(`engine returned no lines for ${prev.fenBefore}`);
-  let line = deep.lines.find((l) => sameMoveUci(prev.fenBefore, l.move, p.uci));
-  if (!line) {
-    const r = await search('prev', prev.fenBefore, { depth: B.deep.depth, multipv: 1, maxMs: B.deep.maxMs, searchmoves: [p.uci] });
-    line = r.lines[0];
-    if (!line) throw new Error(`searchmoves ${p.uci} returned nothing in ${prev.fenBefore}`);
-  }
-  const info = bookInfo(prev.fenBefore, p.fenAfter);
-  const cr = classifyMove(
-    {
-      fenBefore: prev.fenBefore,
-      legalMoveCount: countLegalMoves(prev.fenBefore),
-      played: { uci: line.move, score: line.score, pv: line.pv },
-      playedIsBest: sameMoveUci(prev.fenBefore, best.move, p.uci),
-      best: { uci: best.move, score: best.score, pv: best.pv },
-      second: deep.lines[1] ? { uci: deep.lines[1].move, score: deep.lines[1].score, pv: deep.lines[1].pv } : null,
-      book: { after: info.after, beforeIsStartOrBook: info.beforeIsStartOrBook, ...(earlierMovesAllBook === false ? { earlierMovesAllBook: false } : {}) },
-      prev: null,
-    },
-    ctx.settings,
-  );
-  return { ctx: { winLoss: cr.winLoss, winBefore: cr.winBest, winAfter: cr.winPlayed, fenBefore: prev.fenBefore, uci: prev.uci }, label: cr.label };
-}
 
 export { SearchCache };

@@ -49,7 +49,7 @@ Labels (thresholds are settings; defaults approximate chess.com's expected-point
 | **Forced** | The played move was the only legal move. |
 | **Book** | Position after the move is in the opening book (Lichess `chess-openings`, CC0) and every earlier move in the game was also book. |
 | **Best** | Played move is the engine's #1 move, or `winLoss ≤ 0.5`. |
-| **Great !** | Played move is Best **and** the engine's 2nd-best move would be a Mistake or worse (`winLoss(2nd) ≥ mistake threshold`) **and** the position wasn't already totally decided in a way that makes the choice irrelevant (mover's win% after best move between 10 and 97, or the 2nd best throws away a win). Requires ≥2 legal moves. |
+| **Great !** | Played move is Best **and** the engine's 2nd-best move would be a Mistake or worse (`winLoss(2nd) ≥ mistake threshold`) **and** the position wasn't already totally decided in a way that makes the choice irrelevant (mover's win% after best move between 10 and 70 — M3: was 97, see below — or the 2nd best throws away a win, i.e. drops below 70). Requires ≥2 legal moves. |
 | **Excellent** | `winLoss ≤ 2` |
 | **Good** | `winLoss ≤ 5` |
 | **Inaccuracy ?!** | `5 < winLoss ≤ 10` |
@@ -66,8 +66,28 @@ a Blunder.
 - Material loss ≥ 3 pawns **and** eval drop ≥ 250 cp (mover POV, clamped) → at least **Blunder**.
 - Material loss ≥ 2 pawns **and** eval drop ≥ 150 cp → at least **Mistake**.
 - The eval-drop guard exempts correct sacrifices (material goes, eval doesn't). Even trades lose no net material.
+- M3 (benchmark-driven): when even the best move leaves the mover totally lost (≤ −9 or mated), only a piece the
+  move itself leaves hanging fires the rule — comparing two of the winner's arbitrary winning lines is noise there.
+  A piece is called "hanging" only if it is en prise right after the move; otherwise the text says the material is
+  lost in the follow-up.
 - The UI states it honestly, e.g. *"Blunder ?? — you left your queen hanging (−9). You're still winning
   (+12.0 → +3.1), but this is the habit to fix."*
+
+**Mate rules (user requirement, same philosophy; added in M3):** honest labels for bad habits even in decided
+positions, where the win% clamp hides everything.
+- **Allowed mate:** the played move allows a forced mate in ≤ 3 moves (setting) that the best move avoids (or only
+  allows a much longer one, ≥ 3 moves longer) → at least **Blunder**, even if win% was already ~0
+  (Opera game 15...Nxd7?? allows 16.Qb8+! Nxb8 17.Rd8#; 15...Qxd7 avoids the mate).
+- **Missed mate:** the mover had a forced mate in ≤ 3 (setting) and played a move that doesn't force mate → at
+  least **Miss** (a Blunder stays a Blunder; a slower mate is not "missed").
+- The UI says it, e.g. *"Blunder ?? — this allows a forced mate in 2. Black was already losing, but Qxd7 would have
+  avoided it — watch for mating threats."*
+
+**Great — obvious only-moves excluded (M3):** when already winning (≥ 70 % after the best move) only a 2nd best that
+throws the win away (< 70 %) makes the move Great — if every reasonable move keeps the win, the choice does not
+change the result (M3 benchmark: e.g. 94 % vs 82 %). Also excluded: recaptures/take-backs, check evasions with ≤ 3
+legal moves, taking free material (the capture's static exchange alone wins material: a hanging piece or a free
+pawn), and the next move of a combination after the opponent had a single legal reply.
 
 Severity order (for "worse of"): Blunder > Miss > Mistake > Inaccuracy > Good > Excellent > Best/Great/Book/Forced.
 
