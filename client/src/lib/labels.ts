@@ -23,8 +23,8 @@ export const LABELS: Record<Label, LabelMeta> = {
   good: { name: 'Good', glyph: '✓', color: '#a3c48a', severity: 2, blurb: 'A solid move, a little worse than the best.', rule: 'Loses at most 5% win chance.' },
   inaccuracy: { name: 'Inaccuracy', glyph: '?!', color: '#facc15', severity: 3, blurb: 'A better move was available.', rule: 'Loses 5–10% win chance.' },
   mistake: { name: 'Mistake', glyph: '?', color: '#fb923c', severity: 4, blurb: 'This gave away a good part of your chances.', rule: 'Loses 10–20% win chance, or gives away 2+ pawns of material for nothing.' },
-  miss: { name: 'Miss', glyph: '✕', color: '#e879f9', severity: 5, blurb: 'Missed the chance to punish the previous move.', rule: 'The opponent just made a mistake and this move let the chance to punish it slip.' },
-  blunder: { name: 'Blunder', glyph: '??', color: '#f43f5e', severity: 6, blurb: 'A serious error.', rule: 'Loses more than 20% win chance, or hangs 3+ pawns of material for nothing.' },
+  miss: { name: 'Miss', glyph: '✕', color: '#e879f9', severity: 5, blurb: 'Missed the chance to punish the previous move.', rule: 'The opponent just made a mistake and this move let the chance to punish it slip — or a forced mate in 3 or less was missed.' },
+  blunder: { name: 'Blunder', glyph: '??', color: '#f43f5e', severity: 6, blurb: 'A serious error.', rule: 'Loses more than 20% win chance, hangs 3+ pawns of material for nothing, or allows a forced mate in 3 or less that the best move avoids.' },
 };
 
 /** Display order for summaries (good → bad). */

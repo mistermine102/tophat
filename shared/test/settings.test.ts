@@ -10,7 +10,7 @@ describe('settings', () => {
     expect([s.labels.bestMaxLoss, s.labels.excellentMaxLoss, s.labels.goodMaxLoss, s.labels.inaccuracyMaxLoss, s.labels.mistakeMaxLoss]).toEqual([0.5, 2, 5, 10, 20]);
     expect(s.material).toMatchObject({ blunderMinLoss: 3, blunderMinEvalDropCp: 250, mistakeMinLoss: 2, mistakeMinEvalDropCp: 150 });
     expect(s.suggest).toMatchObject({ winningMin: 70, drawishMin: 30, candidates: 5 });
-    expect(s.budget.deep).toEqual({ depth: 18, multipv: 5, maxMs: 5000 });
+    expect(s.budget.deep).toEqual({ depth: 16, multipv: 5, maxMs: 5000 });
     expect(s.budget.shallow).toEqual({ depth: 8, multipv: 5, maxMs: 500 });
     expect(s.budget.threat).toEqual({ depth: 12, multipv: 1, maxMs: 500 });
     expect(s.budget.forcedness).toEqual({ depth: 12, multipv: 2, maxMs: 500 });

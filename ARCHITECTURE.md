@@ -38,10 +38,11 @@ chess-coach/
     settings.ts           # default thresholds/settings (below)
     winchance.ts          # cp/mate -> win%, move accuracy, game accuracy (Lichess formulas)
   server/src/
-    index.ts              # starts Engine + Scheduler, Express on PORT (default 5174)
+    index.ts              # starts the engine pool + Scheduler, Express on PORT (default 5174; + built client with SERVE_CLIENT=1)
     app.ts                # createApp(ctx: AppContext) -- Express app factory (testable without engine/listen)
     engine/uci.ts         # Engine: UCI process wrapper
-    engine/scheduler.ts   # priority queue in front of the Engine (single engine process)
+    engine/pool.ts        # M4: N Stockfish processes (default 2 x threads/2)
+    engine/scheduler.ts   # priority queue in front of the engines: one job per engine, preemption of background jobs
     chess/                # pure position helpers on chessops: material (PIECE_VALUES, positionFromFen, lineMaterial),
                           # see.ts (static exchange), attacks, notation.ts (UCI normalisation, SAN of PVs, FEN after moves)
     facts/immediate.ts    # Immediate facts: (posBefore, move) -> Fact[]
@@ -60,6 +61,9 @@ chess-coach/
   server/test/            # vitest; engine-dependent tests use describe.skipIf(!engineAvailable())
   server/scripts/engine-timing.ts  # `npm run bench:engine -w server`: times the analysis budget searches
   server/scripts/analyze-pgn.ts    # full pipeline on a PGN (no HTTP) -> markdown report (+ JSON)
+  server/scripts/profile-game.ts   # M4: cold-cache timing of a whole game per search type + focus / side-line latency
+  scripts/start.mjs       # `npm start`: build the client if stale, serve it + the API on one port (5174), open the browser
+  scripts/check-engine.mjs  # `npm run dev` pre-step: tells the user to run `npm run setup:engine` if Stockfish is missing
   bench/games/            # sample PGNs for analyze-pgn (Opera game, Kasparov–Topalov 1999, Deep Blue–Kasparov g6)
   client/src/ ...
   client/e2e/             # playwright
@@ -131,10 +135,30 @@ queued job is upgraded to the higher priority (never downgraded). `bump(key, pri
 job; a job that changes priority joins the back of its new priority class. Finished keys are forgotten (results
 are cached elsewhere). Also `has(key)`, `priorityOf(key)`, `size`, `busy`, `onIdle()`.
 
+**M4: several engines + preemption** (`engine/pool.ts`, `scheduler.ts`; the single-engine API above still works):
+- `createEnginePool({ threads, processes, hashMb })` starts `processes` Stockfish processes with `threads / processes`
+  threads each (server env `ENGINE_PROCESSES`, default threads / 2; `ENGINE_THREADS` is the total, default cpus − 2 =
+  10, so **5 × 2**; `ENGINE_HASH_MB` per process, default 256; see "Performance (M4)").
+  `new Scheduler(engines[], { preempt })`: one job per engine, so several plies
+  are analysed at once. Jobs share searches through `SearchCache` (an identical search already running for another
+  job is awaited, not repeated — e.g. ply N's `deepAfter` is ply N+1's `deep`).
+- `Engine.abort()`: stops the running search (`stop`) and rejects every search requested before the call with
+  `SearchAbortedError` (not an `EngineError`, never retried as one; partial results are never cached). Later
+  searches run normally.
+- Preemption (default on): when a job is queued, every engine is busy and a running job has a strictly lower
+  priority, the lowest-priority running job (most recently started among equals) is preempted — its engine is
+  aborted and handed to the new job immediately; the old job's engine handle is a revoked lease (its further searches
+  reject with `SearchAbortedError`). If it then fails with that error it is re-queued with its old priority and FIFO
+  position; if it finishes anyway its result is used. A re-run is cheap: all its finished searches are cached, only
+  the interrupted one is repeated. A `SearchCache` waiter whose shared search was aborted runs it on its own engine.
+  A running job that is bumped (dedupe / `bump`) gets the higher priority and is no longer preemptable by it.
+  Effect: a side-line move or a focused ply never waits behind background jobs.
+- `/api/test/kill-engine` kills every engine process.
+
 ## Analysis budget (defaults in settings, tune with measurements)
 
 Per analysed move `(fenBefore, move)`:
-1. **Deep** search at `fenBefore`, MultiPV 5, depth 18 → candidates, best line, 2nd best (Great).
+1. **Deep** search at `fenBefore`, MultiPV 5, depth **16** (M4; was 18 — M3: d16 is as close to a d22 reference as d18 at half the cost, bench/reports/labels.md §7) → candidates, best line, 2nd best (Great).
    If the played move isn't among the 5, an extra deep search with `searchmoves=[move]`.
 2. **Shallow** search at `fenBefore`, MultiPV 5, depth 8 → explainability test.
 3. **Threat** search for the played move and for the pick: position after the move with the side to move
@@ -173,6 +197,47 @@ is searched once — across plies, games and side lines, and across restarts via
 with mates around (Opera game, measured: d12 MultiPV 2 = 68 s, d18 MultiPV 1 > 120 s, d18 MultiPV 5 = 20 s), so
 every search is `go depth D movetime maxMs` (whichever first): deep 5000 ms, shallow / threat / forcedness 500 ms.
 Measured per ply (cold cache, Threads 10): 4–7 s, ≈ 5.5 s on average (the capped deep search dominates).
+
+### Performance (M4)
+
+`npx tsx server/scripts/profile-game.ts <pgn> [--threads N] [--processes N] [--depth N] [--no-preempt] --probe`:
+cold cache (temp sqlite, fresh engines), the GameManager pipeline; probes = at 15 s focus the ply at 2/3 of the game,
+then a side-line move from the next position and a reply to it. Game: Lichess YMOxEowk (84 plies, sharp). Ryzen 5
+3600; another agent's Stockfish (≤ 4 threads) ran part of the time, so absolute numbers carry ±15 % noise; configs were
+run in palindrome order (A B C C B A) to cancel drift.
+
+| config | wall (84 plies) | first label | 10 plies | focused ply | side line / reply |
+|---|---|---|---|---|---|
+| before: d18, 1 × 10 threads, no preemption | 429–492 s | 3.1–4.6 s | 45–61 s | 14.6–18.8 s | 4.5–6.1 s / 6.5–10.8 s |
+| d16, 1 × 10, no preemption | 331–400 s | 2.0–2.8 s | 31–37 s | 12.8–17.1 s | 1.3–6.3 s / 1.3–5.0 s |
+| d16, 2 × 5, preemption | 232–264 s | 2.1 s | 20–26 s | 4.7–9.9 s | 1.3–2.3 s / 1.6–2.8 s |
+| d16, 3 × 3 | 127–140 s | 1.5–2.0 s | 10 s | 5.6–9.1 s | 1.5–2.1 s / 1.7–2.8 s |
+| **d16, 5 × 2 (default)** | **68–74 s** | **1.8–2.1 s** | **6–8 s** | **3.8–9.1 s** | **1.2–1.9 s / 1.9–2.5 s** |
+| d16, 10 × 1 | 29–31 s | 1.9 s | 5 s | 2.0–7.1 s | 1.9–2.0 s / 2.4–2.8 s |
+
+Default on two more games: Kasparov–Topalov 1999 (87 plies) 80 s, Lichess EtpbYGOw (64 plies) 48 s; focused ply
+3.2 / 7.9 s, side line 4.1 / 5.4 s.
+
+**Why many small processes win:** at a fixed depth, Stockfish's extra (Lazy SMP) threads widen the search rather than
+finish it sooner — the same deep d16 MultiPV-5 search took 1.8 s on 1 thread, 2.2 s on 2, 2.3–2.7 s on 3 and
+2.8–3.4 s on 10 threads under the same load (M3: median 0.8 M nodes on 1 thread vs 3.5 M on 4). So N processes with
+fewer threads give ≈ N× throughput. 1-thread searches are a little less accurate (M3: `d16-1t` vs the d22 reference
+6.8 % severity changes, vs 5.6 % at 4 threads); 2 threads measured as good as the old default (below), so 5 × 2.
+
+**Where the time goes** (default, YMOxEowk, engine time): deep MultiPV-5 searches 85 % (87 searches, ≈ 2.2 s each;
+6 stopped by the 5 s cap), deep `searchmoves` for a played move outside the top 5 5 %, threat + threat-`searchmoves`
+5 % (≈ 5.6 per ply, ≈ 30 ms each), forcedness 4 % (≈ 1.3 per ply, ≈ 100 ms), shallow < 1 %, board facts/explanations
+(JS) ≈ 20 ms per ply. The small searches were left as they are: together ≤ 10 % of engine time, and reusing other
+searches for them (e.g. answering forcedness from the deeper `deepAfter` result) would change explanation inputs
+depending on job timing. Book plies keep the full deep search (their evals feed the graph and the next ply's label;
+opening positions are fast anyway). Hash 256 MB per process (a d16 search visits a few million nodes).
+
+**Quality check** (`npx tsx bench/label-benchmark.ts run --depth 16 --threads 2 --parallel 5` on M3's 10 stability
+games, twice: `m4-d16-5x2`, `m4-d16-5x2-b`; compare with `npx tsx bench/label-compare.ts`): severity class (ok / ?! /
+? or Miss / ??) differs from the old default `d18base` on 6.1 % / 5.7 % of 757 plies, where two independent old-default
+runs differ on 4.9 % and two new-default runs on 4.4 %; against the d22 reference (339 plies) 4.4 % / 5.9 % (old
+default 5.9 %); agreement with Lichess' judgements 88.5 % / 88.2 % (old default 89.0 % / 88.0 %). I.e. within
+run-to-run noise.
 
 ## Win chance / accuracy (`shared/src/winchance.ts`)
 
@@ -415,7 +480,7 @@ Additions made in M3 (label quality; all additive, `ANALYSIS_VERSION` 2):
 | POST | `/api/games` | `{ pgn }` | `GameInfo` (enqueues all plies, background priority). 400 `{error}` on bad PGN |
 | GET | `/api/games/:id` | — | `{ game: GameInfo, analyses: Record<ply, MoveAnalysis>, summary: GameSummary }` |
 | GET | `/api/games/:id/stream` | — | SSE: `event: analysis` data `{ ply, analysis }`; `event: progress` `{ done, total }`; `event: summary` `GameSummary`; `event: error` `{ ply, message }`. On connect, replays already-finished analyses. |
-| POST | `/api/games/:id/focus` | `{ ply }` | 204; bumps that ply (and ply+1) to FOCUS priority |
+| POST | `/api/games/:id/focus` | `{ ply }` | 204; bumps that ply (and ply+1, then ply−1 — M4) to FOCUS priority |
 | POST | `/api/analyse` | `{ fenBefore, uci, prev?: { fenBefore, uci } }` | `MoveAnalysis` (SIDELINE priority; `prev` enables Miss detection) |
 | GET/PUT | `/api/settings` | `Settings` | `Settings` (persisted in sqlite) |
 | GET | `/api/health` | — | `{ ok: true, engine: 'Stockfish 19' }`; 503 `{ ok: false, engine: null, error }` if the engine isn't running |
@@ -441,11 +506,12 @@ M2-client additions (client wired to the real server end to end):
 - Client data layer (`client/src/api`): `ApiClient.health()` (never throws; drives an "Engine offline" chip and the
   error hint), `StreamHandlers.onOpen` (EventSource `open` → clears "Connection lost" after a reconnect).
 - URL: the open game is `?game=<id>` (history.replaceState); a reload or a shared URL reopens it from the cache.
-- Server env (`server/src/index.ts`): `PORT`, `CHESS_COACH_DB`, `STOCKFISH_PATH`, `ENGINE_THREADS` (default
-  cpus − 2), `ENGINE_HASH_MB` (512), `ANALYSIS_PROFILE` (`default` | `fast`: deep d10/1 s, shallow d6, threat /
+- Server env (`server/src/index.ts`): `PORT`, `CHESS_COACH_DB`, `STOCKFISH_PATH`, `ENGINE_THREADS` (total, default
+  cpus − 2), `ENGINE_PROCESSES` (M4, default threads / 2), `ENGINE_HASH_MB` (per process; M4: 256, was 512),
+  `SERVE_CLIENT=1` (M4: also serve client/dist with an index.html fallback — `npm start`), `ANALYSIS_PROFILE` (`default` | `fast`: deep d10/1 s, shallow d6, threat /
   forcedness d8, 300 ms caps — own settings hash, so its cache entries never mix with full-depth ones),
   `LOG_ANALYSIS=1` (per-ply timing + focus bumps on stdout), `CHESS_COACH_TEST_HOOKS=1` (mounts
-  `POST /api/test/kill-engine` → kills the Stockfish process; `POST /api/test/fail-next {n}` → the next n analysis
+  `POST /api/test/kill-engine` → kills the Stockfish processes; `POST /api/test/fail-next {n}` → the next n analysis
   attempts throw an EngineError; each ply is attempted twice). Vite: `CLIENT_PORT` (5173), `API_PORT` (5174).
 - E2E (`npm run e2e`): Playwright projects `mock` (`e2e/*.spec.ts`, `?mock=1`, port 5183) and `real`
   (`e2e/real/*.spec.ts`: own server on 5194 with a fresh temp sqlite, `ANALYSIS_PROFILE=fast`, `ENGINE_THREADS=2`,

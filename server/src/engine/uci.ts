@@ -5,6 +5,9 @@
 // - Positions with no legal moves resolve to `{ lines: [], bestmove: null }` (engine prints `bestmove (none)`).
 // - Timeouts reject with EngineTimeoutError (the engine is stopped, or killed and restarted on next use).
 // - If the process crashes, the pending request rejects with EngineCrashedError; the next call restarts it.
+// - `abort()` (M4, scheduler preemption): the running search is stopped (`stop`) and every search requested before
+//   the call rejects with SearchAbortedError (a stopped search's partial result is discarded); later searches run
+//   normally.
 
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -58,6 +61,13 @@ export class EngineTimeoutError extends EngineError {
 }
 export class EngineCrashedError extends EngineError {
   override name = 'EngineCrashedError';
+}
+/**
+ * The search was cancelled by `Engine.abort()` (the scheduler preempts a background job for a higher-priority one).
+ * Deliberately not an EngineError: it is not an engine failure and must not be retried as one.
+ */
+export class SearchAbortedError extends Error {
+  override name = 'SearchAbortedError';
 }
 
 /** `STOCKFISH_PATH` env, else `<repo>/engine/stockfish.exe`. */
@@ -227,6 +237,10 @@ export class Engine {
   private multipv = 1;
   private closed = false;
   private lastStderr = '';
+  /** Incremented by abort(); a search requested under an older value is cancelled. */
+  private abortSeq = 0;
+  /** A `go` is running (abort sends `stop` to it). */
+  private searching = false;
 
   private constructor(opts: EngineOptions = {}) {
     this.path = opts.path ?? defaultEnginePath();
@@ -253,10 +267,21 @@ export class Engine {
     } catch (e) {
       return Promise.reject(e);
     }
+    const seq = this.abortSeq;
     return this.enqueue(async () => {
+      if (seq !== this.abortSeq) throw new SearchAbortedError('search aborted');
       await this.ensureAlive();
-      return this.runSearch({ ...req, fen: valid.fen, searchmoves: valid.searchmoves }, valid.multipv);
+      return this.runSearch({ ...req, fen: valid.fen, searchmoves: valid.searchmoves }, valid.multipv, seq);
     });
+  }
+
+  /**
+   * Cancel every search requested so far: the running one is stopped and rejects with SearchAbortedError, queued
+   * ones reject without running. Searches requested after this call are unaffected; the engine stays usable.
+   */
+  abort(): void {
+    this.abortSeq++;
+    if (this.searching && this.proc) this.send('stop');
   }
 
   newGame(): Promise<void> {
@@ -333,13 +358,14 @@ export class Engine {
     }
   }
 
-  private async runSearch(req: SearchRequest, multipv: number): Promise<SearchResult> {
+  private async runSearch(req: SearchRequest, multipv: number, seq: number): Promise<SearchResult> {
     if (multipv !== this.multipv) {
       this.send(`setoption name MultiPV value ${multipv}`);
       this.multipv = multipv;
     }
     this.send(`position fen ${req.fen}`);
     await this.sync();
+    if (seq !== this.abortSeq) throw new SearchAbortedError('search aborted');
 
     const go = ['go'];
     if (req.depth !== undefined) go.push('depth', String(req.depth));
@@ -352,12 +378,14 @@ export class Engine {
     const collector = new PvCollector(multipv);
     const started = performance.now();
     let bestLine: string;
+    this.searching = true;
     try {
       bestLine = await this.request(go.join(' '), (l) => l.startsWith('bestmove'), timeoutMs, (l) => {
         const info = parseInfoLine(l);
         if (info) collector.add(info);
       });
     } catch (e) {
+      this.searching = false;
       if (e instanceof EngineTimeoutError && this.proc) {
         // try to bring the engine back to a clean state; if it doesn't answer, kill it (restart on next use)
         try {
@@ -369,6 +397,8 @@ export class Engine {
       }
       throw e;
     }
+    this.searching = false;
+    if (seq !== this.abortSeq) throw new SearchAbortedError('search aborted'); // stopped early: a partial result
     const timeMs = Math.round(performance.now() - started);
     const best = bestLine.split(/\s+/)[1] ?? '(none)';
     if (best === '(none)') return { lines: [], bestmove: null, depth: 0, nodes: collector.nodes, timeMs };

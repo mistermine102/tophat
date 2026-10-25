@@ -4,7 +4,8 @@
 // sorted searchmoves. The same position reached in different plies/games/side lines is searched once, e.g. the deep
 // MultiPV search at fenAfter of ply N is the deep search at fenBefore of ply N+1.
 // A request for MultiPV m is also answered by a cached result of the same depth with a larger MultiPV (first m
-// lines). Concurrent identical requests share one engine call. Failed searches are not cached.
+// lines). Concurrent identical requests share one engine call (also across engines/jobs, M4); if that call is
+// aborted (its job was preempted), a waiter runs the search itself. Failed searches are not cached.
 //
 // Engine non-determinism (multi-threaded search) makes this important for consistency too: every consumer of a
 // position sees the same lines.
@@ -12,7 +13,7 @@
 import { makeFen } from 'chessops/fen';
 import { positionFromFen } from '../chess/material';
 import type { CacheDb } from '../cache';
-import type { SearchResult } from '../engine/uci';
+import { type SearchResult, SearchAbortedError } from '../engine/uci';
 
 export interface SearchParams {
   depth: number;
@@ -77,7 +78,15 @@ export class SearchCache {
     }
     const key = SearchCache.key(fen, p);
     const inflight = this.pending.get(key);
-    if (inflight) return { result: await inflight, cached: true };
+    if (inflight) {
+      try {
+        return { result: await inflight, cached: true };
+      } catch (e) {
+        // the job that started it was preempted (scheduler): run it ourselves on our own engine
+        if (!(e instanceof SearchAbortedError)) throw e;
+        return this.search(engine, fen, p);
+      }
+    }
     this.stats.misses++;
     const req = { fen, depth: p.depth, multipv: p.multipv, ...(p.maxMs ? { movetimeMs: p.maxMs } : {}), ...(p.maxNodes ? { nodes: p.maxNodes } : {}), ...(p.searchmoves?.length ? { searchmoves: p.searchmoves } : {}) };
     const promise = engine.search(req);
@@ -89,7 +98,7 @@ export class SearchCache {
       this.db?.put('searches', key, result);
       return { result, cached: false };
     } finally {
-      this.pending.delete(key);
+      if (this.pending.get(key) === promise) this.pending.delete(key);
     }
   }
 

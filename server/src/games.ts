@@ -7,7 +7,7 @@
 //   persisted (cache.ts `games`) so a restart can reload them by id.
 // - you / orientation: settings.username vs the White/Black headers (case-insensitive); neither -> White.
 // - Analysis of main-line ply N is one Scheduler job (key `move:<analysisKey>`), queued in game order at
-//   BACKGROUND priority; `focus(ply)` bumps ply and ply+1 to FOCUS; side-line moves (`analyse`) run at SIDELINE.
+//   BACKGROUND priority; `focus(ply)` bumps ply, ply+1 and ply-1 to FOCUS; side-line moves (`analyse`) run at SIDELINE.
 //   Finished analyses are cached in sqlite under analysisKey (ARCHITECTURE.md "Cache"): re-importing or
 //   reloading a game is instant.
 // - Previous-move context for ply N: ply N-1's move (prev.fenBefore / prev.uci) and, when already analysed, its
@@ -177,18 +177,22 @@ export class GameManager {
     return { game, analyses, summary: this.summary(id)! };
   }
 
-  /** Bump ply and ply+1 to FOCUS priority. Returns false for an unknown game. */
+  /**
+   * Bump ply and ply+1 to FOCUS priority, then ply-1 (M4: ply's label needs ply-1's deep search for the Miss
+   * context — with several engines it runs in parallel instead of after ply's own search). Failed plies among
+   * ply / ply+1 are re-queued. Returns false for an unknown game.
+   */
   focus(id: string, ply: number): boolean {
     const st = this.state(id);
     if (!st) return false;
     const sched = this.deps.scheduler;
     const bumped: number[] = [];
     const retried: number[] = [];
-    for (const p of [ply, ply + 1]) {
+    for (const p of [ply, ply + 1, ply - 1]) {
       const key = st.keys[p - 1];
       if (!key || !sched) continue;
       if (sched.bump(`move:${key}`, Priority.FOCUS)) bumped.push(p);
-      else if (st.errors.has(p) && !st.retrying.has(p)) {
+      else if (p >= ply && st.errors.has(p) && !st.retrying.has(p)) {
         // a failed ply is analysed again when the user looks at it (e.g. after an engine crash)
         retried.push(p);
         void this.analysePly(st, p, Priority.FOCUS);

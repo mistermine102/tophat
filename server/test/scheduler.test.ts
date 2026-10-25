@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Priority, Scheduler } from '../src/engine/scheduler';
+import { SearchAbortedError } from '../src/engine/uci';
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
 
@@ -155,5 +156,169 @@ describe('Scheduler', () => {
     for (let i = 0; i < 5; i++) s.run(`k${i}`, Priority.BACKGROUND, async () => void done++);
     await s.onIdle();
     expect(done).toBe(5);
+  });
+});
+
+/** A fake engine whose searches complete when the test says so; abort() rejects the running one like Engine. */
+class FakeEngine {
+  aborts = 0;
+  current: { name: string; resolve: (v: string) => void; reject: (e: unknown) => void } | null = null;
+  constructor(readonly id: string) {}
+  search(name: string): Promise<string> {
+    return new Promise((resolve, reject) => (this.current = { name, resolve, reject }));
+  }
+  abort(): void {
+    this.aborts++;
+    const c = this.current;
+    this.current = null;
+    c?.reject(new SearchAbortedError('aborted'));
+  }
+  finish(): string {
+    const c = this.current;
+    if (!c) throw new Error(`${this.id} has no running search`);
+    this.current = null;
+    c.resolve(c.name);
+    return c.name;
+  }
+}
+
+describe('Scheduler with several engines (M4)', () => {
+  const settle = async () => {
+    for (let i = 0; i < 10; i++) await tick();
+  };
+  /** A job doing `searches` searches in a row on its engine; records where each attempt started. */
+  const jobs = (log: string[]) => (name: string, searches = 1) => async (e: FakeEngine) => {
+    log.push(`${name}@${e.id}`);
+    const out: string[] = [];
+    for (let i = 0; i < searches; i++) out.push(await e.search(`${name}.${i}`));
+    return out.join(',');
+  };
+
+  it('runs one job per engine concurrently, FIFO', async () => {
+    const [a, b] = [new FakeEngine('A'), new FakeEngine('B')];
+    const s = new Scheduler([a, b]);
+    const log: string[] = [];
+    const job = jobs(log);
+    const ps = ['j1', 'j2', 'j3'].map((n) => s.run(n, Priority.BACKGROUND, job(n)));
+    await settle();
+    expect(log).toEqual(['j1@A', 'j2@B']);
+    expect(s.runningCount).toBe(2);
+    b.finish();
+    await settle();
+    expect(log).toEqual(['j1@A', 'j2@B', 'j3@B']);
+    a.finish();
+    b.finish();
+    expect(await Promise.all(ps)).toEqual(['j1.0', 'j2.0', 'j3.0']);
+    await s.onIdle();
+    expect(s.busy).toBe(false);
+  });
+
+  it('a side-line job preempts the most recently started background job; it is re-queued and re-run', async () => {
+    const [a, b] = [new FakeEngine('A'), new FakeEngine('B')];
+    const s = new Scheduler([a, b]);
+    const log: string[] = [];
+    const job = jobs(log);
+    const bg1 = s.run('bg1', Priority.BACKGROUND, job('bg1'));
+    const bg2 = s.run('bg2', Priority.BACKGROUND, job('bg2'));
+    const bg3 = s.run('bg3', Priority.BACKGROUND, job('bg3'));
+    await settle();
+    const side = s.run('side', Priority.SIDELINE, job('side'));
+    await settle();
+    expect(b.aborts).toBe(1); // bg2 started after bg1
+    expect(a.aborts).toBe(0);
+    expect(s.preemptions).toBe(1);
+    expect(log).toEqual(['bg1@A', 'bg2@B', 'side@B']);
+    expect(s.has('bg2')).toBe(true);
+    expect(b.finish()).toBe('side.0');
+    expect(await side).toBe('side.0');
+    await settle();
+    // bg2 keeps its place in the queue: it runs before bg3
+    expect(log).toEqual(['bg1@A', 'bg2@B', 'side@B', 'bg2@B']);
+    b.finish();
+    a.finish();
+    await settle();
+    b.finish();
+    expect(await Promise.all([bg1, bg2, bg3])).toEqual(['bg1.0', 'bg2.0', 'bg3.0']);
+  });
+
+  it('never preempts a job of equal or higher priority (a running job bumped to FOCUS is safe)', async () => {
+    const [a, b] = [new FakeEngine('A'), new FakeEngine('B')];
+    const s = new Scheduler([a, b]);
+    const log: string[] = [];
+    const job = jobs(log);
+    const f1 = s.run('f1', Priority.FOCUS, job('f1'));
+    const bg = s.run('bg', Priority.BACKGROUND, job('bg'));
+    await settle();
+    expect(s.bump('bg', Priority.FOCUS)).toBe(true);
+    const f2 = s.run('f2', Priority.FOCUS, job('f2'));
+    await settle();
+    expect(a.aborts + b.aborts).toBe(0);
+    expect(log).toEqual(['f1@A', 'bg@B']);
+    a.finish();
+    await settle();
+    expect(log).toEqual(['f1@A', 'bg@B', 'f2@A']);
+    a.finish();
+    b.finish();
+    await Promise.all([f1, bg, f2]);
+  });
+
+  it('a preempted job that is not searching can no longer use its engine (revoked lease) and is re-run', async () => {
+    const a = new FakeEngine('A');
+    const s = new Scheduler([a]);
+    const log: string[] = [];
+    let gate!: () => void;
+    const bg = s.run('bg', Priority.BACKGROUND, async (e: FakeEngine) => {
+      log.push(`bg@${e.id}`);
+      if (log.length === 1) await new Promise<void>((r) => (gate = r)); // first attempt: busy without searching
+      return e.search('bg');
+    });
+    await settle();
+    const side = s.run('side', Priority.SIDELINE, async (e: FakeEngine) => e.search('side'));
+    await settle();
+    expect(a.current?.name).toBe('side');
+    gate(); // the old attempt now tries to search: rejected without touching the engine
+    await settle();
+    expect(a.current?.name).toBe('side');
+    a.finish();
+    await settle();
+    expect(log).toEqual(['bg@A', 'bg@A']);
+    a.finish();
+    expect(await side).toBe('side');
+    expect(await bg).toBe('bg');
+  });
+
+  it('a preempted job that finishes anyway resolves normally', async () => {
+    const a = new FakeEngine('A');
+    const s = new Scheduler([a]);
+    let gate!: () => void;
+    const bg = s.run('bg', Priority.BACKGROUND, async () => {
+      await new Promise<void>((r) => (gate = r));
+      return 'done without searching';
+    });
+    await settle();
+    const side = s.run('side', Priority.SIDELINE, async (e: FakeEngine) => e.search('side'));
+    await settle();
+    gate();
+    expect(await bg).toBe('done without searching');
+    a.finish();
+    expect(await side).toBe('side');
+    await s.onIdle();
+  });
+
+  it('preempt: false keeps the old non-preemptive behaviour', async () => {
+    const a = new FakeEngine('A');
+    const s = new Scheduler([a], { preempt: false });
+    const log: string[] = [];
+    const job = jobs(log);
+    const bg = s.run('bg', Priority.BACKGROUND, job('bg'));
+    await settle();
+    const side = s.run('side', Priority.SIDELINE, job('side'));
+    await settle();
+    expect(a.aborts).toBe(0);
+    a.finish();
+    await settle();
+    a.finish();
+    expect(await Promise.all([bg, side])).toEqual(['bg.0', 'side.0']);
+    expect(log).toEqual(['bg@A', 'side@A']);
   });
 });

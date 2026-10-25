@@ -48,12 +48,12 @@ export function toJudgement(label: Label, winChance: Label): J {
   return 'none';
 }
 
-function loadRun(dir: string, tag: string): RunFile | null {
+export function loadRun(dir: string, tag: string): RunFile | null {
   const p = join(dir, `labels-${tag}.json`);
   return existsSync(p) ? (JSON.parse(readFileSync(p, 'utf8')) as RunFile) : null;
 }
 
-function confusion(pairs: [J, J][]): { table: string; agree: number; total: number; perClass: string } {
+export function confusion(pairs: [J, J][]): { table: string; agree: number; total: number; perClass: string } {
   const m = new Map<string, number>();
   for (const [ours, li] of pairs) m.set(`${ours}|${li}`, (m.get(`${ours}|${li}`) ?? 0) + 1);
   const get = (o: J, l: J) => m.get(`${o}|${l}`) ?? 0;
@@ -104,10 +104,10 @@ function coarse(l: Label): string {
   return 'ok';
 }
 
-interface PairStats { n: number; exact: number; coarse: number; judge: number; great: number; miss: number; bestMove: number; coarseNear: number; rows: string[] }
+export interface PairStats { n: number; exact: number; coarse: number; judge: number; great: number; miss: number; bestMove: number; coarseNear: number; rows: string[] }
 
 /** Label differences between two runs on their common plies (default profile). */
-function pairStats(ra: RunFile, rb: RunFile): PairStats {
+export function pairStats(ra: RunFile, rb: RunFile): PairStats {
   const s: PairStats = { n: 0, exact: 0, coarse: 0, judge: 0, great: 0, miss: 0, bestMove: 0, coarseNear: 0, rows: [] };
   const byId = new Map(ra.games.map((g) => [g.id, g]));
   for (const gb of rb.games) {

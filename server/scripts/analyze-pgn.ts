@@ -1,11 +1,12 @@
 // Full analysis pipeline on a PGN file (no HTTP), writing a human-readable markdown report.
 //
 // Usage: npx tsx server/scripts/analyze-pgn.ts <file.pgn> [--out report.md] [--json out.json]
-//          [--db path.sqlite] [--fresh] [--depth N] [--threads N]
+//          [--db path.sqlite] [--fresh] [--depth N] [--threads N] [--processes N]
 //   --db     cache database (default data/cache.sqlite or env CHESS_COACH_DB)
 //   --fresh  ignore cached move analyses (engine searches stay cached) — use after changing facts/explain code
-//   --depth  override the deep search depth (default settings: 18)
-//   --threads Stockfish threads (default: cpus - 2)
+//   --depth  override the deep search depth (default settings: 16)
+//   --threads Stockfish threads in total (default: cpus - 2)
+//   --processes Stockfish processes = plies analysed concurrently (default threads / 2)
 //
 // The report lists every ply: SAN, label (+reason), eval before -> after, the three explanation levels, the
 // suggestion ("Try this" / "Engine's top") as the UI shows it, candidates and timings; the game summary at the end.
@@ -17,7 +18,7 @@ import { SearchCache, type Searcher } from '../src/analysis/searchCache';
 import { CacheDb, defaultDbPath } from '../src/cache';
 import { positionStatus } from '../src/chess/notation';
 import { Scheduler } from '../src/engine/scheduler';
-import { Engine } from '../src/engine/uci';
+import { createEnginePool } from '../src/engine/pool';
 import { GameManager } from '../src/games';
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -127,7 +128,7 @@ const opt = (name: string): string | undefined => {
   return i >= 0 ? args[i + 1] : undefined;
 };
 const flag = (name: string) => args.includes(`--${name}`);
-const VALUE_OPTS = new Set(['--out', '--json', '--db', '--depth', '--threads']);
+const VALUE_OPTS = new Set(['--out', '--json', '--db', '--depth', '--threads', '--processes']);
 const file = args.find((a, i) => !a.startsWith('--') && !(i > 0 && VALUE_OPTS.has(args[i - 1]!)));
 if (!file) {
   console.error('usage: npx tsx server/scripts/analyze-pgn.ts <file.pgn> [--out report.md] [--json out.json] [--db path] [--fresh] [--depth N]');
@@ -141,8 +142,9 @@ const pgn = readFileSync(file, 'utf8');
 const dbPath = opt('db') ?? defaultDbPath();
 const fileDb = new CacheDb(dbPath);
 const gameDb = flag('fresh') ? new CacheDb(':memory:') : fileDb;
-const engine = await Engine.start(opt('threads') ? { threads: Number(opt('threads')) } : {});
-const scheduler = new Scheduler<Searcher>(engine);
+const pool = await createEnginePool({ ...(opt('threads') ? { threads: Number(opt('threads')) } : {}), ...(opt('processes') ? { processes: Number(opt('processes')) } : {}) });
+const engine = pool.engines[0]!;
+const scheduler = new Scheduler<Searcher>(pool.engines);
 const searchCache = new SearchCache(fileDb);
 const games = new GameManager({ db: gameDb, searchCache, scheduler, settings });
 
@@ -159,9 +161,9 @@ games.subscribe(info.id, (e) => {
 await games.whenDone(info.id);
 const wallMs = performance.now() - t0;
 const result = games.get(info.id)!;
-await engine.quit();
+await pool.quit();
 
-const report = renderReport(info, result.analyses, result.summary, { wallMs, settings, engineName: engine.name, threads: engine.threads, stats: searchCache.stats, dbPath });
+const report = renderReport(info, result.analyses, result.summary, { wallMs, settings, engineName: engine.name, threads: pool.engines.length * pool.threadsPerEngine, stats: searchCache.stats, dbPath });
 const out = opt('out');
 if (out) writeFileSync(out, report);
 else process.stdout.write(report);

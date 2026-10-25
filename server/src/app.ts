@@ -1,4 +1,5 @@
 // Express app factory (no listening, no engine start) so tests can mount it with fakes.
+import { fileURLToPath } from 'node:url';
 import { type AnalysisSettings, DEFAULT_SETTINGS } from '@chess-coach/shared';
 import express, { type Express } from 'express';
 import { SearchCache, type Searcher } from './analysis/searchCache';
@@ -9,7 +10,12 @@ import { GameManager } from './games';
 import { apiRouter } from './routes';
 
 export interface AppContext {
+  /** The first engine process (health: name / alive). */
   engine: Engine | null;
+  /** All engine processes (M4: ENGINE_PROCESSES); default [engine]. */
+  engines?: Engine[];
+  /** Serve this directory (the built client) at / with an index.html fallback (`npm start`). */
+  serveClient?: string;
   scheduler: Scheduler<Searcher> | null;
   /** Why the engine isn't available (shown by /api/health). */
   engineError?: string;
@@ -54,5 +60,19 @@ export function createApp(ctx: AppContext): Express {
   const app = express();
   app.use(express.json({ limit: '2mb' }));
   app.use('/api', apiRouter(ctx, games));
+  const dist = ctx.serveClient;
+  if (dist) {
+    app.use(express.static(dist, { index: 'index.html' }));
+    // single-page app: any other GET (outside /api) gets index.html
+    app.use((req, res, next) => {
+      if (req.method !== 'GET' || req.path.startsWith('/api')) return next();
+      res.sendFile('index.html', { root: dist }); // root: the repo path itself may contain dot folders
+    });
+  }
   return app;
+}
+
+/** client/dist (Vite build output), served by `npm start`. */
+export function clientDistDir(): string {
+  return fileURLToPath(new URL('../../client/dist', import.meta.url));
 }

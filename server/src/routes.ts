@@ -88,11 +88,18 @@ export function apiRouter(ctx: AppContext, games: GameManager): Router {
 
   // Fault injection for E2E tests, only with env CHESS_COACH_TEST_HOOKS=1.
   if (ctx.testHooks ?? process.env.CHESS_COACH_TEST_HOOKS === '1') {
-    // kill the Stockfish process (a running search rejects with EngineCrashedError; the next search restarts it)
+    // kill the Stockfish processes (a running search rejects with EngineCrashedError; the next search restarts it)
     r.post('/test/kill-engine', (_req, res) => {
-      const proc = (ctx.engine as unknown as { proc?: { kill(): void } | null } | null)?.proc;
-      proc?.kill();
-      res.json({ killed: !!proc });
+      const engines = ctx.engines?.length ? ctx.engines : ctx.engine ? [ctx.engine] : [];
+      let killed = 0;
+      for (const e of engines) {
+        const proc = (e as unknown as { proc?: { kill(): void } | null }).proc;
+        if (proc) {
+          proc.kill();
+          killed++;
+        }
+      }
+      res.json({ killed: killed > 0, processes: killed });
     });
     // the next `n` analysis attempts fail (each ply is attempted twice), e.g. { n: 2 } -> one failed ply
     r.post('/test/fail-next', (req, res) => {

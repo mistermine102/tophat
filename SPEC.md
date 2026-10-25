@@ -152,6 +152,10 @@ For Best/Great moves the tool confirms ("Good — this was the move") and shows 
 - Background analysis of all plies in game order; **the currently viewed ply and any side-line move jump the
   queue**. Eval graph fills in as results arrive. Summary appears when the queue is done (partial before).
 - **Cache** results by (position, move, analysis-version, settings) in SQLite; reopening a game is instant.
+- Engine budget (M4): deep search depth **16** (MultiPV 5) — M3 measured it as close to a depth-22 reference as
+  depth 18, at half the cost. Several plies are analysed at once (several Stockfish processes); the viewed ply and
+  side-line moves preempt background work. Targets on the user's PC: an 80-ply game in ≤ 3 min from a cold cache,
+  first labels within a few seconds, a focused ply in ≤ ~6 s, a side-line move in ≤ ~5 s.
 
 ## Out of v1
 

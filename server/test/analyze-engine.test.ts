@@ -75,6 +75,14 @@ describe.skipIf(!engineAvailable())('analyzeMove on real positions (Stockfish)',
       const fen = legalFen(PICK_FEN);
       const a = await run({ fenBefore: fen, uci: PICK_PLAYED });
       const msg = dump(a);
+      expect(a.best.notExplainableReasons, msg).toContain('no-concrete-fact');
+      // M4: whether Qh4 makes the engine's top 5 at all varies between runs (multi-threaded search; measured at d16
+      // and d18 with 1-4 threads: present in about half). Without it the scenario isn't there; only check consistency.
+      if (!a.candidates.some((c) => c.uci === 'h6h4')) {
+        expect(a.deepOnly, msg).toBe(a.pick === null);
+        if (a.pick) expect(a.pick.uci, msg).not.toBe(a.best.uci);
+        return;
+      }
       expect(a.best.uci, msg).not.toBe(a.pick?.uci);
       expect(a.pickIsBest, msg).toBe(false);
       expect(a.deepOnly, msg).toBe(false);
