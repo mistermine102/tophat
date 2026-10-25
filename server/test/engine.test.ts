@@ -4,7 +4,7 @@ import { Chess } from 'chessops/chess';
 import { parseFen } from 'chessops/fen';
 import { parseUci } from 'chessops/util';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { Engine, EngineCrashedError, EngineError, EngineTimeoutError, engineAvailable, type SearchResult } from '../src/engine/uci';
+import { Engine, EngineCrashedError, EngineError, EngineTimeoutError, SearchAbortedError, engineAvailable, type SearchResult } from '../src/engine/uci';
 
 const STARTPOS = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 const MATE_IN_1 = '6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1'; // Ra8#
@@ -138,6 +138,21 @@ describe.skipIf(!engineAvailable())('Engine (real Stockfish)', () => {
     await expect(p).rejects.toThrow(/did not answer "go depth 60" within 300 ms/);
     const r = await engine.search({ fen: STARTPOS, depth: 6, multipv: 2 });
     expectWellFormed(STARTPOS, r, 2);
+  });
+
+  it('abort() stops the running search and cancels queued ones; later searches are unaffected (M4)', async () => {
+    const t0 = performance.now();
+    const running = engine.search({ fen: MIDDLEGAME, depth: 60, multipv: 3 });
+    const queued = engine.search({ fen: STARTPOS, depth: 8 });
+    await new Promise((r) => setTimeout(r, 300));
+    engine.abort();
+    const after = engine.search({ fen: STARTPOS, depth: 6, multipv: 2 });
+    await expect(running).rejects.toBeInstanceOf(SearchAbortedError);
+    await expect(queued).rejects.toBeInstanceOf(SearchAbortedError);
+    expect(performance.now() - t0).toBeLessThan(5_000);
+    expectWellFormed(STARTPOS, await after, 2);
+    engine.abort(); // idle: no-op
+    expectWellFormed(STARTPOS, await engine.search({ fen: STARTPOS, depth: 6, multipv: 2 }), 2);
   });
 });
 

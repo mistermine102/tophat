@@ -11,6 +11,7 @@
 //                                           [--threads 5] [--hash 512] [--fresh] [--db-tag other] [--verify-margin 1|0]
 //                                           [--set great.maxWinAfterBest=70,...]  (numeric settings overrides) [--max-nodes N]
 //                                           [--cache-only]  (never start the engine: uncached plies become errors)
+//                                           [--parallel N]  (N engine processes, N games at a time; M4)
 //   npx tsx bench/label-benchmark.ts report [--main d18] [--cold cold] [--depths d16,d18,d22] [--ref d22]
 //                                           [--verify d18v,coldv]
 //
@@ -282,22 +283,35 @@ async function run(): Promise<void> {
   if (flag('fresh')) for (const suffix of ['', '-wal', '-shm']) rmSync(dbPath + suffix, { force: true });
   const db = new CacheDb(dbPath);
   const cache = new SearchCache(db);
-  const searcher = new LazySearcher({ threads, hashMb, cacheOnly: flag('cache-only') });
+  // --parallel N (M4): N engine processes (each --threads), N games at a time — the product's CPU conditions with
+  // ENGINE_PROCESSES=N. Games are written in their listed order.
+  const parallel = Math.max(1, Number(opt('parallel', '1')));
+  const searchers = Array.from({ length: parallel }, () => new LazySearcher({ threads, hashMb, cacheOnly: flag('cache-only') }));
   const out: RunFile = { tag, depth, maxMs, threads, engine: '', createdAt: new Date().toISOString(), games: [], stats: cache.stats };
+  if (parallel > 1) (out as RunFile & { parallel?: number }).parallel = parallel;
   const jsonPath = join(OUT_DIR, `labels-${tag}.json`);
   const t0 = performance.now();
-  for (const [k, id] of ids.entries()) {
-    const g = await runGame(id, settings, cache, searcher);
-    out.games.push(g);
-    const counts: Record<string, number> = {};
-    for (const p of g.plies) counts[p.labels.default.label] = (counts[p.labels.default.label] ?? 0) + 1;
-    process.stderr.write(`[${k + 1}/${ids.length}] ${id} ${g.plies.length} plies, engine ${(g.engineMs / 1000).toFixed(0)} s, wall ${(g.wallMs / 1000).toFixed(0)} s ${g.errors.length ? `ERRORS ${g.errors.join('; ')}` : ''} ${JSON.stringify(counts)}\n`);
-    out.engine = searcher.started ? await searcher.name() : (db.get<{ name: string }>('settings', 'bench-engine')?.name ?? 'Stockfish (all searches from the cache)');
-    if (searcher.started) db.put('settings', 'bench-engine', { name: out.engine });
-    writeFileSync(jsonPath, JSON.stringify(out));
-  }
+  const results = new Map<string, GameRecord>();
+  let nextIdx = 0;
+  let finished = 0;
+  const worker = async (searcher: LazySearcher) => {
+    while (nextIdx < ids.length) {
+      const id = ids[nextIdx++]!;
+      const g = await runGame(id, settings, cache, searcher);
+      results.set(id, g);
+      finished++;
+      const counts: Record<string, number> = {};
+      for (const p of g.plies) counts[p.labels.default.label] = (counts[p.labels.default.label] ?? 0) + 1;
+      process.stderr.write(`[${finished}/${ids.length}] ${id} ${g.plies.length} plies, engine ${(g.engineMs / 1000).toFixed(0)} s, wall ${(g.wallMs / 1000).toFixed(0)} s ${g.errors.length ? `ERRORS ${g.errors.join('; ')}` : ''} ${JSON.stringify(counts)}\n`);
+      out.engine = searcher.started ? await searcher.name() : (db.get<{ name: string }>('settings', 'bench-engine')?.name ?? 'Stockfish (all searches from the cache)');
+      if (searcher.started) db.put('settings', 'bench-engine', { name: out.engine });
+      out.games = ids.filter((x) => results.has(x)).map((x) => results.get(x)!);
+      writeFileSync(jsonPath, JSON.stringify(out));
+    }
+  };
+  await Promise.all(searchers.map(worker));
   process.stderr.write(`done ${tag}: ${ids.length} games in ${((performance.now() - t0) / 1000).toFixed(0)} s; searches ${cache.stats.misses} run, ${cache.stats.hits} cached -> ${jsonPath}\n`);
-  await searcher.quit();
+  await Promise.all(searchers.map((s) => s.quit()));
   db.close();
 }
 

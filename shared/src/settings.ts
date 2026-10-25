@@ -205,7 +205,7 @@ export const DEFAULT_SETTINGS: AnalysisSettings = {
     deepPayoffMinGap: 5,
   },
   budget: {
-    deep: { depth: 18, multipv: 5, maxMs: 5000 },
+    deep: { depth: 16, multipv: 5, maxMs: 5000 }, // M4: 16 (was 18) — M3 measured d16 as close to a d22 reference as d18 at half the cost
     shallow: { depth: 8, multipv: 5, maxMs: 500 },
     threat: { depth: 12, multipv: 1, maxMs: 500 },
     forcedness: { depth: 12, multipv: 2, maxMs: 500 },
