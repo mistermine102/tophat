@@ -380,7 +380,7 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
   const better = betterR.map((r) => r.phrase);
   // (M5c) the eval drop (pawns, mover POV, mates as big numbers) vs the biggest verified reason
   const dropPawns = (guardCp(best.score) - guardCp(playedLine.score)) / 100;
-  const partial = reasonsArePartial(betterR, dropPawns);
+  const partial = reasonsArePartial(betterR, dropPawns, cr.label === 'mistake' || cr.label === 'blunder' || cr.label === 'miss');
   if (BAD_LABELS.has(cr.label) && !playedIsBest && pf) {
     const misses: Extract<Fact, { type: 'misses' }> = { type: 'misses', san: bestWork.san, uci: bestWork.uci, facts: betterR.flatMap((r) => r.facts) };
     if (partial) misses.partial = true;

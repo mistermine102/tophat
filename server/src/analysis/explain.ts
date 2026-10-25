@@ -1128,11 +1128,15 @@ export function betterReasonFacts(better: readonly Fact[], played: readonly Fact
 
 /**
  * (M5c) The verified reasons are small next to the eval drop (together they are worth less than half of it, the drop is at
- * least PARTIAL_MIN_DROP pawns): the text adds that the engine sees more than this.
+ * least PARTIAL_MIN_DROP pawns), or a Mistake / Blunder / Miss has only quiet reasons: the text adds that the engine sees
+ * more than this.
  */
 export const PARTIAL_MIN_DROP = 2;
-export function reasonsArePartial(reasons: readonly BetterReason[], dropPawns: number): boolean {
-  if (!reasons.length || dropPawns < PARTIAL_MIN_DROP) return false;
+export function reasonsArePartial(reasons: readonly BetterReason[], dropPawns: number, bigLabel = false): boolean {
+  if (!reasons.length) return false;
+  // a Mistake / Blunder / Miss explained only by a quiet reason (develops, castles, a file, prevents): always hedged
+  if (bigLabel && reasons.every((r) => r.magnitude < 1)) return true;
+  if (dropPawns < PARTIAL_MIN_DROP) return false;
   // a mating reason (or stopping a mate) is the whole story
   if (reasons.some((r) => r.magnitude >= MATE_REASON)) return false;
   const told = reasons.reduce((sum, r) => sum + r.magnitude, 0);

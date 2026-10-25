@@ -462,6 +462,39 @@ Additions made in M5b (explanation quality round 2; all additive — the client 
 - `suggest.concreteFacts`: `trapped`, `prevents`, and `attack-pinned` when the line wins that piece.
 - Analysis budget: unchanged (the prophylaxis fact reuses the existing opponent null-move search at fenBefore).
 
+Additions made in M5c (explanation quality round 3; all additive optional fields, `ANALYSIS_VERSION` 4 — the client
+renders `Level.text`, so no client change is needed):
+- Suggestions: rule 3's shallow test is waived when the candidate's own short line shows the payoff
+  (`suggest.storyPaysOff`: mate, material won beyond what the opponent's last move took, a perpetual check by the
+  mover) — `deepOnly` ("deep engine move — hard to explain") never sits over a story that explains the move.
+  `explain.contrastWithPlayed`: the pick's / best move's Immediate sentences that equal the played move's are folded
+  into one "Like Ba4, it also stops …" sentence after its own ones; shared Long-term sentences end "— as after Ba4."
+  (`Level.facts` unchanged).
+- Stories (`line.narrationPlies`): a stop point whose material is far off the deep eval (> 2 pawns) or whose claimed
+  change goes against it ("Black wins a pawn" at eval −0.5) runs on to a later stop point within
+  `PAYOFF_HORIZON_PLIES` (20) that fits the eval a pawn better and changes material decisively (a piece, or the claim
+  turned around). A bad move's story also accepts such a later point when it ends level (a pawn lost and regained).
+- `fork.byLine`: a pawn fork the board test can't confirm (the pawn may be taken) — kept in the Immediate level only
+  when the PV wins material within 6 plies, in story steps when the forking side comes out ahead from there, in a
+  refutation when the line costs the mover material ("Pawn fork: …, and the engine line wins material after it").
+- `attack.through`: a battery — the moved slider lines up behind its own slider, which attacks an enemy piece that
+  can now be won by the exchange (and couldn't before): "Lines up behind the rook on d8: together they attack …".
+- `line.draw` / `line.drawBy` (`line.repetitionInLine`): the PV repeats a position within 16 plies and the deep
+  score is |cp| ≤ 10 → the story ends there with "White keeps giving check: a draw by perpetual check" (every move
+  of `drawBy` in the cycle is a check) or "the position repeats: a draw by repetition". A perpetual by the mover is a
+  concrete fact for picks and a better-move reason ("forces a draw by perpetual check"); `allows.perpetual` for one
+  by the opponent.
+- Refutations: `allows.threatParried` — the reply's verified threat is not played because the mover pays right away
+  (its answer and the next opponent move lose ≥ 1 point) and the threat is worth more than the line's cost: "Allows
+  Nd4: then Black threatens Nxc6, winning a queen (+9 points for Black) — in the engine line White avoids that but
+  loses 3 points." `allows.follow` — for a quiet reply whose line costs material, the opponent's first forcing move
+  of the line: "After O-O, Black goes on with Nf3+: in the engine line this costs White 2 points (see the short term)."
+- Better-move reasons (`betterReasonFacts` → `BetterReason.magnitude`): ranked by verified size — mate > material
+  won (by its count) > threats / defences (a defence counts only what the played move actually loses) > quiet
+  reasons; the two biggest are told (a capture by the move first). `misses.partial` / `LabelTextInput.betterPartial`
+  (`reasonsArePartial`): the told reasons are worth less than half of the eval drop (≥ 2 pawns), or a Mistake /
+  Blunder / Miss has only quiet reasons → "— but the engine sees more than this".
+
 ## Facts → text, suggestions (M2)
 
 - `facts/line.ts`: narration = the story of the move up to its payoff: the first quiet point (no piece of either
