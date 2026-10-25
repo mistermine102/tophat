@@ -40,6 +40,9 @@ export const POSITIONAL_ORDER: readonly PositionalFeature[] = [
   'king-safety', 'passed-pawn', 'bishop-pair', 'isolated-pawn', 'doubled-pawn', 'open-file-rook', 'development',
   'centre-control', 'mobility', 'space',
 ];
+/** (M5c) Positional notes are dropped (king safety kept) when the short line swings this much material, or the eval is decided. */
+export const BIG_SWING_PAWNS = 3;
+export const DECIDED_CP = 900;
 /** At most this many long-term facts (= sentences). */
 export const MAX_LONG_FACTS = 2;
 /** (M5b) No "payoff is far away" with this few legal moves: the choice is narrow, not deep (an only king move). */
@@ -63,6 +66,11 @@ export interface LongTermInput {
   immediate: readonly Fact[];
   /** Short line material change (line fact `materialDelta`). */
   lineMaterialDelta: number;
+  /** (M5c) The short line's result, and whether it ends in a repetition / perpetual. */
+  lineResult?: Extract<Fact, { type: 'line' }>['result'];
+  lineDraw?: boolean;
+  /** (M5c) The move is labelled Inaccuracy / Mistake / Blunder / Miss: no 'compensation' note. */
+  bad?: boolean;
   /** Deep score of the move and of the engine's best move, mover POV. */
   score: Score;
   bestScore: Score;
@@ -91,6 +99,11 @@ const worseForSide = (f: PositionalFact) => (f.side === 'opponent' ? f.delta > 0
 
 /** Noise filters shared by move-level and line-end facts (see header). */
 function keep(f: PositionalFact, fenBefore: string, fenAt: string, mover: Color): boolean {
+  // (M5c) king safety without an enemy queen: an active king in an endgame is no weakness
+  if (f.feature === 'king-safety') {
+    const enemy = sideColor(f, mover) === 'white' ? 'black' : 'white';
+    if (positionFromFen(fenAt).board.pieces(enemy, 'queen').isEmpty()) return false;
+  }
   if (f.feature === 'king-safety' && f.detail && /^open files \d+->\d+$/.test(f.detail)) {
     const file = f.squares?.[0]?.[0];
     if (file && 'cdef'.includes(file)) return false;
@@ -244,6 +257,11 @@ export function positionalFacts(input: Pick<LongTermInput, 'fenBefore' | 'fenAft
       if (seen.has(`${f.feature}|${f.side ?? ''}`)) continue;
       if (f.side === 'opponent' && f.delta < 0) continue; // the opponent improving during the line isn't the move's doing
       if (!keep(f, fenBefore, lineEndFen, mover) || !bigLineEnd(f, lineEndFen, mover)) continue;
+      // (M5c) a king that walked during the line exposed itself (…Kh8, Kf1 in the engine line): not the move's doing
+      if (f.feature === 'king-safety') {
+        const c = sideColor(f, mover);
+        if (positionFromFen(fenAfter).board.kingOf(c) !== positionFromFen(lineEndFen).board.kingOf(c)) continue;
+      }
       atEnd.push({ ...f, at: 'line-end' });
     }
   }
@@ -257,7 +275,8 @@ export function positionalFacts(input: Pick<LongTermInput, 'fenBefore' | 'fenAft
 
 /** The move gives material up right away: a new hanging piece or a capture that loses the exchange. */
 export function givesMaterialUp(immediate: readonly Fact[]): boolean {
-  return immediate.some((f) => (f.type === 'hangs' && !f.already) || (f.type === 'capture' && f.outcome === 'loses-material'));
+  // (M5c) not a desperado capture: that piece was lost anyway
+  return immediate.some((f) => (f.type === 'hangs' && !f.already) || (f.type === 'capture' && f.outcome === 'loses-material' && !f.desperado));
 }
 
 /**
@@ -273,7 +292,8 @@ export function castlingLostInLine(fenAfter: string, lineEndFen: string): Fact[]
     const had = castlingSides(a, color);
     if (!had.length || castlingSides(e, color).length) continue;
     const k = e.board.kingOf(color);
-    const castled = k !== undefined && (k >> 3) === (color === 'white' ? 0 : 7) && ((k & 7) === 6 || (k & 7) === 2);
+    // (M5c: a king that castled and then stepped aside — O-O-O, Kb1 — still castled)
+    const castled = k !== undefined && (k >> 3) === (color === 'white' ? 0 : 7) && [0, 1, 2, 6, 7].includes(k & 7);
     if (castled || k === a.board.kingOf(color)) continue; // castled, or only a rook moved
     if (pieceMaterial(e, color === 'white' ? 'black' : 'white') < CASTLING_MIN_ENEMY_MATERIAL) continue;
     out.push({ type: 'castling-lost', color, sides: had, at: 'line-end' });
@@ -283,14 +303,18 @@ export function castlingLostInLine(fenAfter: string, lineEndFen: string): Fact[]
 
 export function longTermFacts(input: LongTermInput): Fact[] {
   const s = input.settings;
-  const all = positionalFacts(input);
+  // (M5c) structure notes are noise next to a big material swing, a mate, a drawn repetition or a decided game:
+  // only king safety stays (and not when the draw / mate is the story)
+  const decided = input.score.mate !== undefined || Math.abs(input.score.cp ?? 0) >= DECIDED_CP;
+  const bigSwing = Math.abs(input.lineMaterialDelta) >= BIG_SWING_PAWNS || input.lineResult === 'mate' || input.lineResult === 'mated';
+  const all = positionalFacts(input).filter((f) => !(input.lineDraw || ((decided || bigSwing) && f.feature !== 'king-safety')));
   const majors = all.filter((f) => !MINOR_FEATURES.has(f.feature));
   const minor = majors.length === 0 ? all.filter((f) => MINOR_FEATURES.has(f.feature) && !f.at).slice(0, 1) : [];
 
   const head: Fact[] = [];
   const mateInvolved = input.score.mate !== undefined || input.bestScore.mate !== undefined;
   // (not for the engine's best move itself: there the formula only restates the line's material)
-  if (!mateInvolved && !input.isBest && givesMaterialUp(input.immediate)) {
+  if (!mateInvolved && !input.isBest && !input.bad && givesMaterialUp(input.immediate)) {
     const gain = guardCp(input.score) - guardCp(input.bestScore) - 100 * input.lineMaterialDelta;
     if (gain >= s.explain.positionalGainMinCp) head.push({ type: 'positional-gain', cp: Math.round(gain) });
   }

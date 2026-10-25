@@ -155,7 +155,7 @@ describe('prevents (prophylaxis)', () => {
   it("the opponent's best idea now loses material on its square", () => {
     const f = preventsFact({ fenBefore: FEN, uci: 'a2a3', nullSearch, score: { cp: -10 } });
     expect(f).toEqual({ type: 'prevents', move: 'c6b4', san: 'Nb4', square: 'b4', reason: 'covered', by: { role: 'pawn', square: 'a3', color: 'white' } });
-    expect(text([f!])).toEqual(["Prevents Nb4, Black's best idea here (what Black would play if White passed): the pawn on a3 now covers b4."]);
+    expect(text([f!])).toEqual(["Prevents …Nb4, Black's best idea here (what Black would play if White passed): the pawn on a3 now covers b4."]);
   });
 
   it('not when the idea is worth little, still works, or the position is decided', () => {
@@ -211,7 +211,8 @@ describe('positional / quiet mistakes', () => {
     expect(render([{ type: 'check' }, { type: 'misses', san: 'Rfe1', uci: 'f1e1', facts: [threat] }])).toEqual(["Misses Rfe1, which threatens Nf6+, uncovering an attack on Black's rook on e8 (+2 points).", 'Gives check.']);
     const hang: Fact = { type: 'hangs', piece: { role: 'knight', square: 'c3', color: 'white' }, loss: 3 };
     expect(render([hang, { type: 'misses', san: 'Rfe1', uci: 'f1e1', facts: [threat] }])).toEqual(['Leaves the knight on c3 hanging: Black can win it (−3 points).']);
-    expect(render([{ type: 'check' }, { type: 'misses', san: 'g3', uci: 'g2g3', facts: [] }])).toEqual(['Gives check.']);
+    // (M5c) without a verified reason the honest fallback still leads (a Mistake is not a list of merits)
+    expect(render([{ type: 'check' }, { type: 'misses', san: 'g3', uci: 'g2g3', facts: [] }])).toEqual(['No tactical problem right away — the engine prefers g3 for long-term reasons that are hard to put into words.', 'Gives check.']);
     const good = renderExplanation({ immediate: [{ type: 'misses', san: 'g3', uci: 'g2g3', facts: [] }], short: [], long: [] }, { mover: 'white', label: 'good' }).immediate.text;
     expect(good).toEqual(['Nothing special happens right away.']);
   });
@@ -372,7 +373,7 @@ describe('round 9 regressions', () => {
   it('a promotion in the line: no piece lists', () => {
     const step = (ply: number, san: string, facts: Fact[] = []) => ({ ply, san, uci: 'a1a2', color: (ply % 2 ? 'white' : 'black') as 'white' | 'black', facts });
     const line: Extract<Fact, { type: 'line' }> = { type: 'line', steps: [step(1, 'Rh8'), step(2, 'c1=R', [{ type: 'promotion', to: 'rook' }])], materialDelta: -4, result: 'loses-material', won: ['pawn'], lost: ['rook'] };
-    expect(lineText(line, W)).toMatch(/White ends up behind in material \(−4 points\)\.$/);
+    expect(lineText(line, W)).toMatch(/White loses material overall \(−4 points\)\.$/);
   });
 });
 
@@ -393,7 +394,7 @@ describe('sacrifices in the Immediate level', () => {
     const imm = immediateFacts(fen, 'd1d4');
     const best = renderExplanation({ immediate: imm, short: [line], long: [] }, { mover: 'white', label: 'best', uci: 'd1d4' }).immediate.text;
     expect(line.result).toBe('trade');
-    expect(best[0]).toBe("Takes Black's pawn on d4 and leaves the rook where it can be taken (−3 points if it is), but in the engine line Black doesn't take it.");
+    expect(best[0]).toBe("Takes Black's pawn on d4 and leaves the rook where it can be taken, but in the engine line Black doesn't take it.");
     // when the line takes it and comes out level, it is a sacrifice won back
     const taken = narrateLine(fen, pv('d1d4 c5d4 e1e7 a7b6'), { settings: S, plies: 2 }).line;
     void taken;

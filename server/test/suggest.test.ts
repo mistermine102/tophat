@@ -60,10 +60,13 @@ describe('judgeCandidate', () => {
     expect(judgeCandidate(cand({ score: sc(20), shallowScore: sc(21) }), sc(22), S)).toEqual([]);
   });
   it('shallow-disagrees (also when unknown)', () => {
-    expect(judgeCandidate(cand({ shallowScore: sc(50) }), best, S)).toEqual(['shallow-disagrees']);
-    expect(judgeCandidate(cand({ shallowScore: null }), best, S)).toEqual(['shallow-disagrees']);
+    const checkOnly: Fact[] = [{ type: 'check' }, quietLine];
+    expect(judgeCandidate(cand({ shallowScore: sc(50), facts: checkOnly }), best, S)).toEqual(['shallow-disagrees']);
+    expect(judgeCandidate(cand({ shallowScore: null, facts: checkOnly }), best, S)).toEqual(['shallow-disagrees']);
     // shallow liking it more is fine
-    expect(judgeCandidate(cand({ shallowScore: sc(80) }), best, S)).toEqual([]);
+    expect(judgeCandidate(cand({ shallowScore: sc(80), facts: checkOnly }), best, S)).toEqual([]);
+    // (M5c) a verified tactic shown in the Immediate level (the fork) is near-term whatever the shallow search says
+    expect(judgeCandidate(cand({ shallowScore: sc(50) }), best, S)).toEqual([]);
   });
   it('no-concrete-fact', () => expect(judgeCandidate(cand({ facts: [quietLine] }), best, S)).toEqual(['no-concrete-fact']));
   it('several reasons at once', () => {

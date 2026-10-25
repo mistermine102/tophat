@@ -175,7 +175,7 @@ describe('short level', () => {
   });
   it('hung queen line, mate line, quiet line', () => {
     const q = narrateLine(legalFen('r5k1/ppp2pp1/7p/8/8/2N2N2/PPPQ1PPP/4R1K1 w - - 0 1'), ['d2g5', 'h6g5', 'f3g5', 'a8d8'], { settings: S }).line;
-    expect(lineText(q, W)).toMatchInlineSnapshot(`"Qg5 → hxg5 takes the queen → Nxg5 takes back → White gives a queen for a pawn (−8 points); White is 7 points up."`);
+    expect(lineText(q, W)).toMatchInlineSnapshot(`"Qg5 → hxg5 takes the queen → Nxg5 takes back → White gives a queen for a pawn (−8 points); White is still 7 points up."`);
     const m = narrateLine(legalFen('6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1'), ['a1a8'], { settings: S }).line;
     expect(lineText(m, W)).toMatchInlineSnapshot(`"Ra8# is checkmate."`);
     const quiet = narrateLine(legalFen('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'), ['g1f3', 'g8f6', 'g2g3', 'g7g6'], { settings: S }).line;
@@ -254,8 +254,8 @@ describe('long level', () => {
         "White gets a passed pawn on d5 (no enemy pawn stands in its way).",
         "Black gets an isolated pawn on e6 (no pawn of the same colour on the files next to it).",
         "After these moves, Black gets doubled pawns on the c-file (two pawns on one file).",
-        "White gives up the bishop pair (both bishops).",
-        "Black loses the bishop pair (both bishops).",
+        "White gives up the bishop pair (the two-bishop advantage).",
+        "Black no longer has the bishop pair (the two-bishop advantage).",
         "White's rook on d1 gets a file without its own pawns in the way.",
         "White gains control of the centre.",
         "White gives up some space.",

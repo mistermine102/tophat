@@ -337,6 +337,8 @@ export function preventsFact(input: PreventsInput): Extract<Fact, { type: 'preve
   // the idea captured the piece that just moved away (an escape), or the move captured the idea's piece
   if (ideaMove.to === mv.from || ideaMove.from === mv.to) return null;
   const san = makeSan(nullPos, ideaMove);
+  // (M5c) "d5 prevents …d5" says nothing: the same move by the other side
+  if (makeSan(pos, mv) === san) return null;
   pos.play(mv);
   if (pos.isCheck() || pos.isEnd()) return null;
   const sq = (n: number) => `${'abcdefgh'[n & 7]}${(n >> 3) + 1}`;
@@ -379,6 +381,8 @@ export const PAYOFF_HORIZON_PLIES = 20;
 export const REPETITION_MAX_PLIES = 16;
 /** (M5c) The deep score of a repeating line must be a draw: |cp| at most this. */
 export const DRAW_MAX_CP = 10;
+/** (round 11) Material that then stays the same for this many plies counts as the line's result (see narrationPlies). */
+export const RUN_HOLD_PLIES = 4;
 
 export interface Repetition {
   /** Plies until the repeated position (inclusive). */
@@ -416,6 +420,15 @@ export function repetitionInLine(fenBefore: string, pv: readonly string[], score
       return { at: i + 1, kind: 'repetition' };
     }
     seen.set(k, i + 1);
+  }
+  // (round 11) no repetition yet, but one side gives check on every move of a PV the engine scores as a draw (Qf6+ Ke8
+  // Qxe6+ Kd8 Qd6+ Ke8 at 0.00): a perpetual check
+  const n = Math.min(pv.length, REPETITION_MAX_PLIES);
+  if (n >= 6) {
+    for (const c of ['white', 'black'] as const) {
+      const own = checks.slice(0, n).filter((x) => x.color === c);
+      if (own.length >= 3 && own.every((x) => x.check)) return { at: n, kind: 'perpetual', by: c };
+    }
   }
   return null;
 }
@@ -455,6 +468,7 @@ export function narrationPlies(fenBefore: string, pv: readonly string[], setting
   };
   const lo = Math.min(Math.max(min, opts.minPlies ?? 0), n);
   let end = first(lo, (k) => (stopOk(k) || claimOk(k)) && agrees(k)) ?? first(lo, stopOk);
+  if (process.env.DBG_NP) console.error('np', JSON.stringify({ lo, n, nAll, end, stops: info.quiet.map((_, k) => (stopOk(k) ? `S${k}` : claimOk(k) ? `C${k}` : '')).filter(Boolean), quiet: info.quiet.map((q, k) => (q ? k : -1)).filter((k) => k >= 0), delta: info.delta, start: info.start, evalPawns }));
   // (round 7) a stop point whose material is still far from the engine's eval (Kf7: "loses a pawn" at 0 → +4.8)
   // gives way to a later one within the horizon that matches it (the rook lost to the Ne6+ fork)
   if (end !== undefined && evalPawns !== null && Math.abs(evalPawns) < 9) {
@@ -477,10 +491,45 @@ export function narrationPlies(fenBefore: string, pv: readonly string[], setting
     // (only when the later material agrees better with the deep eval: a PV cut mid-exchange proves nothing)
     const fits = (k: number) => (evalPawns === null ? Infinity : Math.abs(info.start + info.delta[k]! - evalPawns));
     // (round 9) …or when that material then holds unchanged to the end of the walked PV (at least 2 more plies)
-    const holds = (k: number) => n - k >= 2 && info.delta.slice(k, n + 1).every((d) => d === info.delta[k]);
+    // (round 11: one more ply is enough when it is the end of the PV — Qxb5 taking the pawn back, then the PV ends)
+    const holds = (k: number) => n - k >= (n === nAll ? 1 : 2) && info.delta.slice(k, n + 1).every((d) => d === info.delta[k]);
     if (lastStop !== undefined && Math.abs(info.delta[lastStop]! - info.delta[end]!) >= 1) {
       const settled = first(end + 1, (k) => (stopOk(k) || claimOk(k)) && info.delta[k] === info.delta[lastStop!]);
       if (settled !== undefined && (fits(lastStop) < fits(end) || holds(settled))) end = settled;
+    }
+    // (M5c, round 11) the same beyond the normal horizon (up to PAYOFF_HORIZON_PLIES): material the PV still changes
+    // later (a pinned piece won back, a rook lost after the shown "pawn") is no result yet — when that later material
+    // fits the deep eval better, run on to the first stop point that has it
+    if (nAll > n) {
+      let lastX: number | undefined;
+      for (let k = nAll; k > Math.max(end, n); k--) {
+        if (stopOk(k) || claimOk(k)) {
+          lastX = k;
+          break;
+        }
+      }
+      if (lastX !== undefined && Math.abs(info.delta[lastX]! - info.delta[end]!) >= 1 && fits(lastX) < fits(end) - 0.5) {
+        for (let k = end + 1; k <= lastX; k++) {
+          if ((stopOk(k) || claimOk(k)) && info.delta[k] === info.delta[lastX]) {
+            end = k;
+            break;
+          }
+        }
+      }
+    }
+    // (round 11) no later stop point, but the material changes and then stays the same for RUN_HOLD_PLIES plies (a
+    // pinned knight won back by dxe5): that material, not the earlier count, is the result — run on to it (the line
+    // may then be 'unclear' there rather than claim the wrong count)
+    {
+      const from = end;
+      for (let k = from + 1; k + RUN_HOLD_PLIES - 1 <= nAll; k++) {
+        if (Math.abs(info.delta[k]! - info.delta[from]!) < 1 || info.delta[k] === info.delta[k - 1] && k > from + 1) continue;
+        const run = info.delta.slice(k, k + RUN_HOLD_PLIES);
+        if (run.every((d) => d === info.delta[k]) && fits(k) < fits(from) - 1 && !info.quiet.slice(from + 1, k).some(Boolean)) {
+          end = k;
+          break;
+        }
+      }
     }
     // (M5c) the payoff lies beyond the normal horizon: the material at the stop point is still far off the deep eval
     // (more than EVAL_CLOSE_PAWNS), or the claimed change goes against it (a pawn "won" while the eval says the mover
@@ -735,7 +784,8 @@ export function narrateLine(fenBefore: string, pv: readonly string[], opts: Narr
   for (const [i, step] of steps.entries()) {
     const takenNext = steps[i + 1]?.uci.slice(2, 4) === step.uci.slice(2, 4);
     step.facts = step.facts.filter((f) => {
-      if (f.type === 'trapped') return !takenNext && sideWinsPiece(steps, i, f.piece.square);
+      // (M5c) …and the trapping side really comes out ahead (a knight that trades itself off isn't won)
+      if (f.type === 'trapped') return !takenNext && sideWinsPiece(steps, i, f.piece.square) && sideGainFrom(steps, i) >= PIECE_VALUES[f.piece.role] - 1;
       // (M5c) a pawn fork answered by taking the pawn: told when the forking side still comes out ahead from here
       if (f.type === 'fork' && f.byLine) return sideGainFrom(steps, i) >= 1;
       if (f.type === 'fork') return (!takenNext || !!f.followUp) && f.targets.some((t) => t.role !== 'king' && sideWinsPiece(steps, i, t.square));

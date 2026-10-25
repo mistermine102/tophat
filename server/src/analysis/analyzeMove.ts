@@ -30,7 +30,7 @@ import { legalMove as legalMoveAt, legalPrefix, playMove, positionStatus, pvToSa
 import { hangingLoss, seeCaptureWith, seeMove } from '../chess/see';
 import { parseSquare } from 'chessops/util';
 import type { PvLine, SearchResult } from '../engine/uci';
-import { lineMaterial, materialBalance, positionFromFen } from '../chess/material';
+import { PIECE_VALUES, lineMaterial, materialBalance, positionFromFen } from '../chess/material';
 import { immediateFacts } from '../facts/immediate';
 import { type ForcedInfo, type NarratedLine, type ThreatFact, forcedFromSearch, forcednessChecks, mateLineSan, narrateLine, narrationPlies, nullMoveFen, preventsFact, pvFork, refutationFact, threatFromSearch, threatStillWorks } from '../facts/line';
 import { longTermFacts } from '../facts/longterm';
@@ -249,10 +249,14 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
     const long = longTermFacts({
       fenBefore: fen,
       fenAfter: w.fenAfter,
-      lineEndFen: narrated.endFen,
+      // (M5c) a story run on past the quiet horizon: no line-end structure notes from that far out
+      lineEndFen: narrated.line.steps.length > settings.material.quietHorizonPlies ? w.fenAfter : narrated.endFen,
       mover,
       immediate: w.immediate,
       lineMaterialDelta: narrated.line.materialDelta,
+      lineResult: narrated.line.result,
+      ...(narrated.line.draw ? { lineDraw: true } : {}),
+      ...(label && BAD_LABELS.has(label) ? { bad: true } : {}),
       score: isBest ? best.score : w.score,
       bestScore: best.score,
       shallowScore: w.shallow,
@@ -294,6 +298,8 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
     const short: Fact[] = [narrated.line, ...narrated.forcedReplies];
     shortFacts.set(w.uci, short);
     const ectx: ExplainContext = label ? { mover, label, uci: w.uci } : { mover, uci: w.uci };
+    // (M5c) the played bad move's eval drop, for the honest hedge (only without mate scores: the number then means something)
+    if (label && BAD_LABELS.has(label) && best.score.mate === undefined && w.score.mate === undefined && w.uci !== cands[0]!.uci) ectx.hedge = { dropPawns: (guardCp(best.score) - guardCp(w.score)) / 100, bestSan: cands[0]!.san };
     allFacts.set(w.uci, { immediate, short, long, ctx: ectx });
     const e = renderExplanation({ immediate, short, long }, ectx);
     factsMs += now() - tf;
@@ -375,7 +381,7 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
   const bf = allFacts.get(bestWork.uci);
   const pf = allFacts.get(playedWork.uci);
   const betterR = BAD_LABELS.has(cr.label) && !playedIsBest && bf && pf
-    ? betterReasonFacts([...bf.immediate, ...bf.short, ...bf.long], [...pf.immediate, ...pf.short, ...pf.long], mover, bestWork.uci, { positional: cr.label === 'inaccuracy' })
+    ? betterReasonFacts([...bf.immediate, ...bf.short, ...bf.long], [...pf.immediate, ...pf.short, ...pf.long], mover, bestWork.uci, { positional: cr.label === 'inaccuracy', playedFenAfter: playedWork.fenAfter })
     : [];
   const better = betterR.map((r) => r.phrase);
   // (M5c) the eval drop (pawns, mover POV, mates as big numbers) vs the biggest verified reason
@@ -394,7 +400,11 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
     }
   }
   const hangs = playedWork.immediate.filter((f): f is Extract<Fact, { type: 'hangs' }> => f.type === 'hangs').sort((a, b) => b.loss - a.loss);
-  const hang = hangs.find((h) => h.piece.square === cr.labelReason.material?.hung?.square) ?? hangs[0];
+  const hang0 = hangs.find((h) => h.piece.square === cr.labelReason.material?.hung?.square) ?? hangs[0];
+  // (M5c) a hung piece the refutation takes with a tactic (Nxc7+ forking king and rook): the tactic is the reason, not the pawn
+  const refut = pf?.immediate.find((f): f is Extract<Fact, { type: 'allows' }> => f.type === 'allows');
+  const tacticTakes = !!refut && refut.facts.some((x) => x.type === 'fork' || x.type === 'skewer' || x.type === 'discovered-attack') && refut.facts.some((x) => x.type === 'capture' && x.captured.square === hang0?.piece.square);
+  const hang = tacticTakes ? undefined : hang0;
   analysis.labelText = labelText({ ...analysis, bestSan: bestWork.san, bestUci: bestWork.uci, checkmate: cr.checkmate, better, ...(partial ? { betterPartial: true } : {}), verifiedHang: hang ? { piece: hang.piece, loss: hang.loss, ...(hang.already ? { already: true } : {}) } : null }, settings);
   const verdict = verdictText(cr.label, playedIsBest);
   if (verdict) analysis.verdictText = verdict;
@@ -471,7 +481,8 @@ export function verifyWithLine(facts: Fact[], fen: string, pv: readonly string[]
   const before = positionFromFen(fen);
   return facts
     .filter((f) => f.type !== 'hangs' || taken.has(f.piece.square))
-    .filter((f) => f.type !== 'trapped' || moverWins(fen, pv, f.piece.square, TRAPPED_VERIFY_PLIES))
+    // (M5c) …and the line's material shows it (a 'trapped' knight that trades itself off on b4 isn't won)
+    .filter((f) => f.type !== 'trapped' || (moverWins(fen, pv, f.piece.square, TRAPPED_VERIFY_PLIES) && lineMaterial(fen, pv, { horizonPlies: TRAPPED_VERIFY_PLIES }).delta >= PIECE_VALUES[f.piece.role] - 1))
     // (M5c) a pawn fork the pawn can be taken from: only when the engine line then wins material
     .filter((f) => !(f.type === 'fork' && f.byLine) || lineMaterial(fen, pv, { horizonPlies: VERIFY_PLIES }).delta >= 1)
     // (M5b) a pin the opponent ignores at once (the pinned piece moves in the reply: 6.Bg5? Nxe4!) isn't one

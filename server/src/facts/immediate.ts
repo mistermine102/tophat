@@ -34,6 +34,7 @@
 //   can be won (quiet moves; for captures the capture outcome `loses-material` says it). Also `already: true`
 //   for a piece that was en prise before and still is, when the move wasn't a check evasion and didn't itself
 //   win at least as much (loss ≥ HANGS_ALREADY_MIN_LOSS). Not with checkmate.
+//   (M5c) The loss told is capped at the piece's value: a capturing pawn's promotion is a later, separate event.
 // - allows-mate: the opponent has a mate in 1 after the move (brute force).
 // - castling-lost (M5b): the mover could still castle (either side) before the move and can't at all after it — a
 //   king move that isn't castling, or a rook move that gives up the last right — while the opponent still has
@@ -313,12 +314,12 @@ export function immediateFactsFromPosition(before: Position, uci: string, opts: 
       if (sq === toSq) {
         if (cap) continue; // a losing capture is reported by its outcome
         const l = -seeMove(before, uci);
-        if (l > 0) facts.push({ type: 'hangs', piece: ref(after, sq), loss: l });
+        if (l > 0) facts.push({ type: 'hangs', piece: ref(after, sq), loss: Math.min(l, PIECE_VALUES[piece.role]) });
       } else if ((lossBefore.get(back(sq)) ?? 0) <= 0) {
-        facts.push({ type: 'hangs', piece: ref(after, sq), loss });
+        facts.push({ type: 'hangs', piece: ref(after, sq), loss: Math.min(loss, PIECE_VALUES[after.board.getRole(sq)!]) });
       } else if (!wasInCheck && loss >= HANGS_ALREADY_MIN_LOSS && loss > gained) {
         // it was already en prise and the move neither saved it nor won at least as much elsewhere
-        facts.push({ type: 'hangs', piece: ref(after, sq), loss, already: true });
+        facts.push({ type: 'hangs', piece: ref(after, sq), loss: Math.min(loss, PIECE_VALUES[after.board.getRole(sq)!]), already: true });
       }
     }
 
