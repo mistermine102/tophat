@@ -49,7 +49,8 @@ const all = computed(() => {
 });
 const badLines = computed(() => all.value.filter((l) => l.tone === 'bad'));
 const goodLines = computed(() => all.value.filter((l) => l.tone === 'good'));
-const neutralLines = computed(() => all.value.filter((l) => l.tone === 'neutral'));
+// neutral sentences of the Immediate level only (a neutral long-term line is filler: "There is a forced mate, so …")
+const neutralLines = computed(() => levelLines(ex.value?.immediate).filter((l, i) => l.tone === 'neutral' && i !== m.verdict.value?.usedIndex));
 /** The story's moves (its result is already in a block above). */
 const storySteps = computed(() => (storyResult(story.value) ? story.value.slice(0, -1) : story.value).filter((p, i, arr) => !(p.text === '…' && i === arr.length - 1)));
 const badFirst = computed(() => !!m.a.value && BAD.has(m.a.value.label));

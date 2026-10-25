@@ -168,7 +168,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey, true));
               eval {{ m.evalChange.value.before }} → <b class="text-neutral-200">{{ m.evalChange.value.after }}</b>
             </span>
           </div>
-          <div v-if="m.a.value && m.verdict.value" class="mt-2 flex items-start gap-3" data-testid="verdict">
+          <div v-if="m.a.value && m.verdict.value" class="mt-2 flex items-start gap-3" data-testid="verdict" :data-tone="m.verdict.value.tone">
             <LabelGlyph :label="m.a.value.label" size="lg" />
             <p class="min-w-0 pt-0.5 text-[17px] leading-snug text-neutral-50">
               <b :style="{ color: accent }" data-testid="label-name">{{ m.verdict.value.name }}</b>
@@ -211,7 +211,10 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey, true));
 
         <div v-if="m.a.value" class="space-y-3.5 border-t border-white/5 p-4 pt-3.5">
           <div v-if="story.length" data-testid="timeline">
-            <div class="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-neutral-400">What happens next <span class="font-normal normal-case tracking-normal text-neutral-500">· engine line, click a step</span></div>
+            <div class="mb-1.5 flex flex-wrap items-baseline gap-x-2 text-[11px] font-semibold uppercase tracking-wide text-neutral-400">
+              What happens next
+              <span class="font-normal normal-case tracking-normal text-neutral-500">engine line · click a step · <b class="text-green-400">✓</b> good / <b class="text-red-400">✗</b> bad for {{ m.moverIsYou.value ? 'you' : m.moverName.value }}</span>
+            </div>
             <StoryChips :parts="story" :active="activeWhyPart" clickable @select="(i) => { if (replay.st.kind !== 'why') showWhy(); replay.goToPart(i); }" />
           </div>
           <div v-if="rightNow.length">

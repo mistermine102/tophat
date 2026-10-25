@@ -151,9 +151,3 @@ const suggestions = computed(() => {
   </div>
 </template>
 
-<style scoped>
-@reference "../style.css";
-.kbd {
-  @apply rounded border border-neutral-600 bg-neutral-700 px-1 text-xs text-neutral-200;
-}
-</style>

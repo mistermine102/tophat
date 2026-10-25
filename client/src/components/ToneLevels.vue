@@ -7,7 +7,7 @@ import { levelLines, storyParts } from '../lib/tones';
 import StoryChips from './StoryChips.vue';
 import ToneList from './ToneList.vue';
 
-const props = withDefaults(defineProps<{ explanation: Explanation | null | undefined; skipImmediate?: number[] }>(), { skipImmediate: () => [] });
+const props = withDefaults(defineProps<{ explanation: Explanation | null | undefined; skipImmediate?: number[]; mover?: string | null }>(), { skipImmediate: () => [], mover: null });
 const imm = computed(() => levelLines(props.explanation?.immediate).filter((_, i) => !props.skipImmediate.includes(i)));
 const story = computed(() => storyParts(props.explanation?.short));
 const shortLines = computed(() => (story.value.length ? [] : levelLines(props.explanation?.short)));
@@ -16,6 +16,9 @@ const long = computed(() => levelLines(props.explanation?.long));
 
 <template>
   <div class="space-y-2.5" data-testid="tone-levels">
+    <p v-if="mover" class="text-[11px] text-neutral-500">
+      <span class="font-bold text-green-400">✓</span> good for {{ mover }} · <span class="font-bold text-red-400">✗</span> bad for {{ mover }}
+    </p>
     <div data-testid="level-immediate">
       <div class="mb-1 text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Right now</div>
       <ToneList v-if="imm.length" :lines="imm" />

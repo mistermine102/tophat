@@ -621,6 +621,32 @@ M2-client additions (client wired to the real server end to end):
   test hooks; client on 5193; skipped without Stockfish). `E2E_REAL=0` runs only the mock project. Screenshots of
   real data: `client/e2e/screenshots/real-<size>-*.png`.
 
+## Client layouts (UI round: prototypes)
+
+`?ui=classic|a|b|c` (`client/src/lib/uiMode.ts`; default `classic`, a switch in the header keeps the URL in sync).
+`App.vue` = header + dialogs + one layout from `client/src/layouts/`; every layout uses the same session store —
+only presentation differs. Shared presentation pieces:
+- `BoardView` (chessground + arrows + promotion + previews) with `BoardBadge`: an absolutely positioned overlay over
+  chessground's `cg-container` (ResizeObserver; position from square + orientation) showing the viewed move's label
+  glyph at the top-right corner of its destination square (main line and side lines), a spinner while it is analysed,
+  "!" when it failed, or a ✓ / ✗ marker given by `Preview.marker` (replays). `Preview` (session) also got optional
+  `arrows` (brushes `pick|best|threat|played|good|bad|neutral`).
+- `lib/tones.ts` (`levelLines`, `storyParts` — `Level.story`, else the sentence split at its arrows), `lib/verdict.ts`
+  (`moveVerdict`: label name + the first bad sentence of a bad move / good sentence of a good one, else the label
+  reason; `keyPoints`; `betterMove` = pick, else engine's top; `candidatePoints`), `lib/useMove.ts` (the viewed move,
+  eval change, rule note, preview / play a candidate), `lib/replay.ts` (frames of a narrated line → `setPreview`).
+  These only pick and join explain.ts sentences — no chess prose on the client.
+- Components: `ToneList` (✓ / ✗ / • sentences, hovering a square name highlights it), `StoryChips` (the story as
+  coloured chips), `ToneLevels` (three levels: "Right now / Next few moves / Long term"), `SummaryCompact`,
+  `GameOverview` (start position; also used by the classic panel), `MoveList badges` (bigger glyphs, tinted errors).
+
+Layouts: `ClassicLayout` (v1 screen, unchanged); `BoardFirstLayout` (A: verdict bubble beside the board, level with
+the moved piece's rank, key points, Better, Details); `CoachLayout` (B: coach card, "Show me why" / "Show better move"
+replay the line on the board — arrows + markers + caption bar under the board, ←/→/space/Esc while it runs —
+consequences as a chip timeline); `GoodBadLayout` (C: label · move · eval chip, "What goes wrong ✗" / "What it does
+well ✓" blocks, Better card with Play, labelled move list). E2E: `e2e/prototypes.spec.ts` (mock),
+`e2e/real/prototypes-real.spec.ts` (real server).
+
 ## Cache
 
 Key = sha1(`ANALYSIS_VERSION | settingsHash | fenBefore | uci | prevKey | bookChain`) (`games.ts analysisKey`;

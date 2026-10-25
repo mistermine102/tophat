@@ -38,7 +38,6 @@ const graphPly = computed(() => (node.value && tree.value ? (tree.value.branchPo
 // --- the bubble follows the moved piece's row ---
 const boardEl = ref<HTMLElement | null>(null);
 const colEl = ref<HTMLElement | null>(null);
-const bubbleEl = ref<HTMLElement | null>(null);
 /** The bubble's content at its natural height (the card around it may be capped and scroll). */
 const contentEl = ref<HTMLElement | null>(null);
 const boardPx = ref(0);
@@ -123,7 +122,6 @@ const accent = computed(() => m.meta.value?.color ?? '#737373');
       </div>
       <div
         v-else
-        ref="bubbleEl"
         class="pa-bubble absolute inset-x-0"
         :style="{ top: `${bubbleTop}px`, '--accent': accent }"
         data-testid="verdict-bubble"
@@ -145,7 +143,7 @@ const accent = computed(() => m.meta.value?.color ?? '#737373');
           </div>
 
           <!-- verdict -->
-          <div v-if="m.a.value && m.verdict.value" class="mt-2 flex items-start gap-2.5" data-testid="verdict">
+          <div v-if="m.a.value && m.verdict.value" class="mt-2 flex items-start gap-2.5" data-testid="verdict" :data-tone="m.verdict.value.tone">
             <LabelGlyph :label="m.a.value.label" size="lg" />
             <p class="min-w-0 pt-0.5 text-[16px] leading-snug text-neutral-50">
               <b :style="{ color: accent }" data-testid="label-name">{{ m.verdict.value.name }}</b>
@@ -204,7 +202,7 @@ const accent = computed(() => m.meta.value?.color ?? '#737373');
             </button>
             <div v-if="showDetails" class="mt-2 border-t border-white/5 pt-2.5" data-testid="details">
               <p class="mb-2.5 text-xs text-neutral-400" data-testid="label-reason">{{ m.reason.value }}</p>
-              <ToneLevels :explanation="m.a.value.played.explanation" :skip-immediate="m.verdict.value?.usedIndex != null ? [m.verdict.value.usedIndex] : []" />
+              <ToneLevels :explanation="m.a.value.played.explanation" :skip-immediate="m.verdict.value?.usedIndex != null ? [m.verdict.value.usedIndex] : []" :mover="m.moverIsYou.value ? 'you' : m.moverName.value" />
             </div>
           </template>
           </div>
