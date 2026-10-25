@@ -343,6 +343,15 @@ Additions made in M3 (label quality; all additive, `ANALYSIS_VERSION` 2):
   if the 2nd best throws the win away.
 - `analysis/label.ts`: `labelMove(settings, search, input)` = searches 1/1b/6 + `classifyMove` (moved out of
   analyzeMove, which calls it first); the label benchmark (`bench/label-benchmark.ts`) calls the same function.
+  Optional search 7 (`settings.budget.verify`, **off by default**, `margin` 0): when winLoss is within `margin` win% of
+  a label bound, re-search `[best, played]` (or `[best, 2nd]` for Great) with MultiPV 2 at deep depth + 2 and label from
+  that. Measured: it barely reduces run-to-run flips (see bench/reports/labels.md), so it stays off.
+- Material rule (M3 fixes): the baseline after an opponent capture is raised only by what the exchange on that
+  square can win back (`materialBaseline`); when the best move is already ≤ −`material.lostPositionCp` (900) or mated,
+  only a piece the move itself leaves hanging fires the rule (`hung` and not `hungAlready`). New settings
+  `material.lostPositionCp`, `mate.*`, `great.maxLegalMovesInCheck`, `great.freeCaptureMinGain`, `budget.verify`.
+- Label benchmark: `npx tsx bench/label-benchmark.ts run|report` → bench/reports/labels.md (+ labels-details.md);
+  hand verdicts in bench/labels.eyeball.json, hand-written analysis in bench/labels.analysis.md.
 
 ## Facts → text, suggestions (M2)
 

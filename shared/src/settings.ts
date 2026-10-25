@@ -128,7 +128,9 @@ export interface AnalysisBudget {
  * Stability (M3): when a label sits within `margin` win% of a threshold that decides it (winLoss vs the
  * Excellent / Good / Inaccuracy / Mistake bounds, or the 2nd best's loss vs Great's bound), the two moves are
  * re-searched together (`searchmoves=[best, other]`, MultiPV 2) at deep depth + `depthPlus` and the label is
- * taken from that search. Not hysteresis: the deeper verdict wins in both directions. `margin` 0 disables it.
+ * taken from that search. Not hysteresis: the deeper verdict wins in both directions. `margin` 0 disables it —
+ * the default: measured on 10 games (bench/reports/labels.md) it cut severity-class flips between two independent
+ * analyses only from 4.9 % to 4.4 % for +13 % engine time (the flips are multi-thread search noise at the bounds).
  */
 export interface VerifyBudget {
   margin: number;
@@ -203,7 +205,7 @@ export const DEFAULT_SETTINGS: AnalysisSettings = {
     threat: { depth: 12, multipv: 1, maxMs: 500 },
     forcedness: { depth: 12, multipv: 2, maxMs: 500 },
     forcednessPlies: 6,
-    verify: { margin: 1, depthPlus: 2, maxMs: 8000 },
+    verify: { margin: 0, depthPlus: 2, maxMs: 8000 }, // off: measured in M3, 4.9 -> 4.4 % class flips for +13 % engine time
   },
 };
 

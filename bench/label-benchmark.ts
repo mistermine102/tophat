@@ -11,6 +11,7 @@
 //                                           [--threads 5] [--hash 512] [--fresh] [--db-tag other] [--verify-margin 1|0]
 //                                           [--set great.maxWinAfterBest=70,...]  (numeric settings overrides)
 //   npx tsx bench/label-benchmark.ts report [--main d18] [--cold cold] [--depths d16,d18,d22] [--ref d22]
+//                                           [--verify d18v,coldv]
 //
 // run:    plays every game ply by ply like games.ts (prev = ply N-1 with its result; book chain), for two
 //         threshold profiles: `default` (DEFAULT_SETTINGS) and `lichess` (Lichess' thresholds on our winLoss:
@@ -297,7 +298,7 @@ async function run(): Promise<void> {
 if (cmd === 'run') await run();
 else if (cmd === 'report') {
   const { report } = await import('./lib/labelReport');
-  report({ outDir: OUT_DIR, reportDir: join(here, 'reports'), main: opt('main', 'd18')!, cold: opt('cold'), depths: opt('depths')?.split(','), ref: opt('ref') });
+  report({ outDir: OUT_DIR, reportDir: join(here, 'reports'), main: opt('main', 'd18')!, cold: opt('cold'), depths: opt('depths')?.split(','), ref: opt('ref'), verify: opt('verify')?.split(',') });
 } else {
   console.error('usage: npx tsx bench/label-benchmark.ts run|report [options] (see the file header)');
   process.exit(2);

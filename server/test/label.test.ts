@@ -29,7 +29,9 @@ function fake(deep: PvLine[], verify?: PvLine[]) {
   return { search, calls };
 }
 
-const S: AnalysisSettings = DEFAULT_SETTINGS;
+// the verification is off by default (settings.budget.verify.margin 0, see bench/reports/labels.md); enable it here
+const S: AnalysisSettings = structuredClone(DEFAULT_SETTINGS);
+S.budget.verify.margin = 1;
 // (earlierMovesAllBook: false = no Book label for these opening moves)
 // best e2e4 at 60 %; candidates d2d4 / c2c4 / g1f3 at chosen losses (quiet 1-ply PVs: the material rule stays silent)
 const deepWith = (playedLoss: number, secondLoss = 0.2) => [
@@ -82,7 +84,7 @@ describe('labelMove: near-threshold verification', () => {
     expect(x.cr.winLoss).toBeCloseTo(2 - 0, 0);
   });
 
-  it('margin 0 disables it; mate scores are never verified', async () => {
+  it('margin 0 (the default) disables it; mate scores are never verified', async () => {
     const off = structuredClone(DEFAULT_SETTINGS);
     off.budget.verify.margin = 0;
     const f = fake(deepWith(9.6));
