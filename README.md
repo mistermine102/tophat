@@ -11,7 +11,7 @@ It is meant for reviewing **finished** games, not for help during a game.
 
 - Windows 10 or 11 (64-bit)
 - [Node.js 24](https://nodejs.org/) or newer (the "LTS" installer is fine; tick nothing special)
-- An internet connection for the first install (it downloads the Stockfish engine, about 100 MB)
+- An internet connection for the first install (it downloads the Stockfish engine, about 80 MB)
 
 ## Install (once)
 
@@ -23,28 +23,35 @@ npm run setup:engine
 npm start
 ```
 
-`npm start` opens Chess Coach in your browser at <http://localhost:5174>. Next time you only need `npm start`.
-To stop it, press `Ctrl+C` in the terminal (closing the terminal window also stops it).
+`npm start` opens Chess Coach in your browser at <http://localhost:5174> (the first start takes a few seconds longer).
+Next time you only need `npm start` — keep that terminal window open while you use the app; to stop it, press
+`Ctrl+C` there or close the window. Running `npm start` again while it is already running just opens the browser.
+(If you forget `npm run setup:engine`, `npm start` downloads Stockfish itself.)
 
 ## Get a PGN from chess.com
 
 1. Open the finished game on chess.com (Profile → Games, or the game review page).
 2. Click **Share** (the arrow icon under the board) → **PGN** tab → **Copy PGN**.
 3. In Chess Coach click **Open PGN** (it opens by itself the first time), paste with `Ctrl+V`, click **Analyse game**.
+   The first time, it also asks for your chess.com username (see below).
+
+No game at hand? The first window has a **Try a sample** button with a short beginner game.
 
 Clock times, comments and variations in the PGN are fine; they are ignored. If you paste several games, the first
 one is used.
 
 ## Using it
 
-- **Set your username once:** click **Settings** and enter your chess.com username. Then the board is turned to
-  your side and the summary shows "You" and "Opponent" correctly. (Without it, White is "You".)
+- **Your username:** enter your chess.com username once (in the first window, or later in **Settings**). Then the
+  board is turned to your side and "You" / "Opponent" are right. (Without it, White is "You".)
 - **Step through the game:** the arrow buttons under the board, or the keyboard: `←` `→` one move, `Home` / `End`
-  start and end, `F` flips the board. You can also click a move in the move list or a point on the eval graph.
+  start and end, `F` flips the board. You can also click a move in the move list or a point on the eval graph
+  (the graph shows who was winning; dots mark mistakes).
+- **Next mistake** (or the `N` key) jumps straight to the next inaccuracy, mistake, miss or blunder.
 - **Key moments:** at the start position the right-hand panel lists every mistake and great move — click one to
   jump there.
 - **Try your own moves:** drag a piece. This starts a *side line* (shown indented in the move list); your move is
-  analysed too. **Back to game** returns to the game position you started from.
+  analysed too. **Back to game** returns to where you were in the game.
 - **Play a suggestion:** **Play it** next to "Try this" or "Engine's top" plays that move on the board. Hovering a
   move of the engine's line shows it on the board; clicking it plays the line up to there.
 - Hover over a square name in an explanation (like "f7") to see that square highlighted on the board.
@@ -53,7 +60,7 @@ one is used.
 ## What the labels mean
 
 The labels come from how much a move changed **the mover's winning chances** compared with the engine's best move
-(the same formula Lichess uses). Click the **?** next to "Summary" in the app to see this table any time.
+(the same formula Lichess uses). Click **? Label guide** (next to "Summary") in the app to see this table any time.
 
 | Label | Symbol | Meaning |
 |---|---|---|
@@ -107,15 +114,14 @@ with the engine — nothing is made up. The explanations are still experimental:
 ## How long it takes
 
 The board opens right away and labels appear move by move while the rest is analysed (the header shows
-"Analysed 23/80"). A typical 40-move game takes **about 1–1.5 minutes** on a 6-core PC (e.g. Ryzen 5 3600). The move
+"Analysed 23/80 · about 1 min left"). A typical 40-move game takes **about 1–1.5 minutes** on a 6-core PC (e.g. Ryzen 5 3600). The move
 you are looking at and moves you try yourself jump the queue (a few seconds). Results are saved, so opening the
 same game again is instant.
 
 ## Troubleshooting
 
-- **"port 5174 is already in use"** — Chess Coach is probably already running in another terminal; use that one, or
-  close it. To use a different port: `set PORT=5180` (Command Prompt) or `$env:PORT=5180` (PowerShell), then
-  `npm start`.
+- **"Another program is using port 5174"** — close that program, or use a different port: `$env:PORT=5180;
+  npm start` (PowerShell) or `set PORT=5180 && npm start` (Command Prompt), then open <http://localhost:5180>.
 - **"Engine offline" / "Stockfish is not installed"** — run `npm run setup:engine` and start again. To use a
   Stockfish you already have, set `STOCKFISH_PATH` to the full path of `stockfish.exe`.
 - **Analysis failed for a move** — click **Try again** in the panel. If it keeps failing, restart with `npm start`.
@@ -134,6 +140,7 @@ npm test            # unit + integration tests (Vitest); engine tests skip witho
 npm run typecheck   # tsc + vue-tsc
 npm run build       # client production build
 npm run e2e         # Playwright: mock UI tests + real-server tests (needs Stockfish)
+npm run acceptance  # beginner walk-through against a running `npm start` (screenshots + log in tmp/acceptance)
 ```
 
 Server environment: `PORT`, `STOCKFISH_PATH`, `ENGINE_THREADS` (total, default CPUs − 2), `ENGINE_PROCESSES`
@@ -142,7 +149,7 @@ Server environment: `PORT`, `STOCKFISH_PATH`, `ENGINE_THREADS` (total, default C
 Benchmarks and tools: `npm run bench:engine` (engine timing), `npx tsx server/scripts/analyze-pgn.ts game.pgn --out
 report.md` (whole pipeline → markdown), `npx tsx server/scripts/profile-game.ts <pgn> --probe` (cold-cache timing),
 `npx tsx bench/puzzle-facts.ts` (facts vs Lichess puzzle themes), `npx tsx bench/label-benchmark.ts run|report`
-(labels vs Lichess). Reports are in `bench/reports/`.
+(labels vs Lichess). Reports are in `bench/reports/` (UX acceptance test: `bench/reports/acceptance.md`).
 
 Docs: [SPEC.md](SPEC.md) (what it does), [ARCHITECTURE.md](ARCHITECTURE.md) (how: modules, API, analysis budget),
 [PLAN.md](PLAN.md) (build history).

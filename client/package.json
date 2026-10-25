@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "typecheck": "vue-tsc -p tsconfig.json",
     "test": "vitest run",
-    "e2e": "playwright test --pass-with-no-tests"
+    "e2e": "playwright test --pass-with-no-tests",
+    "acceptance": "playwright test -c playwright.acceptance.config.ts"
   },
   "dependencies": {
     "@chess-coach/shared": "*",
