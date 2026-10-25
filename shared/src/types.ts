@@ -52,7 +52,21 @@ export type PositionalFeature =
 
 export interface LineStep { ply: number; san: string; uci: string; color: Color; facts: Fact[]; forced?: boolean }
 
-export interface Level { facts: Fact[]; text: string[] }        // text[i] renders facts (not necessarily 1:1)
+/** (UI round) Whether a sentence is good, bad or neutral FOR THE MOVER (the side that played the move). */
+export type Tone = 'good' | 'bad' | 'neutral';
+/** (UI round) One part of the Short-term story; `text[0]` = the parts' texts joined with ' → ' plus a final '.'. */
+export interface StoryPart {
+  text: string;
+  tone: Tone;
+  /** 0-based indexes [from, to] into the line fact's `steps` that this part narrates (absent for '…' and the result). */
+  plies?: [number, number];
+}
+export interface Level {
+  facts: Fact[];
+  text: string[];        // text[i] renders facts (not necessarily 1:1)
+  tones?: Tone[];        // (UI round) parallel to text: tones[i] = tone of text[i] for the mover
+  story?: StoryPart[];   // (UI round) Short-term level of a narrated line only: text[0] split into its steps
+}
 export interface Explanation { immediate: Level; short: Level; long: Level }
 
 export interface Candidate {

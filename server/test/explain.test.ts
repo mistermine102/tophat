@@ -137,6 +137,9 @@ describe('immediate level', () => {
           "text": [
             "Nothing special happens right away.",
           ],
+          "tones": [
+            "neutral",
+          ],
         },
         "long": {
           "facts": [
@@ -147,6 +150,9 @@ describe('immediate level', () => {
           "text": [
             "No notable long-term change.",
           ],
+          "tones": [
+            "neutral",
+          ],
         },
         "short": {
           "facts": [
@@ -156,6 +162,9 @@ describe('immediate level', () => {
           ],
           "text": [
             "No forcing follow-up.",
+          ],
+          "tones": [
+            "neutral",
           ],
         },
       }
@@ -171,7 +180,7 @@ describe('short level', () => {
   it('fork line with a forced reply', () => {
     const fen = legalFen('r3k3/8/8/1N6/8/8/8/4K3 w - - 0 1');
     const { line } = narrateLine(fen, ['b5c7', 'e8d7', 'c7a8', 'd7c6'], { settings: S, plies: 4, forced: new Map([[1, { forced: true, alternatives: 4 }]]) });
-    expect(lineText(line, W)).toMatchInlineSnapshot(`"Nc7+ forks the king and rook → Kd7 attacks the knight (forced) → Nxa8 wins the rook → Kc6 → White wins a rook (+5 points); White is 3 points up."`);
+    expect(lineText(line, W)).toMatchInlineSnapshot(`"Nc7+ forks the king and rook → Kd7 attacks the knight (forced) → Nxa8 wins the rook → Kc6 → White wins a rook (+5 points); Black was 2 points up before, now White is 3 points up."`);
   });
   it('hung queen line, mate line, quiet line', () => {
     const q = narrateLine(legalFen('r5k1/ppp2pp1/7p/8/8/2N2N2/PPPQ1PPP/4R1K1 w - - 0 1'), ['d2g5', 'h6g5', 'f3g5', 'a8d8'], { settings: S }).line;
