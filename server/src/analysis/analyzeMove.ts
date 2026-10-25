@@ -27,7 +27,7 @@ import { type PrevResult, deepParams as labelDeepParams, labelMove } from './lab
 import { type SearchParams, type Searcher, SearchCache } from './searchCache';
 import { type ReasonCode, lineDelta, suggest } from './suggest';
 import { legalMove as legalMoveAt, legalPrefix, playMove, positionStatus, pvToSan, uciSquares } from '../chess/notation';
-import { hangingLoss, seeMove } from '../chess/see';
+import { hangingLoss, seeCaptureWith, seeMove } from '../chess/see';
 import { parseSquare } from 'chessops/util';
 import type { PvLine, SearchResult } from '../engine/uci';
 import { materialBalance, positionFromFen } from '../chess/material';
@@ -281,7 +281,8 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
       // (only when it hits nothing new: Rg8+ walking into Kh7 is the move's own doing)
       if (allows && oppThreat && allows.reply.uci === oppThreat.move && !(allows.targets?.length)) allows.already = true;
       // (M5b) the reply's threat is the opponent's threat from before the move (Rxa7 was already on): the move doesn't deal with it
-      if (allows && oppThreat && !(allows.targets?.length) && allows.facts.some((x) => x.type === 'threat' && x.move === oppThreat.move)) allows.already = true;
+      // (only if that threat is playable right now: …Nxd4 needing Nf5 first is a plan, not a threat — round 6)
+      if (allows && oppThreat && !(allows.targets?.length) && allows.facts.some((x) => x.type === 'threat' && x.move === oppThreat.move) && legalPrefix(w.fenAfter, [oppThreat.move]).length === 1) allows.already = true;
       // a short forced mate against the mover: name its moves (verified to end in checkmate on the board)
       if (allows?.mateIn !== undefined && allows.mateIn <= MATE_LINE_MAX_MOVES) {
         const ml = mateLineSan(w.fenAfter, w.pv.slice(1), 2 * allows.mateIn - 1);
@@ -431,6 +432,8 @@ function allowsSignature(f: Extract<Fact, { type: 'allows' }>): string {
 
 /** Plies of the move's PV used to confirm board claims ("hanging", "stops the threat"). */
 export const VERIFY_PLIES = 6;
+/** (M5b, round 6) a trapped piece may be collected a little later (…c4 trapping the bishop, axb3 at ply 9). */
+export const TRAPPED_VERIFY_PLIES = 12;
 
 /** The opponent plays `uci` (normalised) within the first VERIFY_PLIES of the move's PV. */
 function opponentPlays(pv: readonly string[], uci: string): boolean {
@@ -456,7 +459,7 @@ export function verifyWithLine(facts: Fact[], fen: string, pv: readonly string[]
   const before = positionFromFen(fen);
   return facts
     .filter((f) => f.type !== 'hangs' || taken.has(f.piece.square))
-    .filter((f) => f.type !== 'trapped' || moverWins(fen, pv, f.piece.square))
+    .filter((f) => f.type !== 'trapped' || moverWins(fen, pv, f.piece.square, TRAPPED_VERIFY_PLIES))
     // (M5b) a pin the opponent ignores at once (the pinned piece moves in the reply: 6.Bg5? Nxe4!) isn't one
     .filter((f) => !(f.type === 'pin' && pv[1]?.slice(0, 2) === f.pinned.square))
     // (M5b) "saves the piece" only if the reply doesn't attack it again (…Nh4+ Kg3)
@@ -495,11 +498,11 @@ export function hangsAfterReply(fen: string, pv: readonly string[], square: stri
  * The mover captures the opponent piece standing on `square` after the move (following it if it moves) within the
  * first VERIFY_PLIES of the move's PV.
  */
-export function moverWins(fen: string, pv: readonly string[], square: string): boolean {
+export function moverWins(fen: string, pv: readonly string[], square: string, plies: number = VERIFY_PLIES): boolean {
   const pos = positionFromFen(fen);
   const mover = pos.turn;
   let sq: number | undefined = parseSquare(square);
-  for (const [i, m] of pv.slice(0, VERIFY_PLIES).entries()) {
+  for (const [i, m] of pv.slice(0, plies).entries()) {
     const mv = legalMoveAt(pos, m);
     if (!mv || sq === undefined) return false;
     if (i > 0) {
@@ -540,7 +543,10 @@ export function targetHitsBack(fenAfter: string, threat: ThreatFact): boolean {
   if (from === undefined || to === undefined) return false;
   const target = pos.board.get(to);
   if (!target || target.color !== pos.turn) return false;
-  return legalMoveAt(pos, `${threat.move.slice(2, 4)}${threat.move.slice(0, 2)}`) !== undefined;
+  // (M5b: only when taking back doesn't lose material — Bf1 hitting the queen on c4 is a threat even if Qxf1 is legal)
+  if (legalMoveAt(pos, `${threat.move.slice(2, 4)}${threat.move.slice(0, 2)}`) === undefined) return false;
+  const back = seeCaptureWith(pos, to, from);
+  return back === undefined || back >= 0;
 }
 
 /** SEE value of the threat's own capture (from its facts), for comparing with the same capture now. */

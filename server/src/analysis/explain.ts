@@ -309,10 +309,7 @@ function renderImmediate(facts: readonly Fact[], ctx: ExplainContext, line?: F<'
   // a sacrifice that the short line justifies is not "hanging": say so (both facts are verified)
   // (winning back what the opponent just took is no "interest")
   const realGain = line ? line.materialDelta - (line.owed ?? 0) : 0;
-  // (M5b) a sacrifice the line wins back without profit (24.Rxd4!! — material level again) is still a sacrifice for a
-  // move that isn't a mistake
-  const winsBack = !!line && (line.result === 'trade' || line.result === 'wins-material') && line.materialDelta >= 0 && !(ctx.label && BAD_LABELS.has(ctx.label));
-  const paysOff = !line ? null : line.result === 'mate' ? (line.mateIn && line.mateIn > 1 ? `it starts a forced mate in ${line.mateIn}` : 'it leads to mate') : line.result === 'wins-material' && realGain > 0 ? 'the follow-up wins it back with interest' : winsBack ? 'the engine line wins the material back' : null;
+  const paysOff = !line ? null : line.result === 'mate' ? (line.mateIn && line.mateIn > 1 ? `it starts a forced mate in ${line.mateIn}` : 'it leads to mate') : line.result === 'wins-material' && realGain > 0 ? 'the follow-up wins it back with interest' : null;
   const lineMated = line?.result === 'mated';
   const lineLoses = !!line && (line.result === 'loses-material' || lineMated);
   // the move's own line decides whether a "win" is real: no "threatens … winning" when the line ends with the
@@ -425,6 +422,15 @@ function renderImmediate(facts: readonly Fact[], ctx: ExplainContext, line?: F<'
     if (f.type === 'escape-check' && ownCastlingLost) text = `Steps out of check with the king — ${colorName(ctx.mover)} can no longer castle`;
     if (paysOff && f.type === 'hangs' && !f.already) text = `Sacrifices ${the(f.piece)} (${points(-f.loss)}) — ${paysOff}`;
     if (paysOff && f.type === 'capture' && f.outcome === 'loses-material') text = `Takes ${owned(f.captured)} as a sacrifice (${points(f.net)}) — ${paysOff}`;
+    else if (!paysOff && f.type === 'capture' && f.outcome === 'loses-material' && !f.desperado && line && !(ctx.label && BAD_LABELS.has(ctx.label)) && ctx.uci) {
+      // (M5b, round 6) a losing capture by a good move: the line either takes the piece and wins the material back
+      // (a sacrifice), or doesn't take it at all (24.Rxd4!! Kb6 — the offer is declined)
+      const dest = ctx.uci.slice(2, 4);
+      const taken = line.steps.some((s, i) => i > 0 && s.color !== ctx.mover && s.uci.slice(2, 4) === dest);
+      const role = line.steps[0] ? sanRole(line.steps[0].san) : 'piece';
+      if (!taken) text = `Takes ${owned(f.captured)} and leaves the ${role} where it can be taken (${points(f.net)} if it is), but in the engine line ${colorName(other(ctx.mover))} doesn't take it`;
+      else if ((line.result === 'trade' || line.result === 'wins-material') && line.materialDelta >= 0) text = `Takes ${owned(f.captured)} as a sacrifice (${points(f.net)}) — the engine line wins the material back`;
+    }
     if (!text) continue;
     if (f === capture && check && !check.double && !check.discovered && !merged.has(f)) text += ', with check';
     out.push(text);
@@ -537,7 +543,9 @@ function materialResult(line: F<'line'>, mover: Color): string {
   const isExchange = (a: readonly PieceRole[], b: readonly PieceRole[]) => a.length === 1 && a[0] === 'rook' && b.length === 1 && (b[0] === 'knight' || b[0] === 'bishop');
   // "wins back": the mover started behind and the gain only makes up (part of) that deficit
   const start = line.balance !== undefined ? line.balance - line.materialDelta : null;
-  const firstIsRecapture = start !== null ? start < 0 && line.materialDelta <= -start : !!line.steps[0]?.facts.some((f) => f.type === 'capture' && f.outcome === 'recapture');
+  // (M5b, round 6) also: the line starts by taking back on the square the opponent just captured on (Bxf6 Qxf6)
+  const takesBackFirst = !!line.steps[0]?.facts.some((f) => f.type === 'capture' && f.outcome === 'recapture') && (line.owed ?? 0) > 0 && line.materialDelta <= (line.owed ?? 0);
+  const firstIsRecapture = takesBackFirst || (start !== null ? start < 0 && line.materialDelta <= -start : !!line.steps[0]?.facts.some((f) => f.type === 'capture' && f.outcome === 'recapture'));
   if (line.result === 'wins-material' && firstIsRecapture && !(won.length > 0 && won.length <= 2 && lost.length <= 2)) return `${who} wins back material ${d}`;
   if (line.result === 'wins-material') {
     if (isExchange(won, lost)) return `${who} wins the exchange — a rook for ${an(lost[0]!)} ${d}`;
@@ -819,9 +827,12 @@ const NOTHING = {
  * A bad move whose Immediate level would say nothing (M5b): name what the engine's move does instead, point to a
  * long-term drawback, or say honestly that the reason is hard to put into words.
  */
-function missesText(f: F<'misses'>, ctx: ExplainContext, long: readonly Fact[]): string {
+function missesText(f: F<'misses'>, ctx: ExplainContext, long: readonly Fact[], short: readonly Fact[] = []): string {
   const reasons = missesReasons(f, ctx.mover);
   if (reasons.length) return `Misses ${f.san}, which ${reasons[0]}${reasons[1] ? ` and ${reasons[1]}` : ''}.`;
+  // (round 6) the move's own engine line loses material: say that, not "no tactical problem"
+  const line = short.find((x): x is F<'line'> => x.type === 'line');
+  if (line?.result === 'loses-material') return `Nothing is lost right away, but the engine line costs ${colorName(ctx.mover)} ${points(line.materialDelta).replace(MINUS, '')} (see the short term); the engine prefers ${f.san}.`;
   const drawback = long.some((x) => x.type === 'positional' && (x.side === 'opponent' ? x.delta > 0 : x.delta < 0) && !x.at && x.feature !== 'mobility');
   if (drawback) return `No tactical problem right away — the drawback is long-term (see below); the engine prefers ${f.san}.`;
   return `No tactical problem right away — the engine prefers ${f.san} for long-term reasons that are hard to put into words.`;
@@ -832,12 +843,12 @@ export function renderExplanation(all: AllFacts, ctx: ExplainContext): Explanati
   let immediateText = renderImmediate(all.immediate.filter((f) => f.type !== 'nothing-notable' && f.type !== 'misses'), ctx, line);
   const misses = all.immediate.find((f): f is F<'misses'> => f.type === 'misses');
   if (misses && ctx.label && BAD_LABELS.has(ctx.label)) {
-    if (immediateText.length === 0) immediateText = [missesText(misses, ctx, all.long)];
+    if (immediateText.length === 0) immediateText = [missesText(misses, ctx, all.long, all.short)];
     else {
       // (M5b) a bad move whose Immediate level only tells what it does well (stops a threat, takes back, develops):
       // what it misses leads, when that has a verified reason
       const negative = all.immediate.some((f) => f.type === 'allows' || f.type === 'hangs' || f.type === 'allows-mate' || f.type === 'misses-mate' || (f.type === 'capture' && f.outcome === 'loses-material'));
-      if (!negative && missesReasons(misses, ctx.mover).length) immediateText = [missesText(misses, ctx, all.long), ...immediateText].slice(0, MAX_SENTENCES);
+      if (!negative && missesReasons(misses, ctx.mover).length) immediateText = [missesText(misses, ctx, all.long, all.short), ...immediateText].slice(0, MAX_SENTENCES);
     }
   }
   // Book: opening theory needs no narration unless the move itself is forcing
@@ -921,7 +932,8 @@ export function betterReasonFacts(better: readonly Fact[], played: readonly Fact
         out.push('is checkmate');
         break;
       case 'capture':
-        if (f.outcome === 'wins-material') out.push(`wins ${owned(f.captured)}`);
+        // (round 6) not when the played move takes the same piece
+        if (f.outcome === 'wins-material' && !has((x) => x.type === 'capture' && x.captured.square === f.captured.square)) out.push(`wins ${owned(f.captured)}`);
         break;
       case 'fork':
         out.push(`forks ${targetsPhrase(f.targets)}`);

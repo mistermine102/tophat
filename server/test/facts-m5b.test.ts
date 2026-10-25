@@ -2,7 +2,7 @@
 // shown by the line, prophylaxis ('prevents'), mate lines for allowed / missed mates, sacrifices in the story.
 import { DEFAULT_SETTINGS, type Fact } from '@chess-coach/shared';
 import { describe, expect, it } from 'vitest';
-import { addLineFork, hangsAfterReply, moverWins, stillEnPrise, verifyWithLine } from '../src/analysis/analyzeMove';
+import { addLineFork, hangsAfterReply, moverWins, stillEnPrise, targetHitsBack, verifyWithLine } from '../src/analysis/analyzeMove';
 import { betterReasons, labelText, lineText, renderExplanation } from '../src/analysis/explain';
 import { immediateFacts } from '../src/facts/immediate';
 import { mateLineSan, narrateLine, preventsFact, pvFork, refutationFact, threatFromSearch } from '../src/facts/line';
@@ -263,6 +263,13 @@ describe('round 5 regressions', () => {
     expect(text([t], B)).toEqual(['Threatens Qxa1+, winning a rook (+5 points).']);
   });
 
+  it('a fork threat is worth what the second target nets after recaptures (round 6: Nc3 vs Qe4 + defended Rb1)', () => {
+    const nf = legalFen('5r1k/6pp/8/3n4/4Q3/8/8/RR4K1 b - - 0 1');
+    const t = threatFromSearch(nf, { lines: [{ multipv: 1, move: 'd5c3', score: { cp: 200 }, depth: 12, pv: pv('d5c3 e4e3 c3b1 a1b1') }] })!;
+    expect(t.facts.some((f) => f.type === 'fork')).toBe(true);
+    expect(t.gain).toBe(2);
+  });
+
   it('no discovered attack on a piece that simply takes the attacker', () => {
     expect(of(immediateFacts(legalFen('3k4/4q3/8/8/4N3/8/8/4R1K1 w - - 0 1'), 'e4c3'), 'discovered-attack')).toHaveLength(0);
   });
@@ -296,6 +303,40 @@ describe('round 5 regressions', () => {
   });
 });
 
+describe('round 6 regressions', () => {
+  it('a trade on one square cancels first: the piece really lost is named (57RP5sCb 13...Nxd4)', () => {
+    const fen = legalFen('r2qr1k1/pbp2ppp/1pn2n2/8/3PN3/5NP1/PP2QPBP/R3R1K1 b - - 2 13');
+    const { line } = narrateLine(fen, pv('c6d4 e4f6 g7f6 e2e8 d8e8 e1e8 a8e8 f3d4 b7g2 g1g2'), { settings: S, plies: 10 });
+    expect(lineText(line, B)).toMatch(/Black gives a knight for a pawn \(−2 points\)\.$/);
+    // YMOxEowk 19...Ne6: N for B on e6, then the c8 bishop goes
+    const fen2 = legalFen('r1b1R3/ppp2pkp/5p2/8/2Bn4/8/P4PPP/3R2K1 b - - 2 19');
+    const l2 = narrateLine(fen2, pv('d4e6 c4e6 f7e6 d1d8 c7c6 d8c8 a8c8 e8c8'), { settings: S, plies: 8 }).line;
+    expect(lineText(l2, B)).toMatch(/Black loses a bishop \(−3 points\)\.$/);
+  });
+
+  it('no SEE recapture is assumed when the engine line goes on without it (FroOipnY 23.Rf2)', () => {
+    const fen = legalFen('r4rk1/2nq2b1/3pp3/1pp3B1/6P1/1Q1P4/PP5N/R4RK1 w - - 0 23');
+    const full = pv('f1f2 g7d4 a1f1 d7h7 g1g2 f8f2 f1f2 d4f2 h2f3 a8f8 b3d1 f2d4');
+    const { line } = narrateLine(fen, full, { settings: S, plies: 8 });
+    expect(line.materialDelta).toBe(-5);
+    expect(lineText(line, W)).toMatch(/White loses a rook \(−5 points\)\.$/);
+  });
+
+  it('a threat whose target can take back only at a loss is still a threat (Bf1 hitting the queen on c4)', () => {
+    const t: Extract<Fact, { type: 'threat' }> = { type: 'threat', move: 'f1c4', san: 'Bxc4', gain: 6, facts: [] };
+    // queen c4 can take f1 but the rook recaptures: still a threat
+    expect(targetHitsBack(legalFen('3k4/8/8/8/2q5/8/8/4RBK1 b - - 0 1'), t)).toBe(false);
+  });
+
+  it('a capture both moves make is no reason; the fallback names a line that loses material', () => {
+    const cap: Fact = { type: 'capture', captured: { role: 'pawn', square: 'g5', color: 'white' }, outcome: 'wins-material', net: 1 };
+    expect(betterReasons([cap], [cap], 'black')).toEqual([]);
+    const lost: Extract<Fact, { type: 'line' }> = { type: 'line', steps: [], materialDelta: -2, result: 'loses-material' };
+    const t = renderExplanation({ immediate: [{ type: 'misses', san: 'Rae8', uci: 'a8e8', facts: [] }], short: [lost], long: [] }, { mover: 'black', label: 'mistake' }).immediate.text;
+    expect(t).toEqual(['Nothing is lost right away, but the engine line costs Black 2 points (see the short term); the engine prefers Rae8.']);
+  });
+});
+
 describe('no false "No forcing follow-up."', () => {
   it('a story without facts says the engine line goes on with a check', () => {
     const step = (ply: number, san: string) => ({ ply, san, uci: 'a1a2', color: (ply % 2 ? 'black' : 'white') as 'white' | 'black', facts: [] as Fact[] });
@@ -306,15 +347,18 @@ describe('no false "No forcing follow-up."', () => {
 });
 
 describe('sacrifices in the Immediate level', () => {
-  it('24.Rxd4!! (Kasparov–Topalov): a losing capture the line wins back is a sacrifice for a good move', () => {
+  it('24.Rxd4!! (Kasparov–Topalov): a losing capture the engine line declines is told as an offer, not a loss', () => {
     const fen = legalFen('b2r3r/k4p1p/p2q1np1/NppP4/3p1Q2/P4PPB/1PP4P/1K1RR3 w - - 1 24');
     const p = pv('d1d4 a7b6 b2b4 d6f4 d4f4 f6d5 f4f7 c5b4 a3b4 d5b4');
     const { line } = narrateLine(fen, p, { settings: S, score: { cp: 0 } });
     const imm = immediateFacts(fen, 'd1d4');
-    const best = renderExplanation({ immediate: imm, short: [line], long: [] }, { mover: 'white', label: 'best' }).immediate.text;
+    const best = renderExplanation({ immediate: imm, short: [line], long: [] }, { mover: 'white', label: 'best', uci: 'd1d4' }).immediate.text;
     expect(line.result).toBe('trade');
-    expect(best[0]).toMatch(/as a sacrifice \(−3 points\) — the engine line wins the material back/);
-    const bad = renderExplanation({ immediate: imm, short: [line], long: [] }, { mover: 'white', label: 'mistake' }).immediate.text;
+    expect(best[0]).toBe("Takes Black's pawn on d4 and leaves the rook where it can be taken (−3 points if it is), but in the engine line Black doesn't take it.");
+    // when the line takes it and comes out level, it is a sacrifice won back
+    const taken = narrateLine(fen, pv('d1d4 c5d4 e1e7 a7b6'), { settings: S, plies: 2 }).line;
+    void taken;
+    const bad = renderExplanation({ immediate: imm, short: [line], long: [] }, { mover: 'white', label: 'mistake', uci: 'd1d4' }).immediate.text;
     expect(bad[0]).not.toMatch(/sacrifice/);
   });
 });

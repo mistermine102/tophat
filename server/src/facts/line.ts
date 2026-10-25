@@ -69,7 +69,7 @@ import { countLegalMoves, sameMoveUci } from '../analysis/classify';
 import { attackersOf, attacksFrom, between, toPieceRef, withTurn } from '../chess/attacks';
 import { lineMaterial, PIECE_VALUES, positionFromFen } from '../chess/material';
 import { legalMove, legalPrefix, standardUci } from '../chess/notation';
-import { capturedBy, hangingLoss, see, seeMove } from '../chess/see';
+import { capturedBy, hangingLoss, see, seeCaptureWith, seeMove } from '../chess/see';
 import type { PvLine, SearchResult } from '../engine/uci';
 import { hasMateInOne, immediateFactsFromPosition, sortFacts } from './immediate';
 
@@ -483,24 +483,37 @@ function netPieces(moves: LineMoves, mover: Color, extra: { role: PieceRole; by:
   const won: PieceRole[] = [];
   const lost: PieceRole[] = [];
   const add = (by: Color, role: PieceRole) => (by === mover ? won : lost).push(role);
-  for (const m of moves) {
-    if (m.captured) add(m.color, m.captured.role);
+  // (M5b) a capture answered at once by a recapture of equal value on the same square is a trade: both cancel first
+  // (Bxe6 fxe6 then …Rxc8 = "loses a bishop"; bishops traded on g2 while a knight goes = "loses a knight")
+  const traded = new Set<number>();
+  for (let i = 0; i + 1 < moves.length; i++) {
+    const a = moves[i]!;
+    const b = moves[i + 1]!;
+    if (traded.has(i) || !a.captured || !b.captured || a.promotion || b.promotion) continue;
+    if (b.captured.square !== a.uci.slice(2, 4) || PIECE_VALUES[a.captured.role] !== PIECE_VALUES[b.captured.role]) continue;
+    traded.add(i).add(i + 1);
+  }
+  for (const [i, m] of moves.entries()) {
+    if (m.captured && !traded.has(i)) add(m.color, m.captured.role);
     if (m.promotion) {
       add(m.color, m.promotion);
       (m.color === mover ? lost : won).push('pawn');
     }
   }
   if (extra) add(extra.by, extra.role);
-  // cancel equal values, earliest first (M5b: a knight traded for a bishop, then a bishop lost = "loses a bishop",
-  // not "loses a knight"; knights and bishops are both 3)
-  for (let i = 0; i < won.length; i++) {
-    const j = lost.findIndex((r) => PIECE_VALUES[r] === PIECE_VALUES[won[i]!]);
-    if (j >= 0) {
-      lost.splice(j, 1);
-      won.splice(i, 1);
-      i--;
+  // then equal roles, then equal values (knight / bishop), earliest first
+  const cancel = (same: (a: PieceRole, b: PieceRole) => boolean) => {
+    for (let i = 0; i < won.length; i++) {
+      const j = lost.findIndex((r) => same(r, won[i]!));
+      if (j >= 0) {
+        lost.splice(j, 1);
+        won.splice(i, 1);
+        i--;
+      }
     }
-  }
+  };
+  cancel((a, b) => a === b);
+  cancel((a, b) => PIECE_VALUES[a] === PIECE_VALUES[b]);
   const byValue = (a: PieceRole, b: PieceRole) => PIECE_VALUES[b] - PIECE_VALUES[a];
   return { won: won.sort(byValue), lost: lost.sort(byValue) };
 }
@@ -519,6 +532,13 @@ function resolvePending(pos: Pos, lastTo: number | undefined): { gain: number; t
   if (!piece || piece.color === pos.turn) return null;
   const gain = see(pos, lastTo, pos.turn);
   return { gain, takes: gain > 0 && gain === PIECE_VALUES[piece.role] ? piece.role : null };
+}
+
+/** Only the piece on `sq` (that just captured) is en prise and the position is not check. */
+function isOnlyPending(pos: Pos, sq: number): boolean {
+  if (pos.isCheck()) return false;
+  for (const s of pos.board.occupied.diff(pos.board.king)) if (s !== sq && hangingLoss(pos, s) > 0) return false;
+  return true;
 }
 
 /** After step i, the side of step i captures the piece standing on `square` (followed when it moves) later in the steps. */
@@ -609,7 +629,12 @@ export function narrateLine(fenBefore: string, pv: readonly string[], opts: Narr
   let unclear = false;
   let extra: { role: PieceRole; by: Color } | null = null;
   if (!mateBy && !pos.isStalemate() && !isQuiet(pos) && !(lastTo !== undefined && isSettled(pos))) {
-    const r = resolvePending(pos, lastTo);
+    // (M5b, round 6) the engine line goes on without taking back (…Bxf2, then Nf3: the bishop isn't recaptured —
+    // SEE misses why): no SEE recapture is assumed then
+    const nextUci = legal[steps.length];
+    const later = legal.slice(steps.length, steps.length + 4);
+    const pvSkipsRecapture = lastTo !== undefined && !!nextUci && later.length >= 2 && later.every((u) => parseSquare(u.slice(2, 4)) !== lastTo) && hangingLoss(pos, lastTo) > 0 && isOnlyPending(pos, lastTo);
+    const r = pvSkipsRecapture ? { gain: 0, takes: null } : resolvePending(pos, lastTo);
     if (!r) unclear = true;
     else {
       delta += pos.turn === mover ? r.gain : -r.gain;
@@ -656,14 +681,20 @@ export function narrateLine(fenBefore: string, pv: readonly string[], opts: Narr
     }
   }
   // (M5b) the engine line goes on with a forcing move right after the story: say so instead of "no forcing follow-up"
-  const next = legal[steps.length];
-  if (next && !pos.isEnd()) {
-    const nm = legalMove(pos, next);
-    if (nm) {
-      const p2 = pos.clone();
-      const san = makeSan(p2, nm);
+  // (round 6: within the next 3 plies — "…; the engine line then goes on with Kf7 Rh7+.")
+  if (!pos.isEnd()) {
+    const p2 = pos.clone();
+    const sans: string[] = [];
+    for (const u of legal.slice(steps.length, steps.length + 3)) {
+      const nm = legalMove(p2, u);
+      if (!nm) break;
+      sans.push(makeSan(p2, nm));
+      const cap = isCapture(p2, u);
       p2.play(nm);
-      if (p2.isCheck() || isCapture(pos, next)) line.nextForcing = san;
+      if (p2.isCheck() || cap) {
+        line.nextForcing = sans.join(' ');
+        break;
+      }
     }
   }
   return { line, forcedReplies, endFen: makeFen(pos.toSetup()) };
@@ -722,9 +753,19 @@ export function threatFromSearch(nullFen: string, result: Pick<SearchResult, 'li
     const tactic = facts.find((f) => f.type === 'fork' || f.type === 'skewer' || f.type === 'discovered-attack');
     if (tactic) {
       const targets = tactic.type === 'fork' ? tactic.targets : tactic.type === 'skewer' ? [tactic.behind] : [tactic.target];
-      const top = Math.max(0, ...targets.filter((t) => t.role !== 'king').map((t) => PIECE_VALUES[t.role]));
+      // what taking each target nets after recaptures (SEE from the tactic's piece); for a fork without check the
+      // opponent saves the bigger one, so the second-best counts (round 6: Nc3 forking Qe4 and a defended Rb1 = +2)
+      const after = pos.clone();
+      after.play(move);
+      const attackerSq = parseSquare(tactic.attacker.square)!;
+      const nets = targets.filter((t) => t.role !== 'king').map((t) => {
+        const g = seeCaptureWith(after, attackerSq, parseSquare(t.square)!);
+        return g === undefined ? PIECE_VALUES[t.role] : Math.max(0, g);
+      }).sort((a, b) => b - a);
+      const withKing = targets.some((t) => t.role === 'king');
+      const top = tactic.type === 'fork' && !withKing ? (nets[1] ?? nets[0] ?? 0) : (nets[0] ?? 0);
       gain = Math.min(gain, Math.max(top + capValue, captured ? seeMove(pos, standardUci(pos, move)) : 0));
-    } else if (captured) gain = Math.min(gain, Math.max(THREAT_MIN_GAIN, seeMove(pos, best.move)));
+    } else if (captured) gain = Math.max(THREAT_MIN_GAIN, seeMove(pos, best.move)); // a plain capture: its SEE (board-verified)
   }
   const fact: ThreatFact = { type: 'threat', move: standardUci(pos, move), san: makeSan(pos, move), gain, facts };
   if (mates) fact.mateIn = best.score.mate!;
