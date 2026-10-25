@@ -34,6 +34,7 @@ import { guardCp } from '../analysis/classify';
 import { parseSquare } from 'chessops/util';
 import { positionFromFen } from '../chess/material';
 import { positionalDelta, positionalFeatures } from './positional';
+import { CASTLING_MIN_ENEMY_MATERIAL, castlingSides, pieceMaterial } from './immediate';
 
 export const POSITIONAL_ORDER: readonly PositionalFeature[] = [
   'king-safety', 'passed-pawn', 'bishop-pair', 'isolated-pawn', 'doubled-pawn', 'open-file-rook', 'development',
@@ -41,6 +42,10 @@ export const POSITIONAL_ORDER: readonly PositionalFeature[] = [
 ];
 /** At most this many long-term facts (= sentences). */
 export const MAX_LONG_FACTS = 2;
+/** (M5b) No "payoff is far away" with this few legal moves: the choice is narrow, not deep (an only king move). */
+export const DEEP_PAYOFF_MIN_LEGAL = 5;
+/** (M5b) Immediate facts that make the point near, not far away: no deep-payoff note with them. */
+const CONCRETE_NOW: ReadonlySet<Fact['type']> = new Set<Fact['type']>(['threat', 'fork', 'skewer', 'discovered-attack', 'pin', 'trapped', 'attack-pinned', 'checkmate']);
 /** Features that can be reported at the end of the short line (and only when big, see `bigLineEnd`). */
 export const LINE_END_FEATURES: ReadonlySet<PositionalFeature> = new Set<PositionalFeature>(['king-safety', 'passed-pawn', 'bishop-pair', 'isolated-pawn', 'doubled-pawn']);
 /** Small, frequent changes that don't count as a "notable long-term change" for `necessary`. */
@@ -111,6 +116,41 @@ function onBoardSquares(f: PositionalFact, fenAt: string, mover: Color): Positio
   });
   if (squares.length === 0) return null;
   return { ...f, squares };
+}
+
+/**
+ * (M5b) A side's new passed pawn / rook on a free file is only praised if that pawn / rook is still on its square at
+ * the end of the short line (Rxe6 "gets a passed pawn on f4" that Rxf4 takes next). Null = nothing left to say.
+ */
+function stillThere(f: PositionalFact, lineEndFen: string, mover: Color): PositionalFact | null {
+  // (round 9) "no longer isolated" too: the pawn must still be there and still not isolated at the line end
+  if (f.feature === 'isolated-pawn' && !worseForSide(f) && f.squares?.length) {
+    const isolated = positionalFeatures(lineEndFen)[sideColor(f, mover)].pawns.isolated;
+    const b = positionFromFen(lineEndFen).board;
+    const squares = f.squares.filter((s) => {
+      const p = b.get(parseSquare(s)!);
+      return p?.role === 'pawn' && p.color === sideColor(f, mover) && !isolated.includes(s);
+    });
+    return squares.length ? { ...f, squares } : null;
+  }
+  // (round 10) a weakness named on squares (isolated / doubled pawns) must still be there at the line end too (…Nxa2 takes it)
+  if ((f.feature === 'isolated-pawn' || f.feature === 'doubled-pawn') && f.squares?.length) {
+    const b = positionFromFen(lineEndFen).board;
+    const squares = f.squares.filter((s) => {
+      const p = b.get(parseSquare(s)!);
+      return p?.role === 'pawn' && p.color === sideColor(f, mover);
+    });
+    return squares.length ? { ...f, squares } : null;
+  }
+  if ((f.feature !== 'passed-pawn' && f.feature !== 'open-file-rook') || worseForSide(f) || !f.squares?.length) return f;
+  const role = f.feature === 'passed-pawn' ? 'pawn' : 'rook';
+  const board = positionFromFen(lineEndFen).board;
+  const color = sideColor(f, mover);
+  const squares = f.squares.filter((s) => {
+    const p = board.get(parseSquare(s)!);
+    return p?.role === role && p.color === color;
+  });
+  return squares.length ? { ...f, squares } : null;
 }
 
 /** A move-level structure change still there at the end of the short line (same feature, side and direction). */
@@ -194,6 +234,8 @@ export function positionalFacts(input: Pick<LongTermInput, 'fenBefore' | 'fenAft
     .filter((f) => persists(f, endFacts))
     .filter((f) => meaningfulAtMove(f, fenBefore, fenAfter, endFacts ? lineEndFen : fenAfter, mover))
     .map((f) => onBoardSquares(f, fenAfter, mover))
+    .filter((f): f is PositionalFact => !!f)
+    .map((f) => (endFacts ? stillThere(f, lineEndFen, mover) : f))
     .filter((f): f is PositionalFact => !!f);
   const seen = new Set(own.map((f) => `${f.feature}|${f.side ?? ''}`));
   const atEnd: PositionalFact[] = [];
@@ -218,6 +260,27 @@ export function givesMaterialUp(immediate: readonly Fact[]): boolean {
   return immediate.some((f) => (f.type === 'hangs' && !f.already) || (f.type === 'capture' && f.outcome === 'loses-material'));
 }
 
+/**
+ * Line-end castling loss (M5b): a side that could still castle after the move (either side) can't at all at the end
+ * of the short line because its king moved (not by castling), while the other side keeps attacking material.
+ */
+export function castlingLostInLine(fenAfter: string, lineEndFen: string): Fact[] {
+  if (fenAfter === lineEndFen) return [];
+  const a = positionFromFen(fenAfter);
+  const e = positionFromFen(lineEndFen);
+  const out: Fact[] = [];
+  for (const color of ['white', 'black'] as const) {
+    const had = castlingSides(a, color);
+    if (!had.length || castlingSides(e, color).length) continue;
+    const k = e.board.kingOf(color);
+    const castled = k !== undefined && (k >> 3) === (color === 'white' ? 0 : 7) && ((k & 7) === 6 || (k & 7) === 2);
+    if (castled || k === a.board.kingOf(color)) continue; // castled, or only a rook moved
+    if (pieceMaterial(e, color === 'white' ? 'black' : 'white') < CASTLING_MIN_ENEMY_MATERIAL) continue;
+    out.push({ type: 'castling-lost', color, sides: had, at: 'line-end' });
+  }
+  return out;
+}
+
 export function longTermFacts(input: LongTermInput): Fact[] {
   const s = input.settings;
   const all = positionalFacts(input);
@@ -231,12 +294,15 @@ export function longTermFacts(input: LongTermInput): Fact[] {
     const gain = guardCp(input.score) - guardCp(input.bestScore) - 100 * input.lineMaterialDelta;
     if (gain >= s.explain.positionalGainMinCp) head.push({ type: 'positional-gain', cp: Math.round(gain) });
   }
+  // a king driven out during the short line (Bxf7+ Kxf7): that side can no longer castle
+  head.push(...castlingLostInLine(input.fenAfter, input.lineEndFen));
   const tail: Fact[] = [];
   if (input.shallowScore) {
     const winDeep = winPercentFromScore(input.score);
     const winLoss = Math.max(0, winPercentFromScore(input.bestScore) - winDeep);
     const gap = winDeep - winPercentFromScore(input.shallowScore);
-    if (winLoss <= s.labels.goodMaxLoss && gap >= s.explain.deepPayoffMinGap) tail.push({ type: 'deep-payoff' });
+    // (M5b) not when the short line already shows a concrete material gain (the payoff is not far away then)
+    if (winLoss <= s.labels.goodMaxLoss && gap >= s.explain.deepPayoffMinGap && input.lineMaterialDelta < 1 && input.legalMoves > DEEP_PAYOFF_MIN_LEGAL && !input.immediate.some((f) => CONCRETE_NOW.has(f.type))) tail.push({ type: 'deep-payoff' });
   }
 
   const only = input.legalMoves === 1;

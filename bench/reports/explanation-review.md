@@ -23,6 +23,12 @@ Categories: **FALSE** (wrong on the board / contradicts the line), **MISLEADING*
 | 2 (5 reviewer agents) | 7 games, r2 | 180 | 22 | 75 | 80 | 43 | 47 / 15 |
 | 3 (5 reviewer agents) | 7 games, r3 | 180 | 5 | 52 | 19 | 73 | 58 / 2 |
 | 4 (3 reviewer agents) | 7 games, r4 | 180 | 4 (one root cause, fixed after the round) | 26 | 21 | 64 | 56 / 4 |
+| 5 (4 reviewer agents, M5b) | 7 fresh games, r5 | 239 | 6 | 50 | 21 | 59 | 77 / 7 |
+| 6 (4 new reviewer agents) | same 7 games, r6 | 239 | 10 (6 root causes, 2 introduced by r5 fixes; all fixed after) | 32 | 31 | 53 | 79 / 8 |
+| 7 (4 new reviewer agents) | same 7 games, r7 | 239 | 0 | 28 | 29 | 68 | 81 / 6 |
+| 8 (4 new reviewer agents) | same 7 games, r8 | 239 | 1 | 37 | 20 | 69 | 82 / 9 |
+| 9 (4 new reviewer agents) | same 7 games, r9 | 239 | 2 | 34 | 26 | 59 | 87 / 5 |
+| 10 (4 new reviewer agents) | same 7 games, r10 | 239 | 1 (fixed after) | 38 (9 from one note, removed after → ≈ 29) | 30 | 49 | 83 / 6 |
 
 WEAK rose from round 2 to 3 because reviewers moved on to wording once the gross errors were gone. After round 4 the
 remaining FALSE root cause (uncovered pins worded as made by the moving piece) was fixed and spot-checked on the r5
@@ -135,3 +141,180 @@ pinned piece"; prophylaxis; checking forks that are sacrifices ("Nf4+ attacks th
 ("Qe8+ attacks the rook"); played vs best compared at different line lengths (Kh2 vs Kg1); Great moves explained only by
 their own line; the label's material-rule numbers (classify.ts) can differ from the Immediate SEE number; mistakes with
 only a positional reason still read "Nothing special happens right away."
+
+## Round 5+ (M5b) — fresh games
+
+Games (none used in rounds 1–4): Lichess YMOxEowk (Danish Gambit, rook endgame), FroOipnY (Sicilian Moscow, mating
+attack), KyoqPCST (French Exchange, mate), PnAHyM23 (Stafford Gambit), 57RP5sCb (Queen's Indian), 2hOytwun (Colle,
+rook endgame with promotion) and Kasparov–Topalov 1999. Engine: Stockfish 19, 4 threads, default budget; searches
+cached between rounds (every round re-renders the same engine lines). Sheets: `tmp/review-dump.ts` (every
+Inaccuracy / Mistake / Blunder / Miss / Great + 15 seeded other plies per game); reviewers verify with `tmp/board.ts`
+(board after SAN moves, attackers / defenders, SEE). New in M5b before round 5 (see ARCHITECTURE.md "Additions made in
+M5b"): castling-lost, attack-pinned, trapped, desperado, prevents, misses (+ honest fallback), mate lines for allowed /
+missed mates, checking forks from the line, sacrifices in stories, comparable played / best line lengths. Bad moves
+whose Immediate level read "Nothing special happens right away.": 16 of 108 with the pre-M5b code → 0 of 108 (11
+"Misses …", 4 honest fallback, 1 quiet-refutation sentence).
+
+### Round 5 — 4 independent reviewer agents, 239 entries
+
+Totals: FALSE 6, MISLEADING 50, USELESS 21, WEAK 59; picks 77 good / 7 bad. Per game (F/M/U/W, picks): PnAHyM23
+3/12/4/10, 24/3 · YMOxEowk 0/7/4/13, 16/1 · 57RP5sCb 0/4/1/1, 4/0 · FroOipnY 0/6/3/11, 9/0 · KyoqPCST 1/6/5/7, 12/0 ·
+2hOytwun 1/11/1/12, 11/1 · Kasparov–Topalov 1/4/3/5, 1/2. (Fresh games with many sharp tactics and two long rook
+endgames; reviewers were stricter about "is this the real reason" than in round 4.)
+
+| Game, ply | Move | Level | Sentence | Cat. | Root cause → fix |
+|---|---|---|---|---|---|
+| PnAHyM23 27 | O-O / Rb1 | Imm | "Stops … Qxa1+, which would fork White's king and knight (+3)" (wins a rook) | FALSE | threat gain capped by the fork's best target; the capture fact cut by the 2-fact cap → a tactic's gain = best non-king target + the capture; the capture is always kept and a piece won outright is named ("winning a rook (+5)") |
+| PnAHyM23 34 | Qxe5 | Imm | "Stops … Bxh7+, which would uncover an attack on the queen (+1)" | FALSE | same: the discovered attack's gain was capped by the capture's SEE |
+| PnAHyM23 80, 2hOytwun 49 | a5 / g4 | Label | "Re8 puts the rook on an open file" (half-open) | FALSE | positional reason ignored `detail` → "a fully open file" only for open files, else "gives the rook a file without its own pawns" |
+| Kasparov–Topalov 47 | 24.Rxd4!! | Imm | "loses material when the pieces are traded off (−3)" | FALSE | a losing capture the line wins back (material level) → for non-bad labels "Takes … as a sacrifice (−3 points) — the engine line wins the material back" |
+| KyoqPCST 50 | Re3 | Short | "No forcing follow-up." (checks + a fork win the rook) | FALSE | a bad move's story stopped before anything happened → bad moves are told on to the first stop point with a material result (within the quiet horizon; the never-quiet fallback may now pass shortLineMaxPlies) |
+| PnAH 22/51/75/77, 2hO 22/39/50/83, Kyoq 38/42, Fro 9 | various | Imm | "Allows Rfc8: then Black threatens Rxc7, winning a queen" (the queen just moves) | MISLEADING | the reply's null-move threat was told even when the line never plays it → kept only for mates or when the line carries it out; the best move's refutation is now built with its own reply threat, and the signature includes the threat (Qe7 allowing the same f4 → dropped) |
+| YMOxEowk 52/58 | Rd8 / Rd1+ | Imm | "Doesn't stop Kh2: then White threatens Rxa7" (threat existed) | MISLEADING | → a reply that only keeps the opponent's pre-move threat reads "Doesn't deal with White's threat Rxa7, winning a pawn" |
+| PnAH 11, 2hO 33 | Bg5 / Bb2 | Imm | "Pins Black's knight on f6 to the queen" (…Nxe4! ignores it) | MISLEADING | → a pin whose pinned piece moves in the PV reply is dropped |
+| PnAH 87 | e7 | Imm | "Discovered attack … queen attacks the bishop on d5" (Bxf7 takes the queen) | MISLEADING | → no attack / discovered-attack fact when the target can capture the attacker and win material |
+| PnAH 66 | Nh4+ | Imm | "Saves the knight … safe on h4" (Kg3 attacks it) | MISLEADING | → escape dropped when the PV reply puts the piece en prise again |
+| PnAH 74/76 | Rfc8 / Rac8 | Imm | "Stops White's threat Rxd5" (bishop still hangs) | MISLEADING | → a material threat counts as stopped only if the threatened piece is no longer en prise |
+| PnAH 66, 2hO 27, kt 40 | Rfd8 / g4 / Ka7 | Long | "The payoff is far away …" | MISLEADING | → no deep-payoff when the short line wins material, the Immediate level has a threat / tactic, or there are ≤ 5 legal moves |
+| PnAH 82 | fxe6 | Label | "loses material: the engine line ends 8 points worse" (allows mate in 7) | MISLEADING | → material-decided labels say "fxe6 allows a forced mate in 7" when the eval after is a mate against the mover |
+| Fro 34/35, Kyoq 55/56, YMO 56 | various | Short | "Bxd5+ forks the king and rook" (never taken), "Kd6 uncovers an attack on the rook" | MISLEADING | → story-step forks / discovered attacks / traps are told only when the line then wins a target (and a fork / trap piece isn't simply taken next move) |
+| 2hO 31/33 | b3 | Short | "Nd2+ forks the king and rook" (a discovered check) | WEAK→fixed | `pvFork` now requires the forking piece itself to give check |
+| Fro 46 | Bd4 | Short | "Rxf2+ Rxf2 … Bxf2 takes back" (a second rook) | MISLEADING | → a same-kind capture is a take-back only while the side is behind |
+| YMO 38 | Ne6 | Short | "Black loses a knight" (the c8 bishop was lost) | MISLEADING | → won / lost pieces cancel by value, earliest first |
+| 2hO 54 | Bxc4 | Imm | "Takes … — an even trade" (the line wins material) | MISLEADING | → no "even trade" when the line wins material |
+| 2hO 53/79 | Rxd3 / Rxe6 | Long | "rook … on a fully open file" / "passed pawn on f4" (lost next move) | MISLEADING | → own new passed pawns / rooks on files only when still on the square at the line end |
+| 2hO 72 | Rxc4 | Label | "fxg5 leaves White with isolated pawns" | MISLEADING | → long-term reasons for the better move only for Inaccuracies |
+| kt 48/79 | cxd4 / f4 | Label | "Kb6 leads to winning a pawn" (winning back), "f4 saves the pawn on f3" (Qa8 defends it too) | MISLEADING | → "leads to winning back …"; escape / defend of the same piece by the played move count as shared |
+| 57RP 25 | Ne5 | Imm | "Leaves the knight on e5 hanging: Black can win it (−1 point)" | MISLEADING | → a loss of at most half the piece's value reads "under-protected: Black wins material by taking on e5" |
+| Fro 19/22/40/41/46, Kyoq 45/49/52/53 | Nc7, Rxf2, … | Imm | only positives ("Stops …", "Takes back …") for a bad move | USELESS | → a bad move without any negative Immediate fact leads with "Misses X, which …" when X has a verified reason |
+| PnAH 23/53, 42 | Qd2 / Qxc7 / Nc3 | Imm | "forking A and B: then A and B are both under attack"; fork + "Threatens Nxe4" | WEAK | → fork targets are not repeated as targets; a threat on a forked piece is dropped |
+| 2hO 86 | d2 | Imm | "Nothing special" (d1=Q next) | USELESS | → a promotion counts as a threat ("Threatens d1=Q, promoting the pawn to a queen") |
+
+Not fixed after round 5: "deep engine move — hard to explain" header on suggestions with concrete content
+(suggest.ts decides explainability with the shallow search; the header text is the UI's); decisive passed-pawn
+races (YMO 62/63/65) are told only through the line; Nd4's double threat (PnAH 51) is told as "After Nd4, the engine
+line costs White 3 points"; "wins / wins back" in recapture sequences that started before the line (YMO 22, 57RP 30).
+
+### Round 6 — 4 new independent reviewer agents, same 239 entries (r6 code)
+
+Totals: FALSE 10, MISLEADING 32, USELESS 31, WEAK 53; picks 79 good / 8 bad. Per game (F/M/U/W, picks): PnAHyM23
+2/9/6/11, 23/2 · YMOxEowk 0/4/9/18, 15/2 · 57RP5sCb 4/4/2/2, 4/0 · FroOipnY 3/2/2/4, 10/1 · KyoqPCST 0/6/5/3, 14/1 ·
+2hOytwun 1/4/4/9, 11/1 · Kasparov–Topalov 0/3/3/6, 2/1. MISLEADING 50 → 32. FALSE rose because two round-5 changes
+had side effects (value-based piece cancellation; "wins the material back" for hangs) — 4 of the 10 FALSE entries
+are one root cause (57RP5sCb 26/27/29/30, the same line). USELESS rose as reviewers now flag missing reasons on
+suggestions ("Nothing special" for the engine's top move) instead of wrong ones.
+
+| Game, ply | Move | Level | Sentence | Cat. | Root cause → fix |
+|---|---|---|---|---|---|
+| 57RP5sCb 26/27/29/30 | Nxd4 … | Short | "Black gives a bishop for a pawn" (a knight went; bishops traded on g2) | FALSE | round-5 value cancellation (earliest first) → a capture answered at once by an equal-value recapture on the same square is a trade and cancels first, then equal roles, then equal values |
+| PnAHyM23 40/41 | Kg8 / c4 | Imm | "Threatens Nc3, forking … queen and rook on b1 (+5)" (Rb1 defended: +2) | FALSE | fork gain used piece values → each target's SEE from the forking piece; without check the opponent saves the bigger one, so the second-best counts; a plain capture threat = its SEE |
+| FroOipnY 45 | Rf2 | Short | "Bxf2 takes the rook → White loses the exchange (−2)" (never recaptured: −5) | FALSE | a pending recapture was resolved by SEE although the PV goes on without it → no SEE recapture when the next 2–4 PV plies don't capture there |
+| FroOipnY 37 | Bxg5 | Imm | "Sacrifices the pawn on b2 — the engine line wins the material back" | FALSE | round-5 "wins back" also applied to hangs → only for losing captures, and only if the line really takes the piece |
+| FroOipnY 34 | c4 (top) | Imm | "Nothing special" (c4 traps the b3 bishop; won at ply 9) | FALSE | trapped verified within 6 PV plies only → 12 |
+| 2hOytwun 27 | g3 | Imm | "Doesn't deal with Black's threat Nxd4" (not legal yet) | FALSE | → "doesn't deal with" only for a threat that is playable after the move |
+| Kasparov–Topalov 47 | 24.Rxd4!! | Imm | "as a sacrifice — the engine line wins the material back" (Kb6 declines it) | MISLEADING | → "Takes Black's pawn on d4 and leaves the rook where it can be taken (−3 points if it is), but in the engine line Black doesn't take it." |
+| Kasparov–Topalov 71 | Bf1 | Imm | "Nothing special" (attacks the queen on c4) | USELESS | the threat was dropped because the queen *could* take f1 → `targetHitsBack` only when taking back doesn't lose material |
+| KyoqPCST 50 | Re3 | Short | "No forcing follow-up." (Kf7 Rh7+ … next) | MISLEADING | `nextForcing` looked one ply ahead → up to 3 plies ("…; the engine line then goes on with Kf7 Rh7+.") |
+| KyoqPCST 36 | hxg5 | Imm/Label | "Misses Rxg5, which wins White's pawn on g5" (hxg5 wins it too) | MISLEADING | → a capture of the same piece by the played move is shared, not a reason |
+| KyoqPCST 42 | b5 | Imm | "No tactical problem … long-term reasons" next to a material-rule label | MISLEADING | → when the move's own line loses material: "Nothing is lost right away, but the engine line costs Black 2 points (see the short term); the engine prefers Rae8." |
+| YMOxEowk 22 | Qxf6 | Short | "Black wins a bishop for a pawn" (takes back the knight) | MISLEADING | → a line that starts by taking back on the opponent's capture square and gains no more than that reads "wins back" |
+
+Not fixed after round 6 (recorded): "The only good move here" sits in the Long-term level (SPEC puts "necessary" there);
+"deep engine move — hard to explain" on suggestions with concrete content; suggestions' Immediate level often equals
+the played move's (no "difference" fact); passed-pawn races; pawn forks where the forking pawn can be taken.
+
+### Round 7 — 4 new independent reviewer agents, same 239 entries (r7 code)
+
+Totals: FALSE 0, MISLEADING 28, USELESS 29, WEAK 68; picks 81 good / 6 bad. Per game (F/M/U/W, picks): PnAHyM23
+0/6/5/8, 26/2 · YMOxEowk 0/5/6/19, 16/1 · 57RP5sCb 0/3/3/2, 4/0 · FroOipnY 0/4/3/4, 10/1 · KyoqPCST 0/4/7/12, 12/0 ·
+2hOytwun 0/4/3/9, 11/1 · Kasparov–Topalov 0/2/2/14, 2/1. All four reviewers: "no FALSE sentence" (every square,
+pin, fork, mate and material tally they checked held). MISLEADING 28 is not yet clearly below round 4 (26), so one
+more round.
+
+| Game, ply | Move | Level | Sentence | Cat. | Root cause → fix |
+|---|---|---|---|---|---|
+| YMOxEowk 38/40/41 | Ne6 / fxe6 / Rdd8 | Short / Imm | "Rdd8 pins the bishop on c8 to the rook" (Re8 already pinned it through d8) | MISLEADING | → a piece already pinned to the same piece by another slider is no new pin; the move is told as adding an attacker (`attack-pinned`) when the piece can now be won |
+| KyoqPCST 52/55, 57RP 24, FroOipnY 49 | Kf7 / Rh7+ / … | Short | "Black loses a pawn (−1)" (the line goes on to lose a rook; eval 0 → +4.8) | MISLEADING | → a stop point whose material is > 2 pawns from the deep eval gives way to a later stop point (within the horizon) that matches it |
+| YMOxEowk 58 | Rd1+ | Imm | "Doesn't stop Kh2: then White threatens Rxa7" (a7 already hanging) | MISLEADING | → a reply's material threat on a piece that was already en prise before the move is not told |
+| FroOipnY 39 | c4 | Imm | "Allows Bd4+: then White's pawns on c4 and g4 are both under attack" | MISLEADING | → no "under attack" targets while the mover is in check after the reply (the check distorts SEE) |
+| 57RP5sCb 25 | Ne5 (top) | Imm | "Leaves the knight under-protected … (−1)" (the line keeps material level) | MISLEADING | → an under-protected piece (loss ≤ half its value) is not told when the move's line loses nothing |
+
+Not fixed (recorded for later): pawn forks whose forking pawn can be captured are told as "attacks the knight" /
+"sacrifices the pawn" (PnAH 14/15); the Stafford trap behind 6.Bg5's illusory pin (Bxd8 Bxf2+ Ke2 Bg4#) is not named;
+suggestions whose Immediate level equals the played move's (Bd5 / Bb1, h3 / Kf1); "The only good move here" in the
+Long-term level; "deep engine move — hard to explain" on suggestions with a concrete story; perpetual checks /
+repetitions are not recognised; no passed-pawn-race facts.
+
+### Round 8 — 4 new independent reviewer agents, same 239 entries (r8 code)
+
+Totals: FALSE 1, MISLEADING 37, USELESS 20, WEAK 69; picks 82 good / 9 bad. Per game (F/M/U/W, picks): PnAHyM23
+0/9/4/15, 25/3 · YMOxEowk 0/8/3/16, 18/3 · 57RP5sCb 0/4/1/3, 4/0 · FroOipnY 0/5/3/7, 10/1 · KyoqPCST 0/4/6/6, 12/0 ·
+2hOytwun 0/5/2/9, 11/1 · Kasparov–Topalov 1/2/1/13, 2/1. The r7 → r8 code changes were small (r7 fixes), so the
+rise in MISLEADING (28 → 37) is mostly reviewer variance: about two thirds of the r8 MISLEADING entries are sentences
+that earlier reviewers saw and passed (or rated WEAK). The recurring root causes across rounds 6–8 were fixed
+after this round:
+
+| Game, ply | Move | Level | Sentence | Cat. | Root cause → fix |
+|---|---|---|---|---|---|
+| Kasparov–Topalov 71 | 36.Bf1 | Imm | "Nothing special happens right away." (attacks the queen on c4) | FALSE | an attack whose attacker the target could take was dropped → kept as `attack.offered` for quiet moves, told "— the bishop could be taken, but the engine line doesn't take it", dropped when the PV reply takes it |
+| FroOipnY 24/31, KyoqPCST 30/42/52, 57RP 24, YMO 17 (pick) | various | Short | "Black wins a pawn (+1)" (given back later in the same line), "loses a pawn" (loses a rook later) | MISLEADING | → when a later stop point within the horizon has different material that agrees better with the deep eval, the story runs on to the first stop point that already has that material |
+| YMOxEowk 17, 57RP5sCb 24 | Bd3 / Re8 | Imm | "Allows dxe4, uncovering an attack on White's bishop" (recaptured, nothing lost) | MISLEADING | → a refutation without material gain, mate, threat or targets (the line loses nothing) is no refutation |
+| YMOxEowk 21 | Bxf6 | Imm | "Still leaves the bishop on d3 hanging (−3)" (the line is level) | MISLEADING | → an already-hanging piece isn't told when the move's line loses nothing overall |
+| PnAHyM23 41 | c4 | Imm | "Allows Nc3, forking …" (the fork was there before) | MISLEADING | → a fork the reply would have made with the same targets before the move reads "Doesn't stop Nc3, forking …" |
+| KyoqPCST 21 | O-O-O (top) | Short | "White gives a knight for a pawn (−2)" for the engine's best move | MISLEADING | → the best move's losing line adds "— still the engine's best move: it rates the position as worth more than the material" |
+
+### Round 9 — 4 new independent reviewer agents, same 239 entries (r9 code)
+
+Totals: FALSE 2, MISLEADING 34, USELESS 26, WEAK 59; picks 87 good / 5 bad. Per game (F/M/U/W, picks): PnAHyM23
+0/5/7/15, 27/1 · YMOxEowk 1/6/6/6, 16/2 · 57RP5sCb 0/3/2/1, 4/0 · FroOipnY 0/2/4/6, 12/0 · KyoqPCST 0/8/3/8, 12/0 ·
+2hOytwun 1/4/3/12, 14/1 · Kasparov–Topalov 0/6/1/11, 2/1. Three of the six Kasparov–Topalov MISLEADING entries and
+one FroOipnY entry are the round-8 "still the engine's best move …" note misfiring where every alternative is mated.
+
+| Game, ply | Move | Level | Sentence | Cat. | Root cause → fix |
+|---|---|---|---|---|---|
+| 2hOytwun 33 | Bb2 | Imm | "No tactical problem right away — … long-term reasons" (its own line wins the bishop on b2) | FALSE | the honest fallback claimed "no tactical problem" for a tactical line → when the move's own line has step facts or is unclear: "The engine prefers Be3; the difference is hard to put into words — see the engine line below." |
+| YMOxEowk 17 | Bd3 | Label / Imm | "exd5 leads to winning back a pawn" (the same PV gives it back) | FALSE | the round-8 "settled material" rule needed eval agreement → it also applies when the later material holds unchanged to the PV end (≥ 2 plies) |
+| Kasparov–Topalov 58/70, FroOipnY 55, PnAH 55 | Bb7 / Kd1 / d4 / Kf2 | Short | "— still the engine's best move: it rates the position as worth more than the material" (every alternative mates / ≤ 4 legal moves) | MISLEADING | → only with > 5 legal moves, not in check, and when the 2nd best isn't much worse (a real choice) |
+| YMOxEowk 11/65 | Nd2 / Ra5 | Short | the counted recapture (Nxe5, Rxh7) missing from the shown moves | MISLEADING | → `line.recapture`: the PV's next move, already counted by the resolved pending recapture, is shown before the result |
+| YMOxEowk 75/82 | Rh8 / Rd4 | Short | "White gives a rook for a pawn" (Black promotes), "wins two queens for two pawns" | MISLEADING | → with a promotion in the line the result is "comes out ahead / ends up behind in material (N points)" |
+| KyoqPCST 33/36 | hxg5 | Long | "f2 is no longer isolated" (undone in the line) | MISLEADING | → "no longer isolated" only if the pawn is still there and still not isolated at the line end |
+| 57RP5sCb 35, YMOxEowk 49 | Re1 / Rgg8 | Imm | "Nothing special happens right away." (a second attacker wins the bishop) | USELESS | → `attack.reason: 'outnumbered'`: the move's piece adds the attacker that makes a non-pawn piece winnable ("Attacks Black's bishop on e4 once more — with this extra attacker White now threatens to win it"); kept next to a pin of the same piece, so it survives when the PV shows the pin is illusory (x-ray batteries like Rgg8 are still not detected) |
+
+### Round 10 — 4 new independent reviewer agents, same 239 entries (r10 code)
+
+Totals: FALSE 1, MISLEADING 38, USELESS 30, WEAK 49; picks 83 good / 6 bad. Per game (F/M/U/W, picks): PnAHyM23
+1/9/6/11, 27/1 · YMOxEowk 0/5/5/10, 16/1 · 57RP5sCb 0/2/1/1, 4/0 · FroOipnY 0/6/4/3, 11/1 · KyoqPCST 0/7/5/9, 12/0 ·
+2hOytwun 0/7/6/7, 11/2 · Kasparov–Topalov 0/2/3/8, 2/1. Nine of the 38 MISLEADING entries (PnAH 27/68/74/76/82,
+FroOipnY 11/55, KyoqPCST 25 …) were the round-8 note "— still the engine's best move: it rates the position as worth
+more than the material", which fired for losses that every move suffers; it was removed after this round (≈ 29
+without it). Fixed after the round: the one FALSE entry (PnAH 24: "White gets an isolated pawn on a2" when the story
+ends with …Nxa2) → isolated / doubled pawns named on squares must still stand there at the line end.
+
+### Summary of rounds 5–10 (fresh games)
+
+| Round | FALSE | MISLEADING | USELESS | WEAK | Picks good / bad |
+|---|---|---|---|---|---|
+| 5 | 6 | 50 | 21 | 59 | 77 / 7 |
+| 6 | 10 | 32 | 31 | 53 | 79 / 8 |
+| 7 | 0 | 28 | 29 | 68 | 81 / 6 |
+| 8 | 1 | 37 | 20 | 69 | 82 / 9 |
+| 9 | 2 | 34 | 26 | 59 | 87 / 5 |
+| 10 | 1 | 38 (≈ 29 after removing one note) | 30 | 49 | 83 / 6 |
+
+Every round used new reviewer agents on the same 239 entries. FALSE went 6 → 0–2 per round, and every FALSE root cause
+was fixed after its round. MISLEADING fell from 50 to about 30 and then stayed there. Each round's fixes removed
+real causes, but each new reviewer found different sentences to flag; much of the remaining MISLEADING/USELESS is
+"true, but not the real reason". The stopping target (0 FALSE and MISLEADING clearly below round 4's 26) was not
+reached. Round 4 used the earlier, easier games and reviewers who were less strict about the real reason, so the
+two numbers are not directly comparable.
+
+Open (recorded, not fixed):
+- Stories still end before the decisive capture when it lies beyond the quiet horizon (12 plies), e.g. 57RP 24 …Qxb4.
+- Opponent threats behind a reply are not named ("After Nd4 …" without the Nf3+ fork threat). The Stafford trap behind
+  6.Bg5's illusory pin (Bxd8 Bxf2+ Ke2 Bg4#) is not told.
+- Pawn forks where the forking pawn can be captured; x-ray batteries (Rgg8); perpetual checks / repetitions.
+- "Misses X, which castles / develops / gets a file" can name a true but minor reason for a big drop.
+- Suggestions whose Immediate level equals the played move's (no "difference" fact).
+- "The only good move here" sits in the Long-term level; "deep engine move — hard to explain" appears on suggestions
+  that have a concrete story (decided by suggest.ts's shallow-search rule).
+- The label's "winning chances go from X% to Y%" uses winLoss (from the move's own deep line), not the eval after the move.

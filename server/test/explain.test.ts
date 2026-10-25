@@ -24,7 +24,7 @@ describe('immediate level', () => {
   it('fork with check: one sentence (check is implied)', () => {
     expect(imm('r3k3/8/8/1N6/8/8/8/4K3 w - - 0 1', 'b5c7')).toMatchInlineSnapshot(`
       [
-        "Fork: the knight on c7 attacks Black's king on e8 and rook on a8 at once.",
+        "Fork with check: the knight on c7 attacks Black's king on e8 and rook on a8 at once.",
       ]
     `);
   });

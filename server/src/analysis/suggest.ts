@@ -22,7 +22,8 @@
 //     piece or pawn that the line then really wins (the mover captures on that square and the line wins
 //     material), and a double attack (one piece newly attacks two targets). (SPEC lists check / winning capture /
 //     threat / fork / pin / escape / line gain / mate; skewer, discovered attack, promotion, recapture, a
-//     converted attack and a double attack are the same kind of concrete point.)
+//     converted attack and a double attack are the same kind of concrete point.) M5b: a trapped piece (the line wins
+//     it), prophylaxis ('prevents') and an attack on a pinned piece that the line wins.
 // All candidates are judged (so every one gets `explainable` + `notExplainableReasons`).
 
 import type { AnalysisSettings, Fact, MaterialCheck, Score } from '@chess-coach/shared';
@@ -61,7 +62,11 @@ export function concreteFacts(facts: readonly Fact[]): Fact[] {
       case 'discovered-attack':
       case 'escape':
       case 'defends-threat':
+      case 'trapped': // (M5b: kept only when the engine line wins the piece)
+      case 'prevents': // (M5b: prophylaxis against an engine-verified idea worth >= 1.5 pawns)
         return true;
+      case 'attack-pinned':
+        return lineWins(f.pinned.square);
       case 'capture':
         return f.outcome === 'wins-material' || f.outcome === 'recapture';
       case 'threat':

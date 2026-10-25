@@ -35,6 +35,18 @@
 //   for a piece that was en prise before and still is, when the move wasn't a check evasion and didn't itself
 //   win at least as much (loss ≥ HANGS_ALREADY_MIN_LOSS). Not with checkmate.
 // - allows-mate: the opponent has a mate in 1 after the move (brute force).
+// - castling-lost (M5b): the mover could still castle (either side) before the move and can't at all after it — a
+//   king move that isn't castling, or a rook move that gives up the last right — while the opponent still has
+//   attacking material (non-pawn material >= CASTLING_MIN_ENEMY_MATERIAL).
+// - attack-pinned (M5b): an enemy piece was already pinned before the move (absolute, or relative with the pinner
+//   winning the piece behind once it steps away) by a mover slider that stays put; the moved piece newly attacks it,
+//   the pinned piece can't take the moved piece / the pinner without losing material, and the mover can now win it
+//   by SEE when it couldn't before.
+// - trapped (M5b): an enemy knight/bishop/rook/queen (not absolutely pinned) can be won by SEE after the move, and
+//   every legal move of it loses material by SEE (no safe square, `noSafeSquare`) — which wasn't the case before.
+//   (analyzeMove keeps it only if the engine line really wins the piece.)
+// - capture.desperado (M5b): the capturing piece was en prise before the move with no safe square, so taking
+//   something before it is lost is better than nothing (the capture's SEE alone may look like a loss).
 
 import { kingCastlesTo, makeUci, opposite, parseUci, type Color, type NormalMove, type Position, type Role, type Square } from 'chessops';
 import { castlingSide } from 'chessops/chess';
@@ -47,7 +59,9 @@ import {
   between,
   defendersOf,
   lineBehind,
+  pinsAgainst,
   toPieceRef,
+  withTurn,
 } from '../chess/attacks';
 import { PIECE_VALUES, positionFromFen } from '../chess/material';
 import { capturedBy, hangingLoss, see, seeCaptureWith, seeMove } from '../chess/see';
@@ -61,9 +75,11 @@ export const FACT_IMPORTANCE: readonly FactType[] = [
   'allows-mate',
   'hangs',
   'fork',
+  'trapped',
   'skewer',
   'discovered-attack',
   'pin',
+  'attack-pinned',
   'capture',
   'promotion',
   'check',
@@ -73,6 +89,7 @@ export const FACT_IMPORTANCE: readonly FactType[] = [
   'escape-check',
   'block-check',
   'castle',
+  'castling-lost',
   'develop',
   'threat',
   'line',
@@ -89,6 +106,9 @@ export const FACT_IMPORTANCE: readonly FactType[] = [
  * if the loss is at least this much (pawns left en prise are usually gambits / deliberate, and very noisy).
  */
 export const HANGS_ALREADY_MIN_LOSS = 2;
+
+/** castling-lost is only told while the opponent has at least this much non-pawn material (an attack is possible). */
+export const CASTLING_MIN_ENEMY_MATERIAL = 9;
 
 /** Last fullmove number considered "opening" for `develop`. */
 export const OPENING_MAX_FULLMOVE = 15;
@@ -244,12 +264,21 @@ export function immediateFactsFromPosition(before: Position, uci: string, opts: 
     if (net < 0) outcome = 'loses-material';
     else if (isRecapture(opts.prev, cap.square)) outcome = 'recapture';
     else outcome = net > 0 ? 'wins-material' : 'even-trade';
-    facts.push({ type: 'capture', captured: { role: cap.role, square: sqName(cap.square), color: opp }, outcome, net });
+    const f: Fact = { type: 'capture', captured: { role: cap.role, square: sqName(cap.square), color: opp }, outcome, net };
+    // desperado: the piece was lost anyway (en prise, no safe square), so the capture gains compared with doing nothing
+    if (outcome === 'loses-material' && piece.role !== 'king' && hangingLoss(before, move.from) > 0 && noSafeSquare(before, move.from) && -net < hangingLoss(before, move.from)) f.desperado = true;
+    facts.push(f);
   }
 
   // --- promotion / castle / develop ---
   if (move.promotion) facts.push({ type: 'promotion', to: move.promotion });
   if (castle) facts.push({ type: 'castle', side: castle === 'h' ? 'king' : 'queen' });
+  else {
+    const lost = castlingSides(before, mover);
+    if (lost.length && castlingSides(after, mover).length === 0 && pieceMaterial(after, opp) >= CASTLING_MIN_ENEMY_MATERIAL) {
+      facts.push({ type: 'castling-lost', color: mover, sides: lost });
+    }
+  }
   if (
     (piece.role === 'knight' || piece.role === 'bishop')
     && START_MINOR_SQUARES[mover].includes(move.from)
@@ -341,6 +370,12 @@ function tacticalFacts(
     const b = back(a);
     return before.board.get(b)?.color === mover && attacksFrom(before.board, b).has(t);
   };
+  // (M5b) the target can take the attacker and win material (…e7 opening f7-d5 for both queen and bishop)
+  const hitsBack = (t: Square, a: Square) => {
+    if (!attacksFrom(after.board, t).has(a)) return false;
+    const g = seeCaptureWith(after, t, a);
+    return g !== undefined && g > 0;
+  };
   const canWin = (a: Square, t: Square) => {
     const g = seeCaptureWith(after, a, t);
     return g !== undefined && g > 0;
@@ -369,6 +404,7 @@ function tacticalFacts(
 
   // --- pins and skewers (any mover slider; new only) ---
   const checkersAfter = after.ctx().checkers;
+  const pinsBefore = pinsAgainst(before.board, opp, { relative: true });
   const sliders = after.board[mover].intersect(after.board.bishopsAndQueens().union(after.board.rooksAndQueens()));
   for (const s of sliders) {
     for (const p of attackedPieces(after.board, s)) {
@@ -394,6 +430,16 @@ function tacticalFacts(
           // moving the pinned piece must expose the piece behind to a winning capture by the pinner
           const g = exchangeBehind(after, s, p, x);
           if (g <= 0) continue;
+        }
+        // (round 7) already pinned to the same piece by another slider (Re8 through d8, then Rdd8): not a new pin —
+        // the move adds an attacker (told as attack-pinned when the piece can now be won)
+        const old = pinsBefore.find((q) => q.pinned === p && q.behind === x);
+        if (old) {
+          if (see(after, p, mover) > 0 && see(before, p, mover) <= 0 && !facts.some((f) => f.type === 'attack-pinned' && f.pinned.square === sqName(p))) {
+            facts.push({ type: 'attack-pinned', attacker: ref(after, s), pinned: ref(after, p), pinner: ref(before, old.pinner), behind: ref(after, x), absolute });
+          }
+          covered.add(key(s, p));
+          continue;
         }
         facts.push({ type: 'pin', pinner: ref(after, s), pinned: ref(after, p), behind: ref(after, x), absolute });
         covered.add(key(s, p));
@@ -423,10 +469,61 @@ function tacticalFacts(
       if (after.board.king.has(t) || after.board.pawn.has(t)) continue;
       if (attacksFrom(before.board, a).has(t)) continue;
       if (!vacated.some((v) => between(a, t).has(v))) continue;
-      if (!canWin(a, t)) continue;
+      if (!canWin(a, t) || hitsBack(t, a)) continue;
       if (covered.has(key(a, t))) continue;
       facts.push({ type: 'discovered-attack', moved: ref(after, toSq), attacker: ref(after, a), target: ref(after, t) });
       covered.add(key(a, t));
+    }
+  }
+
+  // --- adding an attacker to an already pinned piece ---
+  for (const pin of pinsAgainst(before.board, opp, { relative: true })) {
+    if (pin.pinner === move.from || movedAfter.has(pin.pinner)) continue;
+    if (before.board.pawn.has(pin.pinned)) continue; // pinned pawns: minor, noisy
+    if (hangingLoss(after, toSq) > 0) continue; // the new attacker can simply be taken
+    if (after.board.get(pin.pinner)?.color !== mover || lineBehind(after.board, pin.pinner, pin.pinned) !== pin.behind) continue;
+    if (after.board.get(pin.pinned)?.color !== opp || after.board.get(pin.behind)?.color !== opp) continue;
+    if (!attacksFrom(after.board, toSq).has(pin.pinned) || attackedBefore(toSq, pin.pinned)) continue;
+    if (covered.has(key(toSq, pin.pinned))) continue;
+    if (!pin.absolute && exchangeBehind(after, pin.pinner, pin.pinned, pin.behind) <= 0) continue;
+    // the pinned piece must not simply take the new attacker or the pinner
+    const takes = [toSq, pin.pinner].some((t) => {
+      if (!attacksFrom(after.board, pin.pinned).has(t)) return false;
+      const g = seeCaptureWith(after, pin.pinned, t);
+      return g !== undefined && g >= 0;
+    });
+    if (takes) continue;
+    if (see(after, pin.pinned, mover) <= 0 || see(before, pin.pinned, mover) > 0) continue;
+    facts.push({
+      type: 'attack-pinned',
+      attacker: ref(after, toSq),
+      pinned: ref(after, pin.pinned),
+      pinner: ref(after, pin.pinner),
+      behind: ref(after, pin.behind),
+      absolute: pin.absolute,
+    });
+    covered.add(key(toSq, pin.pinned));
+  }
+
+  // --- trapped enemy pieces (no safe square, can be won) ---
+  {
+    const pinnedNow = pinsAgainst(after.board, opp, { relative: true }).map((p) => p.pinned); // a pinned piece: the pin is the story
+    let beforeOpp: Position | null = null;
+    try {
+      beforeOpp = withTurn(before, opp);
+    } catch {
+      beforeOpp = null;
+    }
+    for (const t of after.board[opp].diff(after.board.pawn).diff(after.board.king)) {
+      if (pinnedNow.includes(t)) continue;
+      if (hangingLoss(after, t) <= 0 || !noSafeSquare(after, t)) continue;
+      // new: before the move it was not both en prise and without a safe square
+      if (before.board.get(t)?.color === opp && hangingLoss(before, t) > 0 && beforeOpp && noSafeSquare(beforeOpp, t)) continue;
+      const attackers = [...attackersOf(after.board, t, mover)].sort((a, b) => PIECE_VALUES[after.board.getRole(a)!] - PIECE_VALUES[after.board.getRole(b)!]);
+      const a = attackers.find((x) => movedAfter.has(x)) ?? attackers[0];
+      if (a === undefined) continue;
+      facts.push({ type: 'trapped', piece: ref(after, t), attacker: ref(after, a) });
+      for (const x of attackers) covered.add(key(x, t));
     }
   }
 
@@ -435,14 +532,22 @@ function tacticalFacts(
     const aRole = after.board.getRole(a)!;
     for (const t of attackedPieces(after.board, a)) {
       if (after.board.king.has(t)) continue;
-      if (covered.has(key(a, t)) || attackedBefore(a, t)) continue;
-      if (!canWin(a, t)) continue;
+      if (attackedBefore(a, t)) continue;
+      // (round 9) a piece that can be won now (by any capturer) and couldn't before: the move adds the decisive attacker
+      const outnumbered = !after.board.pawn.has(t) && see(after, t, mover) > 0 && before.board.get(t)?.color === opp && see(before, t, mover) <= 0;
+      // (kept next to a pin of the same piece: if the PV shows the pin is illusory, analyzeMove drops the pin, not this)
+      if (covered.has(key(a, t)) && !(outnumbered && facts.some((f) => f.type === 'pin' && f.pinned.square === sqName(t)))) continue;
+      if (!canWin(a, t) && !outnumbered) continue;
+      // (round 8) the target could take the attacker: kept as an offer (analyzeMove drops it when the reply takes)
+      const offered = hitsBack(t, a) && PIECE_VALUES[after.board.getRole(t)!] > PIECE_VALUES[aRole] && !capturedBy(before, move); // (quiet moves only)
+      if (hitsBack(t, a) && !offered) continue;
       const tRole = after.board.getRole(t)!;
-      let reason: 'undefended' | 'higher-value' | undefined;
+      let reason: 'undefended' | 'higher-value' | 'outnumbered' | undefined;
       if (defendersOf(after.board, t).isEmpty()) reason = 'undefended';
-      else if (aRole !== 'king' && PIECE_VALUES[tRole] > PIECE_VALUES[aRole]) reason = 'higher-value';
+      else if (aRole !== 'king' && PIECE_VALUES[tRole] > PIECE_VALUES[aRole] && canWin(a, t)) reason = 'higher-value';
+      else if (outnumbered) reason = 'outnumbered';
       if (!reason) continue;
-      facts.push({ type: 'attack', attacker: ref(after, a), target: ref(after, t), reason });
+      facts.push(offered ? { type: 'attack', attacker: ref(after, a), target: ref(after, t), reason, offered: true } : { type: 'attack', attacker: ref(after, a), target: ref(after, t), reason });
     }
   }
 }
@@ -458,6 +563,46 @@ function exchangeBehind(after: Position, s: Square, p: Square, x: Square): numbe
 function targetOrder(pos: Position, sq: Square): number {
   const r = pos.board.getRole(sq)!;
   return r === 'king' ? 100 : PIECE_VALUES[r];
+}
+
+/** Castling sides `color` still has the right to (not whether castling is legal right now). */
+export function castlingSides(pos: Position, color: Color): ('king' | 'queen')[] {
+  const out: ('king' | 'queen')[] = [];
+  if (pos.castles.rook[color].h !== undefined) out.push('king');
+  if (pos.castles.rook[color].a !== undefined) out.push('queen');
+  return out;
+}
+
+/** Non-pawn, non-king material of `color` (pawn units). */
+export function pieceMaterial(pos: Position, color: Color): number {
+  let s = 0;
+  for (const sq of pos.board[color].diff(pos.board.pawn).diff(pos.board.king)) s += PIECE_VALUES[pos.board.getRole(sq)!];
+  return s;
+}
+
+/**
+ * The piece on `sq` has no safe square: every legal move of it (as if its side were to move) loses material by
+ * SEE (net < 0, captures included). A piece without legal moves has none either.
+ */
+export function noSafeSquare(pos: Position, sq: Square): boolean {
+  const piece = pos.board.get(sq);
+  if (!piece) return false;
+  let p: Position = pos;
+  if (pos.turn !== piece.color) {
+    try {
+      p = withTurn(pos, piece.color);
+    } catch {
+      return false;
+    }
+  }
+  const ctx = p.ctx();
+  if (ctx.checkers.nonEmpty()) return false; // its side is in check: its moves are about the check, not about safety
+  for (const to of p.dests(sq, ctx)) {
+    const rank = to >> 3;
+    const promo = piece.role === 'pawn' && (rank === 0 || rank === 7) ? 'q' : '';
+    if (seeMove(p, makeUci({ from: sq, to }) + promo) >= 0) return false;
+  }
+  return true;
 }
 
 function isRecapture(prev: ImmediateOptions['prev'], square: Square): boolean {
@@ -482,6 +627,8 @@ function factWeight(f: Fact): number {
     case 'capture': return f.net;
     case 'fork': return f.targets.reduce((s, t) => s + (t.role === 'king' ? 10 : PIECE_VALUES[t.role]), 0);
     case 'pin': return (f.absolute ? 10 : 0) + PIECE_VALUES[f.pinned.role];
+    case 'attack-pinned': return PIECE_VALUES[f.pinned.role];
+    case 'trapped': return PIECE_VALUES[f.piece.role];
     case 'skewer': return PIECE_VALUES[f.behind.role];
     case 'discovered-attack': return PIECE_VALUES[f.target.role];
     case 'attack': return PIECE_VALUES[f.target.role];

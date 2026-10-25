@@ -184,7 +184,9 @@ describe('fork', () => {
   it('not a fork: the unprotected forking pawn is just taken', () => {
     const fs = facts('4k3/8/8/2n1b3/8/3P4/8/4K3 w - - 0 1', 'd3d4');
     none(fs, 'fork');
+    // (M5b) the bishop can simply take the pawn: that attack is marked 'offered' (analyzeMove checks it with the PV)
     expect(types(fs)).toEqual(['hangs', 'attack', 'attack']);
+    expect(fs.filter((f) => f.type === 'attack' && f.offered)).toHaveLength(1);
   });
 
   it('not a fork: second target is only a pawn', () => {
@@ -266,7 +268,7 @@ describe('skewer', () => {
 
 describe('discovered attack', () => {
   it('knight move uncovers rook attack on the queen', () => {
-    expect(one(facts('4k3/4q3/8/8/4N3/8/8/4R1K1 w - - 0 1', 'e4c3'), 'discovered-attack')).toEqual({
+    expect(one(facts('3k4/4q3/8/8/4N3/8/8/4RK2 w - - 0 1', 'e4c3'), 'discovered-attack')).toEqual({
       type: 'discovered-attack',
       moved: { role: 'knight', square: 'c3', color: 'white' },
       attacker: { role: 'rook', square: 'e1', color: 'white' },

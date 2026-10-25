@@ -3,7 +3,7 @@
 // Win-chance values are percentages (0..100) from the mover's point of view; cp values are centipawns.
 
 /** Bump whenever analysis output semantics change. Part of the cache key, so bumping invalidates the cache. */
-export const ANALYSIS_VERSION = 2; // 2 (M3): mate rules, Great exclusions + window, truthful hung piece, verify near thresholds
+export const ANALYSIS_VERSION = 3; // 2 (M3): mate rules, Great exclusions + window, truthful hung piece, verify near thresholds; 3 (M5b): new explanation facts
 
 export interface LabelThresholds {
   /** Best: engine #1 or winLoss <= this. */
