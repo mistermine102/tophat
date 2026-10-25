@@ -282,7 +282,7 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
       if (allows && oppThreat && allows.reply.uci === oppThreat.move && !(allows.targets?.length)) allows.already = true;
       // (M5b) the reply's threat is the opponent's threat from before the move (Rxa7 was already on): the move doesn't deal with it
       // (only if that threat is playable right now: …Nxd4 needing Nf5 first is a plan, not a threat — round 6)
-      if (allows && oppThreat && !(allows.targets?.length) && allows.facts.some((x) => x.type === 'threat' && x.move === oppThreat.move) && legalPrefix(w.fenAfter, [oppThreat.move]).length === 1) allows.already = true;
+      if (allows && oppThreat && (allows.targets ?? []).every((t) => t.square === oppThreat.move.slice(2, 4)) && allows.facts.some((x) => x.type === 'threat' && x.move === oppThreat.move) && legalPrefix(w.fenAfter, [oppThreat.move]).length === 1) allows.keepsThreat = true;
       // a short forced mate against the mover: name its moves (verified to end in checkmate on the board)
       if (allows?.mateIn !== undefined && allows.mateIn <= MATE_LINE_MAX_MOVES) {
         const ml = mateLineSan(w.fenAfter, w.pv.slice(1), 2 * allows.mateIn - 1);

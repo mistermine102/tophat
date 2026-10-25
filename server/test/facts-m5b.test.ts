@@ -291,7 +291,7 @@ describe('round 5 regressions', () => {
   it('wording: under-protected pieces, threats that were already there, half-open files, mates the label names', () => {
     expect(text([{ type: 'hangs', piece: { role: 'knight', square: 'e5', color: 'white' }, loss: 1 }])).toEqual(['Leaves the knight on e5 under-protected: Black wins material by taking on e5 (−1 point).']);
     const threat: Fact = { type: 'threat', move: 'h7a7', san: 'Rxa7', gain: 1, facts: [{ type: 'capture', captured: { role: 'pawn', square: 'a7', color: 'black' }, outcome: 'wins-material', net: 1 }] };
-    const allows: Fact = { type: 'allows', reply: { san: 'Kh2', uci: 'g1h2' }, facts: [threat], targets: [{ role: 'pawn', square: 'a7', color: 'black' }], gain: 1, already: true };
+    const allows: Fact = { type: 'allows', reply: { san: 'Kh2', uci: 'g1h2' }, facts: [threat], targets: [{ role: 'pawn', square: 'a7', color: 'black' }], gain: 1, already: true, keepsThreat: true };
     expect(text([allows], { mover: 'black', label: 'miss' })).toEqual(["Doesn't deal with White's threat Rxa7, winning a pawn (+1 point for White)."]);
     expect(betterReasons([{ type: 'positional', feature: 'open-file-rook', delta: 1, side: 'own', detail: '0->1', squares: ['e8'] }], [], 'black')).toEqual(['gives the rook on e8 a file without its own pawns']);
     const lt = labelText({

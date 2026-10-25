@@ -201,7 +201,7 @@ export function allowsText(f: F<'allows'>, ctx: ExplainContext): string {
   }
   const check = f.facts.some((x) => x.type === 'check') ? ' (check)' : '';
   // (M5b) the reply only keeps a threat that was there before the move: name the threat, not the reply (Kh2)
-  if (f.already && !direct.length && threat && targets.every((t) => t.square === threat.move.slice(2, 4))) {
+  if (f.keepsThreat && !direct.length && threat && targets.every((t) => t.square === threat.move.slice(2, 4))) {
     if (threat.mateIn === 1) return `Doesn't deal with ${opp}'s threat of checkmate with ${threat.san}`;
     if (threat.mateIn) return `Doesn't deal with ${opp}'s mating attack (starting with ${threat.san})`;
     return `Doesn't deal with ${opp}'s threat ${threat.san}, ${threatPoint(threat, 'ing', opp)}`;
@@ -546,7 +546,8 @@ function materialResult(line: F<'line'>, mover: Color): string {
   // (M5b, round 6) also: the line starts by taking back on the square the opponent just captured on (Bxf6 Qxf6)
   const takesBackFirst = !!line.steps[0]?.facts.some((f) => f.type === 'capture' && f.outcome === 'recapture') && (line.owed ?? 0) > 0 && line.materialDelta <= (line.owed ?? 0);
   const firstIsRecapture = takesBackFirst || (start !== null ? start < 0 && line.materialDelta <= -start : !!line.steps[0]?.facts.some((f) => f.type === 'capture' && f.outcome === 'recapture'));
-  if (line.result === 'wins-material' && firstIsRecapture && !(won.length > 0 && won.length <= 2 && lost.length <= 2)) return `${who} wins back material ${d}`;
+  // (round 7) taking back: no "wins the exchange" — only a plain "wins back a rook", else "wins back material"
+  if (line.result === 'wins-material' && firstIsRecapture) return lost.length === 0 && won.length > 0 && won.length <= 2 ? `${who} wins back ${piecesPhrase(won)} ${d}` : `${who} wins back material ${d}`;
   if (line.result === 'wins-material') {
     if (isExchange(won, lost)) return `${who} wins the exchange — a rook for ${an(lost[0]!)} ${d}`;
     if (lost.length === 0 && won.length > 0 && won.length <= 2) return `${who} ${firstIsRecapture ? 'wins back' : 'wins'} ${piecesPhrase(won)} ${d}`;
