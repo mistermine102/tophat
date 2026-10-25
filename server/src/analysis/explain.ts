@@ -34,8 +34,6 @@ export interface ExplainContext {
   mover: Color;
   /** The move's label (played move only): bad labels lead with the refutation; Book keeps the short level brief. */
   label?: Label;
-  /** (M5b) The move is the engine's #1: a line that loses material is a sacrifice the engine judges worth it. */
-  best?: boolean;
   /** The move (UCI): tells a pin made by the moving piece from one it uncovers. */
   uci?: string;
 }
@@ -698,7 +696,6 @@ export function lineText(line: F<'line'>, ctx: ExplainContext): string {
       // the change, plus the resulting balance when material wasn't level before ("Black loses a pawn (−1
       // point); material is level" = a gambit pawn given back)
       result = materialResult(line, mover);
-      if (ctx.best && line.result === 'loses-material') result += " — still the engine's best move: it rates the position as worth more than the material";
       const start = line.balance !== undefined ? line.balance - line.materialDelta : 0;
       if (line.balance !== undefined && start !== 0) result += `; ${balanceText(line.balance, mover)}`;
       break;

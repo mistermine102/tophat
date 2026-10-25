@@ -293,9 +293,6 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
     const short: Fact[] = [narrated.line, ...narrated.forcedReplies];
     shortFacts.set(w.uci, short);
     const ectx: ExplainContext = label ? { mover, label, uci: w.uci } : { mover, uci: w.uci };
-    // (round 9: not with a handful of legal moves — Kf2 losing the rook whatever the king does is no choice)
-    // (…nor when every alternative is much worse — mated or lost: then it is no choice to give material)
-    if (isBest && legalMoves > 5 && !positionFromFen(fen).isCheck() && (secondBestLoss ?? 0) < settings.explain.necessaryMinGap && !(label && BAD_LABELS.has(label))) ectx.best = true;
     allFacts.set(w.uci, { immediate, short, long, ctx: ectx });
     const e = renderExplanation({ immediate, short, long }, ectx);
     factsMs += now() - tf;

@@ -133,6 +133,15 @@ function stillThere(f: PositionalFact, lineEndFen: string, mover: Color): Positi
     });
     return squares.length ? { ...f, squares } : null;
   }
+  // (round 10) a weakness named on squares (isolated / doubled pawns) must still be there at the line end too (…Nxa2 takes it)
+  if ((f.feature === 'isolated-pawn' || f.feature === 'doubled-pawn') && f.squares?.length) {
+    const b = positionFromFen(lineEndFen).board;
+    const squares = f.squares.filter((s) => {
+      const p = b.get(parseSquare(s)!);
+      return p?.role === 'pawn' && p.color === sideColor(f, mover);
+    });
+    return squares.length ? { ...f, squares } : null;
+  }
   if ((f.feature !== 'passed-pawn' && f.feature !== 'open-file-rook') || worseForSide(f) || !f.squares?.length) return f;
   const role = f.feature === 'passed-pawn' ? 'pawn' : 'rook';
   const board = positionFromFen(lineEndFen).board;

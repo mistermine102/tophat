@@ -386,6 +386,14 @@ Additions made in M5b (explanation quality round 2; all additive — the client 
   if it then reaches a result too).
 - `line.nextForcing` (SAN of the PV moves after the narrated steps up to the first check or capture, within 3 plies): a story without
   facts then reads "Re3 → Rgh2 → Kf7; the engine line then goes on with Rh7+." instead of "No forcing follow-up.".
+- `attack.offered` (the target could take the attacker: quiet moves only, dropped when the PV reply takes it),
+  `attack.reason: 'outnumbered'` (the move adds the attacker that makes a non-pawn piece winnable), `line.recapture`
+  (the PV's next move, a recapture the material result already counts, shown before the result).
+- Review-loop rules (rounds 5–10, details in bench/reports/explanation-review.md): threat gains by SEE (forks: the
+  second target's net), refutations need a material / mate / threat / target payoff, pins the reply ignores and
+  escapes the reply attacks again are dropped, story tactics (forks, discovered attacks, traps) only when the line
+  converts them, pieces cancel trade-first then by role then by value, a story runs on to settled material (later
+  material that fits the deep eval better or holds to the PV end), long-term pawn / rook facts must survive the line.
 - `suggest.concreteFacts`: `trapped`, `prevents`, and `attack-pinned` when the line wins that piece.
 - Analysis budget: unchanged (the prophylaxis fact reuses the existing opponent null-move search at fenBefore).
 

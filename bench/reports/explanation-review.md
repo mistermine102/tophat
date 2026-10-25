@@ -28,6 +28,7 @@ Categories: **FALSE** (wrong on the board / contradicts the line), **MISLEADING*
 | 7 (4 new reviewer agents) | same 7 games, r7 | 239 | 0 | 28 | 29 | 68 | 81 / 6 |
 | 8 (4 new reviewer agents) | same 7 games, r8 | 239 | 1 | 37 | 20 | 69 | 82 / 9 |
 | 9 (4 new reviewer agents) | same 7 games, r9 | 239 | 2 | 34 | 26 | 59 | 87 / 5 |
+| 10 (4 new reviewer agents) | same 7 games, r10 | 239 | 1 (fixed after) | 38 (9 from one note, removed after → ≈ 29) | 30 | 49 | 83 / 6 |
 
 WEAK rose from round 2 to 3 because reviewers moved on to wording once the gross errors were gone. After round 4 the
 remaining FALSE root cause (uncovered pins worded as made by the moving piece) was fixed and spot-checked on the r5
@@ -278,3 +279,42 @@ one FroOipnY entry are the round-8 "still the engine's best move …" note misfi
 | YMOxEowk 75/82 | Rh8 / Rd4 | Short | "White gives a rook for a pawn" (Black promotes), "wins two queens for two pawns" | MISLEADING | → with a promotion in the line the result is "comes out ahead / ends up behind in material (N points)" |
 | KyoqPCST 33/36 | hxg5 | Long | "f2 is no longer isolated" (undone in the line) | MISLEADING | → "no longer isolated" only if the pawn is still there and still not isolated at the line end |
 | 57RP5sCb 35, YMOxEowk 49 | Re1 / Rgg8 | Imm | "Nothing special happens right away." (a second attacker wins the bishop) | USELESS | → `attack.reason: 'outnumbered'`: the move's piece adds the attacker that makes a non-pawn piece winnable ("Attacks Black's bishop on e4 once more — with this extra attacker White now threatens to win it"); kept next to a pin of the same piece, so it survives when the PV shows the pin is illusory (x-ray batteries like Rgg8 are still not detected) |
+
+### Round 10 — 4 new independent reviewer agents, same 239 entries (r10 code)
+
+Totals: FALSE 1, MISLEADING 38, USELESS 30, WEAK 49; picks 83 good / 6 bad. Per game (F/M/U/W, picks): PnAHyM23
+1/9/6/11, 27/1 · YMOxEowk 0/5/5/10, 16/1 · 57RP5sCb 0/2/1/1, 4/0 · FroOipnY 0/6/4/3, 11/1 · KyoqPCST 0/7/5/9, 12/0 ·
+2hOytwun 0/7/6/7, 11/2 · Kasparov–Topalov 0/2/3/8, 2/1. Nine of the 38 MISLEADING entries (PnAH 27/68/74/76/82,
+FroOipnY 11/55, KyoqPCST 25 …) were the round-8 note "— still the engine's best move: it rates the position as worth
+more than the material", which fired for losses that every move suffers; it was removed after this round (≈ 29
+without it). Fixed after the round: the one FALSE entry (PnAH 24: "White gets an isolated pawn on a2" when the story
+ends with …Nxa2) → isolated / doubled pawns named on squares must still stand there at the line end.
+
+### Summary of rounds 5–10 (fresh games)
+
+| Round | FALSE | MISLEADING | USELESS | WEAK | Picks good / bad |
+|---|---|---|---|---|---|
+| 5 | 6 | 50 | 21 | 59 | 77 / 7 |
+| 6 | 10 | 32 | 31 | 53 | 79 / 8 |
+| 7 | 0 | 28 | 29 | 68 | 81 / 6 |
+| 8 | 1 | 37 | 20 | 69 | 82 / 9 |
+| 9 | 2 | 34 | 26 | 59 | 87 / 5 |
+| 10 | 1 | 38 (≈ 29 after removing one note) | 30 | 49 | 83 / 6 |
+
+Every round used new reviewer agents on the same 239 entries. FALSE went 6 → 0–2 per round, and every FALSE root cause
+was fixed after its round. MISLEADING fell from 50 to about 30 and then stayed there. Each round's fixes removed
+real causes, but each new reviewer found different sentences to flag; much of the remaining MISLEADING/USELESS is
+"true, but not the real reason". The stopping target (0 FALSE and MISLEADING clearly below round 4's 26) was not
+reached. Round 4 used the earlier, easier games and reviewers who were less strict about the real reason, so the
+two numbers are not directly comparable.
+
+Open (recorded, not fixed):
+- Stories still end before the decisive capture when it lies beyond the quiet horizon (12 plies), e.g. 57RP 24 …Qxb4.
+- Opponent threats behind a reply are not named ("After Nd4 …" without the Nf3+ fork threat). The Stafford trap behind
+  6.Bg5's illusory pin (Bxd8 Bxf2+ Ke2 Bg4#) is not told.
+- Pawn forks where the forking pawn can be captured; x-ray batteries (Rgg8); perpetual checks / repetitions.
+- "Misses X, which castles / develops / gets a file" can name a true but minor reason for a big drop.
+- Suggestions whose Immediate level equals the played move's (no "difference" fact).
+- "The only good move here" sits in the Long-term level; "deep engine move — hard to explain" appears on suggestions
+  that have a concrete story (decided by suggest.ts's shallow-search rule).
+- The label's "winning chances go from X% to Y%" uses winLoss (from the move's own deep line), not the eval after the move.
