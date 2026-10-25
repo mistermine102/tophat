@@ -34,6 +34,7 @@
 //   can be won (quiet moves; for captures the capture outcome `loses-material` says it). Also `already: true`
 //   for a piece that was en prise before and still is, when the move wasn't a check evasion and didn't itself
 //   win at least as much (loss ≥ HANGS_ALREADY_MIN_LOSS). Not with checkmate.
+//   (M5c) The loss told is capped at the piece's value: a capturing pawn's promotion is a later, separate event.
 // - allows-mate: the opponent has a mate in 1 after the move (brute force).
 // - castling-lost (M5b): the mover could still castle (either side) before the move and can't at all after it — a
 //   king move that isn't castling, or a rook move that gives up the last right — while the opponent still has
@@ -313,12 +314,12 @@ export function immediateFactsFromPosition(before: Position, uci: string, opts: 
       if (sq === toSq) {
         if (cap) continue; // a losing capture is reported by its outcome
         const l = -seeMove(before, uci);
-        if (l > 0) facts.push({ type: 'hangs', piece: ref(after, sq), loss: l });
+        if (l > 0) facts.push({ type: 'hangs', piece: ref(after, sq), loss: Math.min(l, PIECE_VALUES[piece.role]) });
       } else if ((lossBefore.get(back(sq)) ?? 0) <= 0) {
-        facts.push({ type: 'hangs', piece: ref(after, sq), loss });
+        facts.push({ type: 'hangs', piece: ref(after, sq), loss: Math.min(loss, PIECE_VALUES[after.board.getRole(sq)!]) });
       } else if (!wasInCheck && loss >= HANGS_ALREADY_MIN_LOSS && loss > gained) {
         // it was already en prise and the move neither saved it nor won at least as much elsewhere
-        facts.push({ type: 'hangs', piece: ref(after, sq), loss, already: true });
+        facts.push({ type: 'hangs', piece: ref(after, sq), loss: Math.min(loss, PIECE_VALUES[after.board.getRole(sq)!]), already: true });
       }
     }
 
@@ -395,10 +396,17 @@ function tacticalFacts(
       targets.push(t);
       if (!attackedBefore(toSq, t)) anyNew = true;
     }
-    if (targets.length >= 2 && anyNew && winsAgainstAllReplies(after, toSq)) {
+    if (targets.length >= 2 && anyNew) {
       const sorted = targets.sort((a, b) => targetOrder(after, b) - targetOrder(after, a));
-      facts.push({ type: 'fork', attacker: ref(after, toSq), targets: sorted.map((t) => ref(after, t)) });
-      for (const t of targets) covered.add(key(toSq, t));
+      if (winsAgainstAllReplies(after, toSq)) {
+        facts.push({ type: 'fork', attacker: ref(after, toSq), targets: sorted.map((t) => ref(after, t)) });
+        for (const t of targets) covered.add(key(toSq, t));
+      } else if (after.board.getRole(toSq) === 'pawn') {
+        // (M5c) a pawn fork the opponent can answer by taking the pawn: kept only where the engine line converts it
+        // (analyzeMove.verifyWithLine, story steps, refutations)
+        // (its plain attacks stay: they are told if the line drops the fork)
+        facts.push({ type: 'fork', attacker: ref(after, toSq), targets: sorted.map((t) => ref(after, t)), byLine: true });
+      }
     }
   }
 
@@ -548,6 +556,23 @@ function tacticalFacts(
       else if (outnumbered) reason = 'outnumbered';
       if (!reason) continue;
       facts.push(offered ? { type: 'attack', attacker: ref(after, a), target: ref(after, t), reason, offered: true } : { type: 'attack', attacker: ref(after, a), target: ref(after, t), reason });
+    }
+  }
+
+  // --- (M5c) battery / x-ray: the moved slider lines up behind its own slider, which attacks an enemy piece that can
+  // now be won (it couldn't before) — Rgg8 behind the rook on d8 against the bishop on c8
+  const movedRole = after.board.getRole(toSq);
+  if (movedRole && SLIDERS.has(movedRole)) {
+    for (const f of after.board[mover].intersect(attacksFrom(after.board, toSq))) {
+      if (!SLIDERS.has(after.board.getRole(f)!)) continue;
+      const xray = attacksFrom(after.board, toSq, after.board.occupied.without(f)).diff(attacksFrom(after.board, toSq));
+      for (const t of xray.intersect(after.board[opp]).diff(after.board.king).diff(after.board.pawn)) {
+        if (!between(toSq, t).has(f) || !attacksFrom(after.board, f).has(t)) continue;
+        if (covered.has(key(f, t)) || facts.some((x) => (x.type === 'attack' || x.type === 'attack-pinned' || x.type === 'trapped') && ('target' in x ? x.target : 'pinned' in x ? x.pinned : x.piece).square === sqName(t))) continue;
+        if (before.board.get(t)?.color !== opp || before.board.get(t)?.role !== after.board.get(t)?.role) continue;
+        if (!(see(after, t, mover) > 0 && see(before, t, mover) <= 0)) continue;
+        facts.push({ type: 'attack', attacker: ref(after, toSq), target: ref(after, t), reason: 'outnumbered', through: ref(after, f) });
+      }
     }
   }
 }
