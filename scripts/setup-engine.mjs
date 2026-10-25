@@ -36,6 +36,24 @@ function unzip(zip, dest) {
   }
 }
 
+/** Reads the response body, printing progress every ~10 % (a slow connection otherwise looks frozen). */
+async function download(res) {
+  const total = Number(res.headers.get('content-length')) || 0;
+  const chunks = [];
+  let got = 0;
+  let shown = 0;
+  for await (const chunk of res.body) {
+    chunks.push(chunk);
+    got += chunk.length;
+    const pct = total ? Math.floor((got / total) * 10) * 10 : 0;
+    if (total && pct > shown) {
+      shown = pct;
+      console.log(`[setup-engine] ${pct}% of ${(total / 1e6).toFixed(0)} MB`);
+    }
+  }
+  return Buffer.concat(chunks);
+}
+
 async function main() {
   if (existsSync(target)) {
     console.log(`[setup-engine] ${target} already exists (${engineName(target) ?? 'unknown engine'}); nothing to do.`);
@@ -51,7 +69,7 @@ async function main() {
     const res = await fetch(URL_, { redirect: 'follow' });
     if (!res.ok) throw new Error(`download failed: HTTP ${res.status} ${res.statusText}`);
     const zip = join(work, 'stockfish.zip');
-    writeFileSync(zip, Buffer.from(await res.arrayBuffer()));
+    writeFileSync(zip, await download(res));
     const out = join(work, 'x');
     mkdirSync(out);
     unzip(zip, out);
