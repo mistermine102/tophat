@@ -651,7 +651,11 @@ function balanceText(balance: number, mover: Color): string {
 export function lineText(line: F<'line'>, ctx: ExplainContext): string {
   const mover = ctx.mover;
   const story = line.steps.some((s) => s.forced || s.facts.length > 0);
-  if (!story && (line.result === 'quiet' || line.result === 'trade' || line.result === 'unclear')) return 'No forcing follow-up.';
+  if (!story && (line.result === 'quiet' || line.result === 'trade' || line.result === 'unclear')) {
+    // (M5b) not "no forcing follow-up" when the engine line goes on with a check or capture right after
+    if (line.nextForcing) return `${line.steps.map((s) => s.san).join(' → ')}; the engine line then goes on with ${line.nextForcing}.`;
+    return 'No forcing follow-up.';
+  }
   const parts: string[] = [];
   let prevTo = -1;
   for (const u of shownUnits(line.steps, line.result)) {

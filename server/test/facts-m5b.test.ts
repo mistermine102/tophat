@@ -296,6 +296,15 @@ describe('round 5 regressions', () => {
   });
 });
 
+describe('no false "No forcing follow-up."', () => {
+  it('a story without facts says the engine line goes on with a check', () => {
+    const step = (ply: number, san: string) => ({ ply, san, uci: 'a1a2', color: (ply % 2 ? 'black' : 'white') as 'white' | 'black', facts: [] as Fact[] });
+    const line: Extract<Fact, { type: 'line' }> = { type: 'line', steps: [step(1, 'Re3'), step(2, 'Rgh2'), step(3, 'Kf7')], materialDelta: 0, result: 'quiet', nextForcing: 'Rh7+' };
+    expect(lineText(line, B)).toBe('Re3 → Rgh2 → Kf7; the engine line then goes on with Rh7+.');
+    expect(lineText({ ...line, nextForcing: undefined } as never, B)).toBe('No forcing follow-up.');
+  });
+});
+
 describe('sacrifices in the Immediate level', () => {
   it('24.Rxd4!! (Kasparov–Topalov): a losing capture the line wins back is a sacrifice for a good move', () => {
     const fen = legalFen('b2r3r/k4p1p/p2q1np1/NppP4/3p1Q2/P4PPB/1PP4P/1K1RR3 w - - 1 24');

@@ -655,6 +655,17 @@ export function narrateLine(fenBefore: string, pv: readonly string[], opts: Narr
       }
     }
   }
+  // (M5b) the engine line goes on with a forcing move right after the story: say so instead of "no forcing follow-up"
+  const next = legal[steps.length];
+  if (next && !pos.isEnd()) {
+    const nm = legalMove(pos, next);
+    if (nm) {
+      const p2 = pos.clone();
+      const san = makeSan(p2, nm);
+      p2.play(nm);
+      if (p2.isCheck() || isCapture(pos, next)) line.nextForcing = san;
+    }
+  }
   return { line, forcedReplies, endFen: makeFen(pos.toSetup()) };
 }
 
