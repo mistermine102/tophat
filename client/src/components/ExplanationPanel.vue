@@ -5,7 +5,7 @@ import { computed } from 'vue';
 import { isCheckmate, isStalemate, moveNumberLabel, sideToMove } from '../lib/chess';
 import { EVAL_POV_HINT, formatPercent, formatPositionEval, positionVerdict } from '../lib/format';
 import { CONFIRMED, LABELS } from '../lib/labels';
-import { isMaterialLabel, labelReasonText, sideName } from '../lib/reason';
+import { isMateLabel, isMaterialLabel, labelReasonText, sideName } from '../lib/reason';
 import { useSession } from '../stores/session';
 import CandidateCard from './CandidateCard.vue';
 import LabelGlyph from './LabelGlyph.vue';
@@ -146,7 +146,11 @@ const opening = computed(() => {
             </div>
             <p v-if="a" class="mt-1 text-sm leading-snug text-neutral-300" data-testid="label-reason">
               {{ reason }}
-              <span v-if="isMaterialLabel(a)" class="block pt-0.5 text-xs text-neutral-500">
+              <span v-if="isMateLabel(a)" class="block pt-0.5 text-xs text-neutral-500" data-testid="mate-rule-note">
+                By win chance alone this would be “{{ LABELS[a.labelReason.winChance].name }}”; the mate rule
+                ({{ a.labelReason.allowedMate && a.label === 'blunder' ? 'a move that allows a short forced mate' : 'a missed short forced mate' }}) makes it {{ meta?.name }}.
+              </span>
+              <span v-else-if="isMaterialLabel(a)" class="block pt-0.5 text-xs text-neutral-500">
                 By win chance alone this would be “{{ LABELS[a.labelReason.winChance].name }}”; the material rule makes it
                 {{ meta?.name }}.
               </span>

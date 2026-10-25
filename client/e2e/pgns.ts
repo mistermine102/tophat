@@ -81,6 +81,16 @@ export const FROM_FEN = `[Event "Endgame practice"]
 
 50... Kh7 51. Qg5 Kh8 52. Qh5+ Kg8 53. Qg6+ Kh8 54. Qg7# 1-0`;
 
+/** M3 mate rule: White is lost (knight vs queen) and 1. a3?? allows 1... Qe1#; h3 / Nd2 / Nc3 avoid the mate. */
+export const ALLOWED_MATE = `[Event "Back-rank lesson"]
+[White "Learner"]
+[Black "Coach"]
+[Result "0-1"]
+[SetUp "1"]
+[FEN "6k1/5ppp/8/q7/8/8/P4PPP/1N4K1 w - - 0 1"]
+
+1. a3 Qe1# 0-1`;
+
 /** Not a chess game. */
 export const BAD_ILLEGAL = `[White "a"]
 [Black "b"]

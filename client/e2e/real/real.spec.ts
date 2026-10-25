@@ -2,7 +2,7 @@
 // on one server with a fresh cache: later tests rely on games analysed by earlier ones only where noted.
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
-import { BAD_ILLEGAL, FROM_FEN, LASKER_CHESSCOM, SHILLING_CHESSCOM, STALEMATE, TWO_PLIES, longGame } from '../pgns';
+import { ALLOWED_MATE, BAD_ILLEGAL, FROM_FEN, LASKER_CHESSCOM, SHILLING_CHESSCOM, STALEMATE, TWO_PLIES, longGame } from '../pgns';
 import { drag, importPgn, labelledMoves, progressOf, requireEngine, setUsername, shot } from './helpers';
 
 const OPERA = readFileSync(new URL('../../../bench/games/opera-game.pgn', import.meta.url), 'utf8');
@@ -270,6 +270,27 @@ test('engine crash mid-analysis recovers; a failed ply can be retried', async ({
   await expect(page.getByTestId('ply-error')).toBeVisible({ timeout: 30_000 });
   await page.getByTestId('retry').click();
   await expect(page.getByTestId('label-reason')).toBeVisible({ timeout: 60_000 });
+});
+
+test('allowed mate (M3 mate rule): a Blunder in a lost position, explained in the label reason and the tooltip', async ({ page }) => {
+  // White (a knight down to a queen: lost either way) plays 1. a3?? and allows 1... Qe1#; h3 / Nd2 / Nc3 avoid it.
+  // By win chance alone that is at most a Mistake (White's win chance was already tiny); the mate rule makes it a
+  // Blunder. (A constructed position: in the fast E2E profile (d10) the Opera game's 15... Nxd7 is not reliable.)
+  await setUsername(page, null); // "You" = White
+  await importPgn(page, ALLOWED_MATE);
+  await waitComplete(page, 60_000);
+  const chip = page.locator('[data-node="m1"]');
+  await expect(chip.locator('[data-label]')).toHaveAttribute('data-label', 'blunder');
+  await expect(chip.locator('[data-label]')).toHaveAttribute('title', /allows a forced mate in 3 or less/);
+  await chip.click();
+  await expect(page.getByTestId('label-name')).toHaveText('Blunder');
+  await expect(page.getByTestId('label-reason')).toContainText('You allowed mate in one. You were already losing, but');
+  await expect(page.getByTestId('label-reason')).toContainText('would have avoided it — watch for mating threats.');
+  await expect(page.getByTestId('mate-rule-note')).toContainText('the mate rule (a move that allows a short forced mate) makes it Blunder');
+  await shot(page, '20-allowed-mate');
+  // the mating move itself
+  await page.locator('[data-node="m2"]').click();
+  await expect(page.getByTestId('label-reason')).toContainText('Checkmate!');
 });
 
 test('long game (160 plies): UI stays responsive', async ({ page }) => {

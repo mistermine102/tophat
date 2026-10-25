@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { fixtureGame } from '../fixtures/game';
-import { isMaterialLabel, labelReasonText } from './reason';
+import type { MoveAnalysis } from '@chess-coach/shared';
+import { isMateLabel, isMaterialLabel, labelReasonText } from './reason';
 
 const { analyses } = fixtureGame();
 
@@ -30,5 +31,27 @@ describe('label reasons', () => {
     expect(labelReasonText(analyses[57]!, { moverIsYou: false })).toBe('The only legal move.');
     expect(labelReasonText(analyses[29]!, { moverIsYou: false })).toBe('White gave away 13% win chance — b4 was much better.');
     expect(labelReasonText(analyses[21]!, { moverIsYou: false })).toBe('White lost 5.6% win chance — Kh1 was better.');
+  });
+
+  it('mate rules (M3): allowed mate in a lost position, missed mate', () => {
+    const base = analyses[29]!;
+    // Opera game 15...Nxd7??: Black was already lost (win chance ~0 either way), but Qxd7 avoided mate in 2
+    const allowed: MoveAnalysis = {
+      ...base,
+      color: 'black',
+      label: 'blunder',
+      winLoss: 0.1,
+      labelReason: { winChance: 'best', allowedMate: { matedIn: 2 } },
+      best: { ...base.best, san: 'Qxd7', uci: 'e7d7' },
+    };
+    expect(isMateLabel(allowed)).toBe(true);
+    expect(labelReasonText(allowed, { moverIsYou: false })).toBe('Black allowed a forced mate in 2. Black was already losing, but Qxd7 would have avoided it — watch for mating threats.');
+    expect(labelReasonText(allowed, { moverIsYou: true })).toBe('You allowed a forced mate in 2. You were already losing, but Qxd7 would have avoided it — watch for mating threats.');
+    const longer = { ...allowed, labelReason: { winChance: 'blunder' as const, allowedMate: { matedIn: 1, bestMatedIn: 6 } } };
+    expect(isMateLabel(longer)).toBe(false); // win chance alone already says Blunder
+    expect(labelReasonText(longer, { moverIsYou: false })).toBe('Black allowed mate in one. Qxd7 would have lasted 6 moves.');
+    const missed: MoveAnalysis = { ...base, label: 'miss', winLoss: 1.2, labelReason: { winChance: 'excellent', missedMate: { mateIn: 2 } }, best: { ...base.best, san: 'Qh5' } };
+    expect(isMateLabel(missed)).toBe(true);
+    expect(labelReasonText(missed, { moverIsYou: true })).toBe("Missed a forced mate in 2: Qh5 forces mate, this move doesn't (1.2% win chance given back).");
   });
 });

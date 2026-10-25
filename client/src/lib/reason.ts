@@ -31,11 +31,45 @@ export function isMaterialLabel(a: MoveAnalysis): boolean {
   return !!m?.label && a.label === m.label && LABELS[m.label].severity > LABELS[a.labelReason.winChance].severity;
 }
 
+/**
+ * True when a mate rule (M3: allowed mate in ≤ 3 → Blunder, missed mate in ≤ 3 → Miss), not win chance, decided the
+ * label — e.g. a move allowing mate in an already lost position, where the win chance hardly changes.
+ */
+export function isMateLabel(a: MoveAnalysis): boolean {
+  const r = a.labelReason;
+  const byMate = (r.allowedMate && a.label === 'blunder') || (r.missedMate && (a.label === 'miss' || a.label === 'blunder'));
+  return !!byMate && LABELS[a.label].severity > LABELS[r.winChance].severity;
+}
+
+const mateIn = (n: number) => (n === 1 ? 'mate in one' : `a forced mate in ${n}`);
+
+/** The sentence for a mate-rule label (allowed / missed short mate), or null. */
+function mateReason(a: MoveAnalysis, ctx: ReasonContext, best: string | null): string | null {
+  const r = a.labelReason;
+  const who = ctx.moverIsYou ? 'You' : sideName(a.color);
+  const am = r.allowedMate;
+  if (am && a.label === 'blunder') {
+    const avoid = am.bestMatedIn ? `${best ?? 'the best move'} would have lasted ${am.bestMatedIn} moves` : `${best ?? 'the best move'} would have avoided it`;
+    const was = ctx.moverIsYou ? 'You were' : `${sideName(a.color)} was`;
+    const sentence = `${who} allowed ${mateIn(am.matedIn)}.`;
+    return r.winChance !== 'blunder' ? `${sentence} ${was} already losing, but ${avoid} — watch for mating threats.` : `${sentence} ${avoid[0]!.toUpperCase()}${avoid.slice(1)}.`;
+  }
+  const mm = r.missedMate;
+  if (mm && (a.label === 'miss' || a.label === 'blunder')) {
+    const lost = a.winLoss >= 0.05 ? ` (${pct(a.winLoss)} win chance given back)` : '';
+    return `Missed ${mateIn(mm.mateIn)}: ${a.best.san} forces mate, this move doesn't${lost}.`;
+  }
+  return null;
+}
+
 export function labelReasonText(a: MoveAnalysis, ctx: ReasonContext): string {
   const r = a.labelReason;
   const who = ctx.moverIsYou ? 'You' : sideName(a.color);
   const loss = a.winLoss;
   const best = a.best.uci !== a.uci ? a.best.san : null;
+  // mate rules first: "allows mate in 2" / "missed mate in 2" is the reason even when win% hardly moves
+  const mate = mateReason(a, ctx, best);
+  if (mate) return mate;
   switch (a.label) {
     case 'book':
       return r.book ? `Opening theory: ${r.book.name} (${r.book.eco}).` : 'A known opening move.';
