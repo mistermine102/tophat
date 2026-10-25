@@ -105,7 +105,10 @@ export function stepFacts(facts: readonly Fact[]): Fact[] {
     if (f.type === 'attack') return f.target.role !== 'pawn' && !f.offered; // (an offered attacker: told only in the Immediate level, checked against the PV)
     return true;
   });
-  return sortFacts(kept).slice(0, MAX_STEP_FACTS);
+  // (M5c) a pawn fork still to be confirmed by the line doesn't crowd out the step's other facts (its capture)
+  const pawnFork = kept.find((f) => f.type === 'fork' && f.byLine);
+  const rest = sortFacts(kept.filter((f) => f !== pawnFork)).slice(0, MAX_STEP_FACTS);
+  return pawnFork ? [pawnFork, ...rest] : rest;
 }
 
 const isCapture = (pos: Pos, uci: string): boolean => {
@@ -370,28 +373,82 @@ function attackersOfSq(pos: Pos, sq: number, color: Color): number[] {
   return out.sort((a, b) => PIECE_VALUES[pos.board.getRole(a)!] - PIECE_VALUES[pos.board.getRole(b)!]);
 }
 
+/** (M5c) A story may run on this far (plies) to reach a payoff that fits the deep eval (see `narrationPlies`). */
+export const PAYOFF_HORIZON_PLIES = 20;
+/** (M5c) A repetition / perpetual check is told when the PV repeats a position within this many plies. */
+export const REPETITION_MAX_PLIES = 16;
+/** (M5c) The deep score of a repeating line must be a draw: |cp| at most this. */
+export const DRAW_MAX_CP = 10;
+
+export interface Repetition {
+  /** Plies until the repeated position (inclusive). */
+  at: number;
+  kind: 'perpetual' | 'repetition';
+  /** The side giving every check of the cycle (perpetual only). */
+  by?: Color;
+}
+
+/**
+ * (M5c) The engine line repeats a position (same board, side to move, castling and en passant) and its deep score is
+ * a draw (|cp| <= DRAW_MAX_CP): a draw by repetition. 'perpetual' when every move of one side between the two
+ * occurrences gives check (at least two checks). Null otherwise (also without a score).
+ */
+export function repetitionInLine(fenBefore: string, pv: readonly string[], score?: Score): Repetition | null {
+  if (score?.cp === undefined || Math.abs(score.cp) > DRAW_MAX_CP) return null;
+  const pos = positionFromFen(fenBefore);
+  const key = () => makeFen(pos.toSetup(), { epd: true });
+  const seen = new Map<string, number>([[key(), 0]]);
+  const checks: { color: Color; check: boolean }[] = [];
+  for (const [i, u] of pv.slice(0, PAYOFF_HORIZON_PLIES).entries()) {
+    const m = legalMove(pos, u);
+    if (!m) return null;
+    const color = pos.turn;
+    pos.play(m);
+    checks.push({ color, check: pos.isCheck() });
+    const k = key();
+    const j = seen.get(k);
+    if (j !== undefined) {
+      const cycle = checks.slice(j);
+      for (const c of ['white', 'black'] as const) {
+        const own = cycle.filter((x) => x.color === c);
+        if (own.length >= 2 && own.every((x) => x.check)) return { at: i + 1, kind: 'perpetual', by: c };
+      }
+      return { at: i + 1, kind: 'repetition' };
+    }
+    seen.set(k, i + 1);
+  }
+  return null;
+}
+
 /** Number of PV plies to narrate (see header). `pv` is trimmed to its legal prefix first. */
 export function narrationPlies(fenBefore: string, pv: readonly string[], settings: AnalysisSettings, score?: Score, opts: NarrationOptions = {}): number {
   const { shortLineMinPlies: min, shortLineMaxPlies: max } = settings.explain;
   const horizon = Math.max(max, settings.material.quietHorizonPlies);
-  const legal = legalPrefix(fenBefore, pv).slice(0, horizon);
+  const fullLegal = legalPrefix(fenBefore, pv);
+  const legal = fullLegal.slice(0, horizon);
   if (legal.length === 0) return 0;
   // a mate that fits: narrate to the mate
   if (score?.mate !== undefined && score.mate !== 0) {
     const plies = score.mate > 0 ? 2 * score.mate - 1 : 2 * -score.mate;
     if (plies <= max && plies <= legal.length) return plies;
   }
-  const info = walk(fenBefore, legal);
-  const n = info.mateAt ?? info.quiet.length - 1;
+  // (M5c) a draw by repetition / perpetual check the engine sees: narrate to the repetition
+  const rep = repetitionInLine(fenBefore, fullLegal, score);
+  if (rep && rep.at <= REPETITION_MAX_PLIES) return Math.max(rep.at, Math.min(min, fullLegal.length));
+  const extended = fullLegal.length > legal.length ? fullLegal.slice(0, Math.max(horizon, PAYOFF_HORIZON_PLIES)) : legal;
+  const info = walk(fenBefore, extended);
+  const nAll = info.mateAt ?? info.quiet.length - 1;
+  const n = Math.min(nAll, legal.length);
   if (info.mateAt !== undefined && info.mateAt <= horizon) return info.mateAt;
   // a quiet point whose next ply isn't forcing (the end of the walked PV counts as "nothing follows")
-  const stopOk = (k: number) => info.quiet[k]! && (k === n || !info.forcing[k]);
+  // (k === n: the end of the normally walked part counts as "nothing follows", as before the M5c extension)
+  const stopOk = (k: number) => info.quiet[k]! && (k === n || k === nAll || !info.forcing[k]);
   // a settled capture: the payoff of a line that never gets fully quiet (e.g. Qxb7 also hitting the rook on a8)
   // A stop point is preferred where the engine's eval agrees with the material swing: after 3...Nxe4 in the Berlin
   // nothing can be taken back at once, yet Re1 and Nxe5 regain the pawn (eval ~0). Real gambits fall back to the first quiet point.
   const evalPawns = score?.cp !== undefined ? score.cp / 100 : null;
   const agrees = (k: number) => evalPawns === null || Math.abs(info.start + info.delta[k]! - evalPawns) < Math.abs(info.start - evalPawns) + 0.5;
-  const claimOk = (k: number) => info.settled[k]! && info.captured[k]! && (k === n || !info.forcing[k]);
+  const claimOk = (k: number) => info.settled[k]! && info.captured[k]! && (k === n || k === nAll || !info.forcing[k]);
   const first = (from: number, ok: (k: number) => boolean): number | undefined => {
     for (let k = from; k <= n; k++) if (ok(k)) return k;
     return undefined;
@@ -424,6 +481,21 @@ export function narrationPlies(fenBefore: string, pv: readonly string[], setting
     if (lastStop !== undefined && Math.abs(info.delta[lastStop]! - info.delta[end]!) >= 1) {
       const settled = first(end + 1, (k) => (stopOk(k) || claimOk(k)) && info.delta[k] === info.delta[lastStop!]);
       if (settled !== undefined && (fits(lastStop) < fits(end) || holds(settled))) end = settled;
+    }
+    // (M5c) the payoff lies beyond the normal horizon: the material at the stop point is still far off the deep eval
+    // (more than EVAL_CLOSE_PAWNS), or the claimed change goes against it (a pawn "won" while the eval says the mover
+    // is worse off), and a later stop point within PAYOFF_HORIZON_PLIES fits the eval at least a pawn better
+    // (57RP5sCb 12...Re8: "Black wins a pawn" at …cxb4, but the line goes on to Qxb4 — material level, eval +0.5)
+    const evalChange = evalPawns === null ? 0 : evalPawns - info.start;
+    const against = Math.abs(info.delta[end]!) >= 1 && Math.abs(evalChange) >= 0.3 && Math.sign(info.delta[end]!) !== Math.sign(evalChange);
+    if (evalPawns !== null && Math.abs(evalPawns) < 9 && nAll > n && (fits(end) > EVAL_CLOSE_PAWNS || against)) {
+      for (let k = n + 1; k <= nAll; k++) {
+        // (a decisive change: a piece's worth, or the claim turned around — not one more pawn picked up at ply 18)
+        if ((stopOk(k) || claimOk(k)) && fits(k) <= fits(end) - 1 && (against || Math.abs(info.delta[k]! - info.delta[end]!) >= 2)) {
+          end = k;
+          break;
+        }
+      }
     }
   }
   if (end === undefined) {
@@ -584,6 +656,23 @@ function sideWinsPiece(steps: readonly LineStep[], i: number, square: string): b
   return false;
 }
 
+/** Material (points) `color` gains over these steps (captures and promotions, from their step facts). */
+function captureBalance(steps: readonly LineStep[], color: Color): number {
+  let bal = 0;
+  for (const s of steps) {
+    for (const f of s.facts) {
+      if (f.type === 'capture') bal += (s.color === color ? 1 : -1) * PIECE_VALUES[f.captured.role];
+      if (f.type === 'promotion') bal += (s.color === color ? 1 : -1) * (PIECE_VALUES[f.to] - 1);
+    }
+  }
+  return bal;
+}
+
+/** Material (points) the side of step i gains from step i to the end of the steps (captures and promotions). */
+function sideGainFrom(steps: readonly LineStep[], i: number): number {
+  return captureBalance(steps.slice(i), steps[i]!.color);
+}
+
 /** Narrate the first plies of `pv` from `fenBefore` (the mover = side to move at fenBefore). */
 export function narrateLine(fenBefore: string, pv: readonly string[], opts: NarrateOptions): NarratedLine {
   const { settings } = opts;
@@ -647,6 +736,8 @@ export function narrateLine(fenBefore: string, pv: readonly string[], opts: Narr
     const takenNext = steps[i + 1]?.uci.slice(2, 4) === step.uci.slice(2, 4);
     step.facts = step.facts.filter((f) => {
       if (f.type === 'trapped') return !takenNext && sideWinsPiece(steps, i, f.piece.square);
+      // (M5c) a pawn fork answered by taking the pawn: told when the forking side still comes out ahead from here
+      if (f.type === 'fork' && f.byLine) return sideGainFrom(steps, i) >= 1;
       if (f.type === 'fork') return (!takenNext || !!f.followUp) && f.targets.some((t) => t.role !== 'king' && sideWinsPiece(steps, i, t.square));
       if (f.type === 'discovered-attack') return sideWinsPiece(steps, i, f.target.square);
       return true;
@@ -700,6 +791,12 @@ export function narrateLine(fenBefore: string, pv: readonly string[], opts: Narr
 
   const line: LineFact = { type: 'line', steps, materialDelta: unclear ? 0 : delta, result };
   if (mateIn !== undefined) line.mateIn = mateIn;
+  // (M5c) the narrated line reaches a repeated position and the engine scores it as a draw
+  const rep = result === 'mate' || result === 'mated' ? null : repetitionInLine(fenBefore, legal, opts.score);
+  if (rep && steps.length >= rep.at) {
+    line.draw = rep.kind;
+    if (rep.by) line.drawBy = rep.by;
+  }
   if (won.length) line.won = won;
   if (pendingSan && !unclear) line.recapture = pendingSan;
   if (lost.length) line.lost = lost;
@@ -861,7 +958,9 @@ export function refutationFact(input: RefutationInput): AllowsFact | null {
   const reply = legalMove(pos, replyUci)!;
   const san = makeSan(pos, reply);
   const facts = immediateFactsFromPosition(pos, replyUci, { prev: { fenBefore: input.fenBefore, uci: legal[0]! } })
-    .filter((f) => ALLOWS_FACT_TYPES.has(f.type) && !(f.type === 'capture' && f.outcome !== 'wins-material'));
+    .filter((f) => ALLOWS_FACT_TYPES.has(f.type) && !(f.type === 'capture' && f.outcome !== 'wins-material'))
+    // (M5c) a pawn fork the mover could answer by taking the pawn: a refutation only when the line costs the mover material
+    .filter((f) => !(f.type === 'fork' && f.byLine && !(input.line.result === 'loses-material' || input.line.result === 'mated')));
   const kept: Fact[] = sortFacts(facts).slice(0, MAX_STEP_FACTS);
   if (kept.some((f) => f.type === 'checkmate')) kept.splice(0, kept.length, ...kept.filter((f) => f.type === 'checkmate'));
   pos.play(reply);
@@ -897,13 +996,29 @@ export function refutationFact(input: RefutationInput): AllowsFact | null {
   const beforePos = positionFromFen(input.fenBefore);
   const tsq = rt && rt.mateIn === undefined ? parseSquare(rt.move.slice(2, 4)) : undefined;
   const wasEnPrise = tsq !== undefined && beforePos.board.get(tsq)?.color === mover && hangingLoss(beforePos, tsq) > 0;
-  const threat = replyLoose || !threatPlayed || wasEnPrise ? null : rt;
+  // (M5c) a threat the line doesn't carry out because the mover meets it by giving up less (Nd4 hitting the queen,
+  // answered by Rxd4): the threat is the reason for the loss — told with the line's cost
+  const lineCost = input.line.result === 'loses-material' ? -input.line.materialDelta : 0;
+  // (the cost is paid right away — the mover's answer and the opponent's next move lose material — and the threat is
+  // bigger than it: h3 hitting a knight that just steps back, with a pawn lost later, is no such case)
+  const paidAtOnce = captureBalance(input.line.steps.slice(2, 4), mover) <= -1;
+  const parried = !!rt && !threatPlayed && !replyLoose && !wasEnPrise && rt.mateIn === undefined && lineCost >= 1 && rt.gain > lineCost && paidAtOnce;
+  const threat = replyLoose || (!threatPlayed && !parried) || wasEnPrise ? null : rt;
   if (threat && !kept.some((f) => f.type === 'checkmate')) kept.push(threat);
 
   const out: AllowsFact = { type: 'allows', reply: { san, uci: standardUci(afterMove, reply) }, facts: kept };
+  if (threat && parried) out.threatParried = true;
   if (targets.length) out.targets = targets;
   if (input.line.result === 'loses-material') out.gain = -input.line.materialDelta;
   if (input.line.result === 'mated' && input.line.mateIn !== undefined) out.mateIn = input.line.mateIn;
+  // (M5c) the line ends in a perpetual check by the opponent
+  if (input.line.draw === 'perpetual' && input.line.drawBy && input.line.drawBy !== mover) out.perpetual = true;
+  // (M5c) a quiet reply whose line costs material: name the opponent's first forcing move after it (Nf3+)
+  if (!kept.length && !targets.length && lineCost >= 1) {
+    const f = input.line.steps.find((s, i) => i >= 2 && s.color !== mover && s.facts.some((x) => x.type === 'check' || x.type === 'fork' || (x.type === 'capture' && x.outcome === 'wins-material') || x.type === 'discovered-attack' || x.type === 'skewer'));
+    if (f) out.follow = f.san;
+  }
+  if (out.perpetual) return out;
   // a plain check (or nothing) is no refutation worth a sentence — unless the line then costs material
   const quietCost = (out.gain ?? 0) >= QUIET_REFUTATION_MIN_LOSS && input.bestLineDelta != null && input.line.materialDelta <= input.bestLineDelta - QUIET_REFUTATION_MIN_LOSS;
   if (!kept.some((f) => f.type !== 'check') && targets.length === 0 && out.mateIn === undefined && !((out.gain ?? 0) >= 1 && kept.length) && !quietCost) return null;

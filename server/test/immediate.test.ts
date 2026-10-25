@@ -181,11 +181,12 @@ describe('fork', () => {
     expect(f.targets.map((t) => t.role).sort()).toEqual(['bishop', 'knight']);
   });
 
-  it('not a fork: the unprotected forking pawn is just taken', () => {
+  it('not a board-verified fork: the unprotected forking pawn is just taken', () => {
     const fs = facts('4k3/8/8/2n1b3/8/3P4/8/4K3 w - - 0 1', 'd3d4');
-    none(fs, 'fork');
+    // (M5c) only a pawn fork to be confirmed by the engine line ('byLine'; analyzeMove drops it unless the line wins material)
+    expect(fs.filter((f) => f.type === 'fork').every((f) => f.type === 'fork' && f.byLine)).toBe(true);
     // (M5b) the bishop can simply take the pawn: that attack is marked 'offered' (analyzeMove checks it with the PV)
-    expect(types(fs)).toEqual(['hangs', 'attack', 'attack']);
+    expect(types(fs)).toEqual(['hangs', 'fork', 'attack', 'attack']);
     expect(fs.filter((f) => f.type === 'attack' && f.offered)).toHaveLength(1);
   });
 

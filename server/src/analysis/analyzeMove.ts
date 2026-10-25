@@ -21,8 +21,8 @@
 
 import type { AnalysisSettings, Arrow, Candidate, Color, Fact, Label, MaterialCheck, MoveAnalysis, Score } from '@chess-coach/shared';
 import { ANALYSIS_VERSION, moveAccuracy, toWhitePov, winPercentForColor, winPercentFromScore } from '@chess-coach/shared';
-import { materialCheck, sameMoveUci } from './classify';
-import { BAD_LABELS, betterReasonFacts, type ExplainContext, labelText, renderExplanation, verdictText } from './explain';
+import { guardCp, materialCheck, sameMoveUci } from './classify';
+import { BAD_LABELS, betterReasonFacts, contrastWithPlayed, type ExplainContext, labelText, reasonsArePartial, renderExplanation, verdictText } from './explain';
 import { type PrevResult, deepParams as labelDeepParams, labelMove } from './label';
 import { type SearchParams, type Searcher, SearchCache } from './searchCache';
 import { type ReasonCode, lineDelta, suggest } from './suggest';
@@ -30,7 +30,7 @@ import { legalMove as legalMoveAt, legalPrefix, playMove, positionStatus, pvToSa
 import { hangingLoss, seeCaptureWith, seeMove } from '../chess/see';
 import { parseSquare } from 'chessops/util';
 import type { PvLine, SearchResult } from '../engine/uci';
-import { materialBalance, positionFromFen } from '../chess/material';
+import { lineMaterial, materialBalance, positionFromFen } from '../chess/material';
 import { immediateFacts } from '../facts/immediate';
 import { type ForcedInfo, type NarratedLine, type ThreatFact, forcedFromSearch, forcednessChecks, mateLineSan, narrateLine, narrationPlies, nullMoveFen, preventsFact, pvFork, refutationFact, threatFromSearch, threatStillWorks } from '../facts/line';
 import { longTermFacts } from '../facts/longterm';
@@ -227,7 +227,8 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
       for (let k = plies + 1; k <= settings.material.quietHorizonPlies && k <= w.pv.length;) {
         const longer = narrationPlies(fen, w.pv, settings, w.score, { ...nOpts, minPlies: k });
         if (longer < k) break;
-        if (material(resultAt(longer))) {
+        // (M5c) …or, past the quiet horizon, where the material swings back to level (a pawn lost and regained)
+        if (material(resultAt(longer)) || (longer > settings.material.quietHorizonPlies && resultAt(longer) === 'trade')) {
           plies = longer;
           break;
         }
@@ -377,13 +378,24 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
     ? betterReasonFacts([...bf.immediate, ...bf.short, ...bf.long], [...pf.immediate, ...pf.short, ...pf.long], mover, bestWork.uci, { positional: cr.label === 'inaccuracy' })
     : [];
   const better = betterR.map((r) => r.phrase);
+  // (M5c) the eval drop (pawns, mover POV, mates as big numbers) vs the biggest verified reason
+  const dropPawns = (guardCp(best.score) - guardCp(playedLine.score)) / 100;
+  const partial = reasonsArePartial(betterR, dropPawns);
   if (BAD_LABELS.has(cr.label) && !playedIsBest && pf) {
-    const misses: Fact = { type: 'misses', san: bestWork.san, uci: bestWork.uci, facts: betterR.flatMap((r) => r.facts) };
+    const misses: Extract<Fact, { type: 'misses' }> = { type: 'misses', san: bestWork.san, uci: bestWork.uci, facts: betterR.flatMap((r) => r.facts) };
+    if (partial) misses.partial = true;
     playedCand.explanation = renderExplanation({ immediate: [...pf.immediate, misses], short: pf.short, long: pf.long }, pf.ctx);
+  }
+  // (M5c) the suggestions shown next to the played move don't repeat its sentences as their own point
+  const pe = playedCand.explanation;
+  if (pe) {
+    for (const c of [bestCand, pickCand]) {
+      if (c?.explanation && !sameMoveUci(fen, c.uci, playedCand.uci)) c.explanation = contrastWithPlayed(c.explanation, pe, played.san);
+    }
   }
   const hangs = playedWork.immediate.filter((f): f is Extract<Fact, { type: 'hangs' }> => f.type === 'hangs').sort((a, b) => b.loss - a.loss);
   const hang = hangs.find((h) => h.piece.square === cr.labelReason.material?.hung?.square) ?? hangs[0];
-  analysis.labelText = labelText({ ...analysis, bestSan: bestWork.san, bestUci: bestWork.uci, checkmate: cr.checkmate, better, verifiedHang: hang ? { piece: hang.piece, loss: hang.loss, ...(hang.already ? { already: true } : {}) } : null }, settings);
+  analysis.labelText = labelText({ ...analysis, bestSan: bestWork.san, bestUci: bestWork.uci, checkmate: cr.checkmate, better, ...(partial ? { betterPartial: true } : {}), verifiedHang: hang ? { piece: hang.piece, loss: hang.loss, ...(hang.already ? { already: true } : {}) } : null }, settings);
   const verdict = verdictText(cr.label, playedIsBest);
   if (verdict) analysis.verdictText = verdict;
   return analysis;
@@ -460,6 +472,8 @@ export function verifyWithLine(facts: Fact[], fen: string, pv: readonly string[]
   return facts
     .filter((f) => f.type !== 'hangs' || taken.has(f.piece.square))
     .filter((f) => f.type !== 'trapped' || moverWins(fen, pv, f.piece.square, TRAPPED_VERIFY_PLIES))
+    // (M5c) a pawn fork the pawn can be taken from: only when the engine line then wins material
+    .filter((f) => !(f.type === 'fork' && f.byLine) || lineMaterial(fen, pv, { horizonPlies: VERIFY_PLIES }).delta >= 1)
     // (M5b) a pin the opponent ignores at once (the pinned piece moves in the reply: 6.Bg5? Nxe4!) isn't one
     .filter((f) => !(f.type === 'pin' && pv[1]?.slice(0, 2) === f.pinned.square))
     // (round 8) an offered attacker the reply simply takes attacks nothing

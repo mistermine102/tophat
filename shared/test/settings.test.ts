@@ -5,7 +5,7 @@ import * as shared from '@chess-coach/shared';
 
 describe('settings', () => {
   it('has the spec defaults', () => {
-    expect(ANALYSIS_VERSION).toBe(3);
+    expect(ANALYSIS_VERSION).toBe(4);
     const s = DEFAULT_SETTINGS;
     expect([s.labels.bestMaxLoss, s.labels.excellentMaxLoss, s.labels.goodMaxLoss, s.labels.inaccuracyMaxLoss, s.labels.mistakeMaxLoss]).toEqual([0.5, 2, 5, 10, 20]);
     expect(s.material).toMatchObject({ blunderMinLoss: 3, blunderMinEvalDropCp: 250, mistakeMinLoss: 2, mistakeMinEvalDropCp: 150 });

@@ -23,7 +23,10 @@
 //     material), and a double attack (one piece newly attacks two targets). (SPEC lists check / winning capture /
 //     threat / fork / pin / escape / line gain / mate; skewer, discovered attack, promotion, recapture, a
 //     converted attack and a double attack are the same kind of concrete point.) M5b: a trapped piece (the line wins
-//     it), prophylaxis ('prevents') and an attack on a pinned piece that the line wins.
+//     it), prophylaxis ('prevents') and an attack on a pinned piece that the line wins. M5c: a perpetual check by the
+//     mover. Rule 3's shallow test is waived when the candidate's own short line shows the payoff (`storyPaysOff`:
+//     mate, material won beyond what the opponent's last move took, a perpetual check by the mover) — the story the
+//     reader sees is the near-term point, so it is never captioned "deep engine move — hard to explain".
 // All candidates are judged (so every one gets `explainable` + `notExplainableReasons`).
 
 import type { AnalysisSettings, Fact, MaterialCheck, Score } from '@chess-coach/shared';
@@ -72,7 +75,8 @@ export function concreteFacts(facts: readonly Fact[]): Fact[] {
       case 'threat':
         return f.gain >= 1 || (f.mateIn ?? 0) > 0;
       case 'line':
-        return f.result === 'wins-material' || f.result === 'mate';
+        // (M5c) a perpetual check by the mover is a concrete point too (it saves a lost position)
+        return f.result === 'wins-material' || f.result === 'mate' || (f.draw === 'perpetual' && f.drawBy === mover);
       case 'attack':
         return lineWins(f.target.square) || (attacksBy.get(f.attacker.square)?.size ?? 0) >= 2;
       default:
@@ -93,6 +97,18 @@ export function lineDelta(facts: readonly Fact[]): number | null {
   const line = facts.find((f): f is Extract<Fact, { type: 'line' }> => f.type === 'line');
   if (!line || line.result === 'unclear' || line.result === 'mate' || line.result === 'mated') return null;
   return line.materialDelta;
+}
+
+/**
+ * (M5c) The candidate's short line itself shows the payoff: it mates, wins material beyond what the opponent's last
+ * move took (`owed`), or ends in a perpetual check by the mover.
+ */
+export function storyPaysOff(facts: readonly Fact[]): boolean {
+  const line = facts.find((f): f is Extract<Fact, { type: 'line' }> => f.type === 'line');
+  if (!line) return false;
+  if (line.result === 'mate') return true;
+  if (line.result === 'wins-material' && line.materialDelta - (line.owed ?? 0) >= 1) return true;
+  return line.draw === 'perpetual' && !!line.drawBy && line.drawBy === line.steps[0]?.color;
 }
 
 /** A candidate line that loses this much more material than the best line is no teaching pick. */
@@ -118,7 +134,11 @@ export function judgeCandidate(c: SuggestCandidate, bestScore: Score, settings: 
   if (getsMated || (winBest >= r.winningMin && win < r.winningMin) || (winBest >= r.drawishMin && winBest < r.winningMin && win < r.drawishMin)) {
     reasons.push('loses-result');
   }
-  if (!c.shallowScore || winBest - winPercentFromScore(c.shallowScore) > r.shallowTolerance) reasons.push('shallow-disagrees');
+  // (M5c) a candidate whose own short line shows a verified payoff (mate, material won, a perpetual check) is near-term
+  // by its story, even when the shallow search misses it: "deep engine move — hard to explain" must not sit on top of
+  // a story that explains it
+  const shallowOff = !c.shallowScore || winBest - winPercentFromScore(c.shallowScore) > r.shallowTolerance;
+  if (shallowOff && !storyPaysOff(c.facts)) reasons.push('shallow-disagrees');
   if (concreteFacts(c.facts).length === 0) reasons.push('no-concrete-fact');
   return reasons;
 }
