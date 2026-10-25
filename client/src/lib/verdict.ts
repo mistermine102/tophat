@@ -2,11 +2,14 @@
 // points under it, built from the server's toned sentences (explain.ts is still the only source of chess prose;
 // this only picks and joins sentences). Shared by the prototype layouts.
 import type { Candidate, MoveAnalysis, Tone } from '@chess-coach/shared';
+import { BAD_MOVE_TONE_ORDER } from '@chess-coach/shared';
 import { CONFIRMED, LABELS } from './labels';
 import { labelReasonText, type ReasonContext } from './reason';
 import { levelLines, lowerFirst, storyParts, storyResult, type ToneLine } from './tones';
 
 export const BAD = new Set(['inaccuracy', 'mistake', 'miss', 'blunder']);
+/** The verdict stands on its own: no pointer to a level the layout may show elsewhere. */
+const SEE_SHORT = / (see the short term)/;
 
 export interface Verdict {
   /** Label name ("Blunder"). */
@@ -28,7 +31,7 @@ export function moveVerdict(a: MoveAnalysis, ctx: ReasonContext): Verdict {
   if (a.label === 'book' || a.label === 'forced') return { name: meta.name, sentence: lowerFirst(reason()), tone: 'neutral', usedIndex: null };
   const want: Tone = bad ? 'bad' : 'good';
   const i = imm.findIndex((l) => l.tone === want);
-  if (i >= 0) return { name: meta.name, sentence: lowerFirst(imm[i]!.text), tone, usedIndex: i };
+  if (i >= 0) return { name: meta.name, sentence: lowerFirst(imm[i]!.text.replace(SEE_SHORT, '')), tone, usedIndex: i };
   return { name: meta.name, sentence: lowerFirst(reason()), tone, usedIndex: null };
 }
 
@@ -46,6 +49,8 @@ export function keyPoints(a: MoveAnalysis, v: Verdict, max = 3): ToneLine[] {
   const toned = imm.filter((l) => l.tone !== 'neutral');
   out.push(...(toned.length ? toned : imm).slice(0, room));
   if (result && result.tone !== 'neutral') out.push({ text: `In the engine line: ${lowerFirst(result.text)}.`, tone: result.tone });
+  // a bad move: what hurts first (the line's cost too)
+  if (BAD.has(a.label)) return out.map((l, i) => ({ l, i })).sort((x, y) => BAD_MOVE_TONE_ORDER[x.l.tone] - BAD_MOVE_TONE_ORDER[y.l.tone] || x.i - y.i).map((x) => x.l);
   return out;
 }
 

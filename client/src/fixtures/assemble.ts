@@ -3,7 +3,7 @@
 import type {
   Arrow, Candidate, Color, Explanation, Fact, Label, Level, MaterialCheck, MoveAnalysis, Score,
 } from '@chess-coach/shared';
-import { ANALYSIS_VERSION, DEFAULT_SETTINGS, moveAccuracy, winPercentForColor } from '@chess-coach/shared';
+import { ANALYSIS_VERSION, BAD_MOVE_TONE_ORDER, DEFAULT_SETTINGS, factTone, lineTone, moveAccuracy, winPercentForColor, type StoryPart, type Tone } from '@chess-coach/shared';
 import { legalDests, playSan, sanLineToUci, uciSquares } from '../lib/chess';
 import { LABELS } from '../lib/labels';
 import { factText } from './factText';
@@ -41,7 +41,28 @@ export interface AssembleSpec {
 
 export function makeLevel(facts: Fact[] | undefined, mover: Color): Level {
   const fs = facts ?? [];
-  return { facts: fs, text: fs.map((f) => factText(f, mover)).filter(Boolean) };
+  const rendered = fs.map((f) => ({ text: factText(f, mover), tone: factTone(f, mover) })).filter((r) => r.text);
+  const level: Level = { facts: fs, text: rendered.map((r) => r.text), tones: rendered.map((r) => r.tone) };
+  // the story of a line fact, as the server splits it (fixture wording)
+  const line = fs.find((f): f is Extract<Fact, { type: 'line' }> => f.type === 'line');
+  if (line && level.text.length === 1) {
+    const parts = level.text[0]!.replace(/.$/, '').split(' → ');
+    const story: StoryPart[] = parts.map((text, i) => {
+      const step = line.steps[i];
+      if (!step) return { text, tone: lineTone(line) };
+      const tone: Tone = step.facts.length ? (step.color === mover ? 'good' : 'bad') : 'neutral';
+      return { text, tone, plies: [i, i] };
+    });
+    level.story = story;
+  }
+  return level;
+}
+
+/** Bad moves list what hurts first (as the server does). */
+function badFirst(level: Level): Level {
+  const order = level.text.map((t, i) => ({ t, tone: level.tones?.[i] ?? ('neutral' as Tone), i }));
+  order.sort((a, b) => BAD_MOVE_TONE_ORDER[a.tone] - BAD_MOVE_TONE_ORDER[b.tone] || a.i - b.i);
+  return { ...level, text: order.map((o) => o.t), tones: order.map((o) => o.tone) };
 }
 
 export function makeExplanation(spec: LevelsSpec | undefined, mover: Color): Explanation {
@@ -112,6 +133,10 @@ export function assembleAnalysis(spec: AssembleSpec): MoveAnalysis {
   if (legalMoves === 1) label = 'forced';
   if (spec.material?.label) label = worseLabel(label, spec.material.label);
   if (spec.book) label = 'book';
+
+  if ((label === 'inaccuracy' || label === 'mistake' || label === 'miss' || label === 'blunder') && playedCand.explanation) {
+    playedCand.explanation = { ...playedCand.explanation, immediate: badFirst(playedCand.explanation.immediate) };
+  }
 
   const confirmed = label === 'best' || label === 'great' || label === 'book' || label === 'forced';
   let pick: Candidate | null;

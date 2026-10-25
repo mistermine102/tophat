@@ -6,6 +6,7 @@ import { useSession } from '../stores/session';
 import MoveChip from './MoveChip.vue';
 import VariationLine from './VariationLine.vue';
 
+const props = withDefaults(defineProps<{ badges?: boolean }>(), { badges: false });
 const session = useSession();
 const items = computed(() => (session.state.tree ? buildMoveRows(session.state.tree) : []));
 const scroller = ref<HTMLElement | null>(null);
@@ -43,9 +44,9 @@ watch(
       <template v-for="it in items" :key="it.key">
         <div v-if="it.kind === 'row'" class="grid grid-cols-[2.25rem_1fr_1fr] items-center gap-0.5">
           <span class="pr-1 text-right text-xs tabular-nums text-neutral-500">{{ it.number }}.</span>
-          <MoveChip v-if="it.white" :node="it.white" block />
+          <MoveChip v-if="it.white" :node="it.white" block :badges="props.badges" />
           <span v-else class="px-1.5 text-[13px] text-neutral-600">…</span>
-          <MoveChip v-if="it.black" :node="it.black" block />
+          <MoveChip v-if="it.black" :node="it.black" block :badges="props.badges" />
           <span v-else></span>
         </div>
         <div v-else class="my-1 ml-[2.4rem] space-y-1">

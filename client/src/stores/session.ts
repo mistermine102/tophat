@@ -1,6 +1,6 @@
 // Session store: the loaded game, streamed analyses, the move tree/cursor, side-line analyses, settings.
 // Plain Vue reactivity; one instance per app (provided via `provide`/`inject`, see useSession()).
-import type { Color, GameInfo, GameSummary, MoveAnalysis, Settings } from '@chess-coach/shared';
+import type { Color, GameInfo, GameSummary, MoveAnalysis, Settings, Tone } from '@chess-coach/shared';
 import { computed, inject, reactive, watch, type InjectionKey } from 'vue';
 import { ApiError, type ApiClient, type Health, type Unsubscribe } from '../api/types';
 import { MoveTree, type TreeNode } from '../lib/moveTree';
@@ -21,6 +21,17 @@ export interface Preview {
   uci: string;
   /** Short description shown above the board. */
   caption: string;
+  /** (UI prototypes) Arrows to draw on the previewed position (default: none). */
+  arrows?: PreviewArrow[];
+  /** (UI prototypes) A ✓ / ✗ / • marker at the corner of a square (e.g. the destination of a replayed step). */
+  marker?: { square: string; tone: Tone };
+}
+
+export interface PreviewArrow {
+  from: string;
+  to: string;
+  /** Brush: a suggestion colour ('pick' green, 'best' blue, 'threat' red, 'played' grey) or a tone. */
+  brush: 'pick' | 'best' | 'threat' | 'played' | Tone;
 }
 
 export interface SessionOptions {

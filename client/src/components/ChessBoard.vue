@@ -35,6 +35,10 @@ const BRUSHES = {
   best: { key: 'cc-best', color: '#2563eb', opacity: 0.85, lineWidth: 11 },
   threat: { key: 'cc-threat', color: '#dc2626', opacity: 0.85, lineWidth: 10 },
   played: { key: 'cc-played', color: '#6b7280', opacity: 0.55, lineWidth: 9 },
+  // (UI prototypes) replayed steps, by tone for the mover
+  good: { key: 'cc-good', color: '#22c55e', opacity: 0.85, lineWidth: 11 },
+  bad: { key: 'cc-bad', color: '#ef4444', opacity: 0.85, lineWidth: 11 },
+  neutral: { key: 'cc-neutral', color: '#a1a1aa', opacity: 0.7, lineWidth: 10 },
 };
 
 function config(): Config {
