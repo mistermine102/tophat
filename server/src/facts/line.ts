@@ -826,6 +826,7 @@ export function refutationFact(input: RefutationInput): AllowsFact | null {
   const legal = legalPrefix(input.fenBefore, input.pv);
   if (legal.length < 2 || !sameMoveUci(input.fenBefore, legal[0]!, input.uci)) return null;
   const pos = positionFromFen(input.fenBefore);
+  const startPos = pos.clone();
   const mover = pos.turn;
   pos.play(legalMove(pos, legal[0]!)!);
   const afterMove = pos.clone();
@@ -847,6 +848,9 @@ export function refutationFact(input: RefutationInput): AllowsFact | null {
       const was = afterMove.board.get(sq);
       const now = after.board.get(sq)!;
       if (was && was.color === now.color && was.role === now.role && hangingLoss(afterMove, sq) > 0) continue;
+      // (round 8) en prise already before the move (the move's check only hid it for one ply: Rd1+ Kh2, a7 again)
+      const orig = startPos.board.get(sq);
+      if (afterMove.isCheck() && orig && orig.color === now.color && orig.role === now.role && hangingLoss(startPos, sq) > 0) continue;
       fresh.push(toPieceRef(now, sq));
     }
   }
