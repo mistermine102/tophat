@@ -421,9 +421,9 @@ export function narrationPlies(fenBefore: string, pv: readonly string[], setting
     const fits = (k: number) => (evalPawns === null ? Infinity : Math.abs(info.start + info.delta[k]! - evalPawns));
     // (round 9) …or when that material then holds unchanged to the end of the walked PV (at least 2 more plies)
     const holds = (k: number) => n - k >= 2 && info.delta.slice(k, n + 1).every((d) => d === info.delta[k]);
-    if (lastStop !== undefined && Math.abs(info.delta[lastStop]! - info.delta[end]!) >= 1 && (fits(lastStop) < fits(end) || holds(lastStop))) {
+    if (lastStop !== undefined && Math.abs(info.delta[lastStop]! - info.delta[end]!) >= 1) {
       const settled = first(end + 1, (k) => (stopOk(k) || claimOk(k)) && info.delta[k] === info.delta[lastStop!]);
-      if (settled !== undefined) end = settled;
+      if (settled !== undefined && (fits(lastStop) < fits(end) || holds(settled))) end = settled;
     }
   }
   if (end === undefined) {
