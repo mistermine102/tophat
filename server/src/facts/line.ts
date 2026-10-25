@@ -48,6 +48,17 @@
 //   when the line really wins the single one), its own null-move threat (verified like any threat), the material
 //   the opponent gains in the line (`gain`) and a forced mate against the mover (`mateIn`). Null when the reply
 //   does nothing notable.
+// - Mate line (`mateLineSan`, M5b): the SAN of a PV that ends in checkmate on the board within the given plies
+//   (allowed / missed mates are told with their moves: "Allows a forced mate in 2: Qb8+ Nxb8 Rd8#").
+// - Fork shown by the line (`pvFork`, M5b): a move gives check, its piece also attacks an enemy piece worth >= 3,
+//   the reply doesn't take that piece or the checking piece, and the next ply the same piece captures the target:
+//   a checking fork, even when the board-only fork test (which needs a win against *every* reply) can't confirm it.
+// - Prevents (`preventsFact`, M5b prophylaxis): the opponent's best move in the null-move position before the move
+//   (what they'd play if the mover passed; null-move score >= PREVENTS_MIN_CP better for them than their best
+//   reply after the move) is no longer possible (its square is now occupied by a mover piece, or its path is
+//   blocked) or now loses material on its destination by SEE where it didn't before (`covered` — the moved piece,
+//   or a mover piece whose line the move opened, now attacks the square). Not for captures of the moved piece's
+//   old square (that is an escape), nor in decided positions.
 
 import type { AnalysisSettings, Color, Fact, LineStep, PieceRef, PieceRole, Score } from '@chess-coach/shared';
 import { winPercentFromScore } from '@chess-coach/shared';
@@ -55,7 +66,7 @@ import { makeFen } from 'chessops/fen';
 import { makeSan } from 'chessops/san';
 import { opposite, parseSquare } from 'chessops/util';
 import { countLegalMoves, sameMoveUci } from '../analysis/classify';
-import { toPieceRef, withTurn } from '../chess/attacks';
+import { attackersOf, attacksFrom, between, toPieceRef, withTurn } from '../chess/attacks';
 import { lineMaterial, PIECE_VALUES, positionFromFen } from '../chess/material';
 import { legalMove, legalPrefix, standardUci } from '../chess/notation';
 import { capturedBy, hangingLoss, see, seeMove } from '../chess/see';
@@ -71,7 +82,7 @@ type Pos = ReturnType<typeof positionFromFen>;
 
 /** Fact types kept for each narrated step (and for a threat move). */
 export const STEP_FACT_TYPES: ReadonlySet<Fact['type']> = new Set<Fact['type']>([
-  'checkmate', 'stalemate', 'fork', 'skewer', 'discovered-attack', 'pin', 'capture', 'promotion', 'check', 'attack', 'block-check',
+  'checkmate', 'stalemate', 'fork', 'trapped', 'skewer', 'discovered-attack', 'pin', 'attack-pinned', 'capture', 'promotion', 'check', 'attack', 'block-check',
 ]);
 export const MAX_STEP_FACTS = 2;
 /** Step facts that make a ply forcing (the story goes on through it). */
@@ -220,6 +231,140 @@ function materialOf(pos: Pos, color: Color): number {
 export interface NarrationOptions {
   /** Material rule verdict for the move (mover's delta at the played line's quiet point): show the loss. */
   targetDelta?: number;
+  /**
+   * Stop no earlier than this many plies (M5b): the played move's and the best move's lines are told to a
+   * comparable length (each still ends at its own stop point at or after it).
+   */
+  minPlies?: number;
+}
+
+/** Minimum gain (cp) of the opponent's null-move idea over their best reply now, for a 'prevents' fact. */
+export const PREVENTS_MIN_CP = 150;
+/** No 'prevents' facts when the position is decided (|eval| above this, cp). */
+export const PREVENTS_MAX_EVAL_CP = 500;
+
+/** SAN of `pv` from `fen` if it ends in checkmate within `maxPlies` (legal prefix), else null. */
+export function mateLineSan(fen: string, pv: readonly string[], maxPlies: number): string[] | null {
+  const pos = positionFromFen(fen);
+  const out: string[] = [];
+  for (const u of pv.slice(0, maxPlies)) {
+    const m = legalMove(pos, u);
+    if (!m) return null;
+    out.push(makeSan(pos, m));
+    pos.play(m);
+    if (pos.isCheckmate()) return out;
+  }
+  return null;
+}
+
+type ForkFact = Extract<Fact, { type: 'fork' }>;
+
+/**
+ * A checking fork shown by the line (see header): pv[0] gives check and its piece attacks an enemy piece worth >= 3,
+ * pv[1] answers, pv[2] is that piece capturing the target. Null otherwise.
+ */
+export function pvFork(fen: string, pv: readonly string[]): ForkFact | null {
+  const legal = legalPrefix(fen, pv).slice(0, 3);
+  if (legal.length < 3) return null;
+  const pos = positionFromFen(fen);
+  const m0 = legalMove(pos, legal[0]!)!;
+  const mover = pos.turn;
+  pos.play(m0);
+  if (!pos.isCheck()) return null;
+  const to = m0.to;
+  const piece = pos.board.get(to);
+  if (!piece || piece.color !== mover || piece.role === 'king') return null;
+  const replies = [...pos.allDests()];
+  const kingSq = pos.board.kingOf(pos.turn)!;
+  const kingMustMove = replies.every(([from, d]) => from === kingSq || d.isEmpty());
+  const m1 = legalMove(pos, legal[1]!)!;
+  const replySan = makeSan(pos, m1);
+  if (m1.to === to) return null; // the checking piece is taken
+  const before1 = pos.clone();
+  pos.play(m1);
+  const m2 = legalMove(pos, legal[2]!)!;
+  if (m2.from !== to) return null;
+  const target = pos.board.get(m2.to);
+  if (!target || target.color === mover || target.role === 'king' || PIECE_VALUES[target.role] < 3) return null;
+  // the target stood there when the check was given (attacked together with the king), not a piece that moved in
+  if (before1.board.get(m2.to)?.role !== target.role || m1.to === m2.to || !attacksFrom(before1.board, to).has(m2.to)) return null;
+  const captureSan = makeSan(pos, m2);
+  const king = toPieceRef({ role: 'king', color: opposite(mover) }, kingSq);
+  return {
+    type: 'fork',
+    attacker: toPieceRef(piece, to),
+    targets: [king, toPieceRef(target, m2.to)],
+    followUp: { reply: replySan, capture: captureSan, ...(kingMustMove ? { kingMustMove: true } : {}) },
+  };
+}
+
+export interface PreventsInput {
+  fenBefore: string;
+  /** The move (UCI). */
+  uci: string;
+  /** The opponent's null-move search at `nullMoveFen(fenBefore)` (MultiPV 1; score: opponent POV). */
+  nullSearch: Pick<SearchResult, 'lines'>;
+  /** Deep score of the move, mover POV. */
+  score: Score;
+  /** The opponent's verified material/mate threat (already told as 'defends-threat' when stopped). */
+  threatMove?: string | null;
+}
+
+/** Prophylaxis (see header): the opponent's null-move best idea no longer works after the move. */
+export function preventsFact(input: PreventsInput): Extract<Fact, { type: 'prevents' }> | null {
+  const best = input.nullSearch.lines[0];
+  if (!best || best.score.cp === undefined || input.score.cp === undefined) return null;
+  if (Math.abs(input.score.cp) > PREVENTS_MAX_EVAL_CP || Math.abs(best.score.cp) > PREVENTS_MAX_EVAL_CP + PREVENTS_MIN_CP) return null;
+  // what the idea is worth: the opponent's null-move score vs their best reply after the move (= -score of the move)
+  if (best.score.cp + input.score.cp < PREVENTS_MIN_CP) return null;
+  const nf = nullMoveFen(input.fenBefore);
+  if (!nf) return null;
+  const idea = best.move;
+  if (input.threatMove && idea.slice(0, 4) === input.threatMove.slice(0, 4)) return null;
+  const nullPos = positionFromFen(nf);
+  const ideaMove = legalMove(nullPos, idea);
+  if (!ideaMove) return null;
+  const pos = positionFromFen(input.fenBefore);
+  const mv = legalMove(pos, input.uci);
+  if (!mv) return null;
+  const mover = pos.turn;
+  // the idea captured the piece that just moved away (an escape), or the move captured the idea's piece
+  if (ideaMove.to === mv.from || ideaMove.from === mv.to) return null;
+  const san = makeSan(nullPos, ideaMove);
+  pos.play(mv);
+  if (pos.isCheck() || pos.isEnd()) return null;
+  const sq = (n: number) => `${'abcdefgh'[n & 7]}${(n >> 3) + 1}`;
+  const nowLegal = legalMove(pos, idea);
+  if (!nowLegal) {
+    const occ = pos.board.get(ideaMove.to);
+    const reason = occ && occ.color === mover ? 'occupied' : 'blocked';
+    const by = occ && occ.color === mover ? toPieceRef(occ, ideaMove.to) : undefined;
+    // "blocked": the moved piece now stands between (a slider's path) — otherwise the reason isn't simple
+    if (reason === 'blocked') {
+      const path = between(ideaMove.from, ideaMove.to);
+      if (!path.has(mv.to)) return null;
+    }
+    const f: Extract<Fact, { type: 'prevents' }> = { type: 'prevents', move: standardUci(nullPos, ideaMove), san, square: sq(reason === 'blocked' ? mv.to : ideaMove.to), reason };
+    if (by) f.by = by;
+    if (reason === 'blocked') f.by = toPieceRef(pos.board.get(mv.to)!, mv.to);
+    return f;
+  }
+  const beforeGain = seeMove(nullPos, idea);
+  const afterGain = seeMove(pos, idea);
+  if (!(afterGain < 0 && beforeGain >= 0)) return null;
+  // who now covers the square: the moved piece if it attacks it, else any mover piece that does
+  const attackers = attackersOfSq(pos, ideaMove.to, mover);
+  const byMoved = attackers.find((a) => a === mv.to);
+  const bySq = byMoved ?? attackers[0];
+  const f: Extract<Fact, { type: 'prevents' }> = { type: 'prevents', move: standardUci(nullPos, ideaMove), san, square: sq(ideaMove.to), reason: 'covered' };
+  if (bySq !== undefined) f.by = toPieceRef(pos.board.get(bySq)!, bySq);
+  return f;
+}
+
+function attackersOfSq(pos: Pos, sq: number, color: Color): number[] {
+  const out: number[] = [];
+  for (const a of attackersOf(pos.board, sq, color)) out.push(a);
+  return out.sort((a, b) => PIECE_VALUES[pos.board.getRole(a)!] - PIECE_VALUES[pos.board.getRole(b)!]);
 }
 
 /** Number of PV plies to narrate (see header). `pv` is trimmed to its legal prefix first. */
@@ -248,7 +393,7 @@ export function narrationPlies(fenBefore: string, pv: readonly string[], setting
     for (let k = from; k <= n; k++) if (ok(k)) return k;
     return undefined;
   };
-  const lo = Math.min(min, n);
+  const lo = Math.min(Math.max(min, opts.minPlies ?? 0), n);
   const end = first(lo, (k) => (stopOk(k) || claimOk(k)) && agrees(k)) ?? first(lo, stopOk);
   if (end === undefined) {
     // never quiet: the material result will be resolved or 'unclear' — but don't stop right after a capture
@@ -319,6 +464,7 @@ export interface NarrateOptions {
   plies?: number;
   /** Passed to `narrationPlies` (when `plies` isn't given). */
   targetDelta?: number;
+  minPlies?: number;
   /** The opponent's first reply refutes the move (bad label): never mark it forced. */
   noForcedFirstReply?: boolean;
 }
@@ -372,11 +518,27 @@ function resolvePending(pos: Pos, lastTo: number | undefined): { gain: number; t
   return { gain, takes: gain > 0 && gain === PIECE_VALUES[piece.role] ? piece.role : null };
 }
 
+/** After step i, the side of step i captures the piece standing on `square` (followed when it moves) later in the steps. */
+function sideWinsPiece(steps: readonly LineStep[], i: number, square: string): boolean {
+  const side = steps[i]!.color;
+  let sq = square;
+  for (const s of steps.slice(i + 1)) {
+    const from = s.uci.slice(0, 2);
+    const to = s.uci.slice(2, 4);
+    if (s.color !== side && from === sq) sq = to;
+    else if (s.color === side && to === sq) return true;
+  }
+  return false;
+}
+
 /** Narrate the first plies of `pv` from `fenBefore` (the mover = side to move at fenBefore). */
 export function narrateLine(fenBefore: string, pv: readonly string[], opts: NarrateOptions): NarratedLine {
   const { settings } = opts;
   const legal = legalPrefix(fenBefore, pv);
-  const plies = Math.min(opts.plies ?? narrationPlies(fenBefore, legal, settings, opts.score, opts.targetDelta !== undefined ? { targetDelta: opts.targetDelta } : {}), legal.length);
+  const nOpts: NarrationOptions = {};
+  if (opts.targetDelta !== undefined) nOpts.targetDelta = opts.targetDelta;
+  if (opts.minPlies !== undefined) nOpts.minPlies = opts.minPlies;
+  const plies = Math.min(opts.plies ?? narrationPlies(fenBefore, legal, settings, opts.score, nOpts), legal.length);
   const pos = positionFromFen(fenBefore);
   const mover = pos.turn;
   const steps: LineStep[] = [];
@@ -391,7 +553,12 @@ export function narrateLine(fenBefore: string, pv: readonly string[], opts: Narr
     const fen = makeFen(pos.toSetup());
     const color = pos.turn;
     const san = makeSan(pos, move);
-    const facts = stepFacts(immediateFactsFromPosition(pos, uci, prev ? { prev } : {}));
+    let facts = stepFacts(immediateFactsFromPosition(pos, uci, prev ? { prev } : {}));
+    // a checking fork the line carries out (the board-only test needs a win against every reply)
+    if (!facts.some((f) => f.type === 'fork') && i + 2 < plies) {
+      const fk = pvFork(fen, legal.slice(i, i + 3));
+      if (fk) facts = [fk, ...facts.filter((f) => f.type !== 'check' && !(f.type === 'attack' && fk.targets.some((t) => t.square === f.target.square)))].slice(0, MAX_STEP_FACTS);
+    }
     const cap = isCapture(pos, uci);
     if (cap) anyCapture = true;
     lastTo = cap || move.promotion ? move.to : undefined;
@@ -418,6 +585,12 @@ export function narrateLine(fenBefore: string, pv: readonly string[], opts: Narr
       break;
     }
     if (pos.isStalemate()) break;
+  }
+
+  // a "trapped" piece is only told when the line then wins it (the side that trapped it captures it later)
+  for (const [i, step] of steps.entries()) {
+    const t = step.facts.find((f): f is Extract<Fact, { type: 'trapped' }> => f.type === 'trapped');
+    if (t && !sideWinsPiece(steps, i, t.piece.square)) step.facts = step.facts.filter((f) => f !== t);
   }
 
   // material at the end of the narrated line: a quiet point, or a pending recapture resolved with SEE
@@ -555,7 +728,16 @@ export interface RefutationInput {
   line: LineFact;
   /** The reply's own verified threat: `threatFromSearch` at `nullMoveFen(position after the reply)`. */
   replyThreat?: ThreatFact | null;
+  /**
+   * The best move's short-line material change (mover POV), if it claims one (M5b): a quiet reply whose line costs
+   * the mover >= QUIET_REFUTATION_MIN_LOSS points more than the best line is still worth naming ("Allows c4 — in the
+   * engine line this costs White 3 points").
+   */
+  bestLineDelta?: number | null;
 }
+
+/** See `RefutationInput.bestLineDelta`. */
+export const QUIET_REFUTATION_MIN_LOSS = 2;
 
 /** The refutation of a move: what the opponent's PV reply does (see header). Null when nothing notable. */
 export function refutationFact(input: RefutationInput): AllowsFact | null {
@@ -601,7 +783,8 @@ export function refutationFact(input: RefutationInput): AllowsFact | null {
   if (input.line.result === 'loses-material') out.gain = -input.line.materialDelta;
   if (input.line.result === 'mated' && input.line.mateIn !== undefined) out.mateIn = input.line.mateIn;
   // a plain check (or nothing) is no refutation worth a sentence — unless the line then costs material
-  if (!kept.some((f) => f.type !== 'check') && targets.length === 0 && out.mateIn === undefined && !((out.gain ?? 0) >= 1 && kept.length)) return null;
+  const quietCost = (out.gain ?? 0) >= QUIET_REFUTATION_MIN_LOSS && input.bestLineDelta != null && input.line.materialDelta <= input.bestLineDelta - QUIET_REFUTATION_MIN_LOSS;
+  if (!kept.some((f) => f.type !== 'check') && targets.length === 0 && out.mateIn === undefined && !((out.gain ?? 0) >= 1 && kept.length) && !quietCost) return null;
   if (replyWasAlreadyThere(input.fenBefore, replyUci, kept, targets)) out.already = true;
   return out;
 }

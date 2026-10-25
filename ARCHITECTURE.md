@@ -204,12 +204,12 @@ export type Fact =
   | { type: 'check'; double?: boolean; discovered?: boolean }
   | { type: 'checkmate'; double?: boolean; discovered?: boolean }
   | { type: 'stalemate' }                                            // the move stalemates the opponent (draw)
-  | { type: 'capture'; captured: PieceRef; outcome: 'wins-material' | 'even-trade' | 'recapture' | 'loses-material'; net: number }
+  | { type: 'capture'; captured: PieceRef; outcome: 'wins-material' | 'even-trade' | 'recapture' | 'loses-material'; net: number; desperado?: boolean }  // desperado (M5b): the capturing piece was en prise with no safe square anyway
   | { type: 'promotion'; to: PieceRole }
   | { type: 'castle'; side: 'king' | 'queen' }
   | { type: 'develop'; piece: PieceRef }
   | { type: 'attack'; attacker: PieceRef; target: PieceRef; reason: 'undefended' | 'higher-value' | 'king' }
-  | { type: 'fork'; attacker: PieceRef; targets: PieceRef[] }
+  | { type: 'fork'; attacker: PieceRef; targets: PieceRef[]; followUp?: { reply: string; capture: string; kingMustMove?: boolean } }  // followUp (M5b): a checking fork shown by the engine line — the reply (SAN), then the forking piece's capture (SAN); kingMustMove: every legal reply is a king move
   | { type: 'pin'; pinner: PieceRef; pinned: PieceRef; behind: PieceRef; absolute: boolean }
   | { type: 'skewer'; attacker: PieceRef; front: PieceRef; behind: PieceRef }
   | { type: 'discovered-attack'; moved: PieceRef; attacker: PieceRef; target: PieceRef }
@@ -217,11 +217,17 @@ export type Fact =
   | { type: 'defend'; defender: PieceRef; piece: PieceRef }          // newly defends an attacked piece
   | { type: 'block-check' } | { type: 'escape-check' }
   | { type: 'hangs'; piece: PieceRef; loss: number; already?: boolean }  // negative: leaves material en prise; already = was en prise before the move and still is
-  | { type: 'allows-mate'; inMoves: number }                         // negative
+  | { type: 'allows-mate'; inMoves: number; line?: string[] }        // negative; line (M5b): the mating sequence from the opponent's reply (SAN, ends in checkmate on the board)
+  | { type: 'misses-mate'; mateIn: number; best: string; line: string[] }  // negative (M5b): the mover had a forced mate (the best move's line, SAN from the best move, ends in checkmate) and the move doesn't mate
+  | { type: 'misses'; san: string; uci: string; facts: Fact[] }       // M5b, bad moves whose Immediate level says nothing else: the engine's best move and its verified facts this move doesn't share (empty facts = no reason in words was found)
+  | { type: 'castling-lost'; color: Color; sides: ('king' | 'queen')[]; at?: 'line-end' }  // M5b: `color` loses its last castling rights (king or rook moved; at 'line-end': its king was driven out during the short line)
+  | { type: 'attack-pinned'; attacker: PieceRef; pinned: PieceRef; pinner: PieceRef; behind: PieceRef; absolute: boolean }  // M5b: the move adds an attacker to an enemy piece that was already pinned, and the piece can now be won
+  | { type: 'trapped'; piece: PieceRef; attacker: PieceRef }       // M5b: an enemy piece is attacked, can be won, and every square it can move to loses it too (confirmed by the engine line winning it)
+  | { type: 'prevents'; move: string; san: string; square: string; reason: 'occupied' | 'blocked' | 'covered'; by?: PieceRef }  // M5b prophylaxis: the opponent's best idea (null-move search: what they'd play if the mover passed, worth >= 1.5 pawns more than their best reply now) is no longer playable (square occupied / line blocked) or now loses material on `square` (covered by `by`)
   | { type: 'threat'; move: string; san: string; gain: number; mateIn?: number; facts: Fact[] }
   | { type: 'defends-threat'; move: string; san: string; gain: number; mateIn?: number; facts: Fact[] }  // the opponent's threat (as in 'threat', opponent POV) no longer works after the move
   | { type: 'line'; steps: LineStep[]; materialDelta: number; mateIn?: number; result: 'wins-material' | 'loses-material' | 'mate' | 'mated' | 'trade' | 'quiet' | 'unclear'; won?: PieceRole[]; lost?: PieceRole[]; measuredAt?: number; balance?: number; owed?: number }  // won/lost: net pieces gained/lost by the mover; measuredAt: material measured after this many plies (> steps.length); 'unclear' = material still changing where the line ends (no result is claimed); balance: mover's material balance (points) at the line end (material results only); owed: material the opponent's previous move captured, which the line may be winning back
-  | { type: 'allows'; reply: { san: string; uci: string }; facts: Fact[]; targets?: PieceRef[]; gain?: number; mateIn?: number; already?: boolean }  // negative (bad moves): the opponent's best reply from the move's PV and what it does — its board facts / verified threat, mover pieces it newly puts en prise, material the opponent gains in the line (pawns), mate against the mover; already: the reply worked before the move too (the move just doesn't deal with it)
+  | { type: 'allows'; reply: { san: string; uci: string }; facts: Fact[]; targets?: PieceRef[]; gain?: number; mateIn?: number; already?: boolean; mateLine?: string[] }  // mateLine (M5b): SAN from the reply to the checkmate, verified on the board. negative (bad moves): the opponent's best reply from the move's PV and what it does — its board facts / verified threat, mover pieces it newly puts en prise, material the opponent gains in the line (pawns), mate against the mover; already: the reply worked before the move too (the move just doesn't deal with it)
   | { type: 'forced-reply'; san: string; alternatives: number }      // opponent's reply was (nearly) the only move
   | { type: 'positional'; feature: PositionalFeature; delta: number; detail?: string; side?: 'own' | 'opponent'; squares?: string[]; at?: 'line-end' }  // delta: + = good for mover; side: whose pieces changed; at: 'line-end' = change measured at the end of the short line, not right after the move
   | { type: 'positional-gain'; cp: number }                          // eval gain not explained by material
@@ -352,6 +358,31 @@ Additions made in M3 (label quality; all additive, `ANALYSIS_VERSION` 2):
   `material.lostPositionCp`, `mate.*`, `great.maxLegalMovesInCheck`, `great.freeCaptureMinGain`, `budget.verify`.
 - Label benchmark: `npx tsx bench/label-benchmark.ts run|report` → bench/reports/labels.md (+ labels-details.md);
   hand verdicts in bench/labels.eyeball.json, hand-written analysis in bench/labels.analysis.md.
+
+Additions made in M5b (explanation quality round 2; all additive — the client renders `Level.text`):
+- Facts (exact rules in the file headers of `facts/immediate.ts` / `facts/line.ts`): `castling-lost` (the mover's
+  last castling right goes — king or rook move — while the opponent has ≥ 9 non-pawn material; `at: 'line-end'` in
+  the Long-term level when a king is driven out during the short line, e.g. Bxf7+ Kxf7), `attack-pinned` (a piece
+  pinned before the move gets a new attacker and can now be won), `trapped` (attacked, winnable, every move of it
+  loses it too; kept only when the engine line wins it — Immediate via `analyzeMove.moverWins`, story steps likewise),
+  `capture.desperado` (the capturing piece was en prise with no safe square), `fork.followUp` (a checking fork the
+  engine line carries out — `line.pvFork`; also for steps and when the board-only fork test can't confirm it),
+  `prevents` (prophylaxis: the opponent's null-move best move, worth ≥ 150 cp over their best reply now, becomes
+  impossible or loses material on its square; not in decided positions), `misses-mate` (missed-mate rule: the best
+  line's moves, verified to end in checkmate), `allows.mateLine` / `allows-mate.line` (an allowed mate ≤ 3 told with
+  its moves: "Allows a forced mate in 2: Qb8+ Nxb8 Rd8#."), `misses` (a bad move whose Immediate level says nothing
+  else: the best move + the verified facts behind `betterReasonFacts`; no facts → "the engine prefers X for long-term
+  reasons that are hard to put into words").
+- `betterReasons` also gives quiet reasons when no tactical one exists: develops, castles, prevents, traps, attacks a
+  pinned piece, and the best move's own long-term facts (passed pawn, rook on an open file, king safety, …).
+- `refutationFact` input `bestLineDelta`: a quiet reply whose line costs ≥ 2 points more than the best line is named
+  ("After c4, the engine line costs White 3 points of material (see the short term).").
+- Story: a piece offered and won back (or mating) reads "Qe8 sacrifices the queen"; a quiet last step after hidden
+  steps is dropped ("… → White wins a pawn"); `NarrationOptions.minPlies`: for a bad move, when only one of the
+  played / best lines reaches a material result at its own length, the other is told on to that length (kept only
+  if it then reaches a result too).
+- `suggest.concreteFacts`: `trapped`, `prevents`, and `attack-pinned` when the line wins that piece.
+- Analysis budget: unchanged (the prophylaxis fact reuses the existing opponent null-move search at fenBefore).
 
 ## Facts → text, suggestions (M2)
 

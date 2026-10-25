@@ -93,9 +93,18 @@ function piecesOn(targets: readonly PieceRef[]): string {
 // --- Immediate ----------------------------------------------------------------------------------------------------
 
 const IMMEDIATE_ORDER: readonly Fact['type'][] = [
-  'checkmate', 'stalemate', 'allows', 'allows-mate', 'hangs', 'fork', 'skewer', 'discovered-attack', 'pin', 'capture', 'promotion', 'check',
-  'defends-threat', 'threat', 'attack', 'escape', 'defend', 'escape-check', 'block-check', 'castle', 'develop',
+  'checkmate', 'stalemate', 'misses-mate', 'allows', 'allows-mate', 'hangs', 'fork', 'trapped', 'skewer', 'discovered-attack', 'pin', 'attack-pinned',
+  'capture', 'promotion', 'check', 'defends-threat', 'prevents', 'threat', 'attack', 'escape', 'defend', 'escape-check', 'block-check', 'castle',
+  'castling-lost', 'develop',
 ];
+
+/** "Qb8+ Nxb8 Rd8#" */
+const sanLine = (sans: readonly string[]): string => sans.join(' ');
+
+/** "a forced mate in 2: Qb8+ Nxb8 Rd8#" / "checkmate: Rd8#" (the line ends in mate on the board). */
+function mateLinePhrase(n: number, line: readonly string[]): string {
+  return n <= 1 || line.length <= 1 ? `checkmate: ${sanLine(line)}` : `a forced mate in ${n}: ${sanLine(line)}`;
+}
 
 function targetsPhrase(targets: readonly PieceRef[]): string {
   // "Black's king on e8 and rook on a8" (targets of one colour)
@@ -115,6 +124,7 @@ function captureText(f: F<'capture'>): string {
     case 'recapture':
       return `Takes back: captures ${c}`;
     case 'loses-material':
+      if (f.desperado) return `Takes ${c} as a desperado: the capturing piece was attacked and had no safe square, so it takes something before it is lost (${points(f.net)} after the exchange)`;
       return `Takes ${c}, but loses material when the pieces are traded off (${points(f.net)})`;
   }
 }
@@ -157,6 +167,8 @@ export function allowsText(f: F<'allows'>, ctx: ExplainContext): string {
   // the reply worked before the move too: the move simply doesn't deal with it
   const verb = f.already ? "Doesn't stop" : 'Allows';
   if (f.facts.some((x) => x.type === 'checkmate')) return `${verb} checkmate: ${r}`;
+  // a short forced mate: the moves themselves (verified to end in checkmate on the board)
+  if (f.mateLine?.length && f.mateIn !== undefined) return `${verb} ${mateLinePhrase(f.mateIn, f.mateLine)}`;
   // what the reply's own piece does …
   const direct: string[] = [];
   const cap = f.facts.find((x): x is F<'capture'> => x.type === 'capture');
@@ -181,6 +193,10 @@ export function allowsText(f: F<'allows'>, ctx: ExplainContext): string {
     else if (!(targets.length >= 2 && threatOnTarget)) then.push(`${opp} threatens ${threat.san}, ${threatPoint(threat, 'ing', opp)}`);
   }
   const check = f.facts.some((x) => x.type === 'check') ? ' (check)' : '';
+  // a quiet reply whose line costs material (M5b): the reply isn't the tactic itself — say where the loss is told
+  if (!direct.length && !then.length && !check && f.mateIn === undefined && (f.gain ?? 0) >= 1) {
+    return `After ${r}, the engine line costs ${colorName(ctx.mover)} ${points(f.gain!).replace(/^\+/, '')} of material (see the short term)`;
+  }
   let s = `${verb} ${r}${direct.length ? '' : check}`;
   if (direct.length) s += `, ${joinList(direct.slice(0, 2))}${check ? ', with check' : ''}`;
   if (then.length) s += `: then ${joinList(then.slice(0, 2))}`;
@@ -209,8 +225,32 @@ function immediateFactText(f: Fact, ctx: ExplainContext): string | null {
     case 'attack':
       // a bigger piece attacked by a smaller one has to move whether defended or not: say so, not "undefended"
       return f.reason === 'undefended' && PIECE_VALUES[f.target.role] <= PIECE_VALUES[f.attacker.role] ? `Attacks ${owned(f.target)}, which is undefended` : `Attacks ${owned(f.target)} with ${an(f.attacker.role)}`;
-    case 'fork':
+    case 'fork': {
+      const withKing = f.targets.some((t) => t.role === 'king');
+      if (withKing && f.followUp) {
+        const others = f.targets.filter((t) => t.role !== 'king');
+        const then = f.followUp.kingMustMove ? 'the king must move' : `after ${f.followUp.reply}`;
+        return `Fork with check: ${the(f.attacker)} attacks ${opp}'s king and ${joinList(others.map((t) => `${t.role} on ${t.square}`))} — ${then}, then ${f.followUp.capture} takes the ${others[0]?.role ?? 'piece'}`;
+      }
+      if (withKing) return `Fork with check: ${the(f.attacker)} attacks ${targetsPhrase(f.targets)} at once`;
       return `Fork: ${the(f.attacker)} attacks ${targetsPhrase(f.targets)} at once`;
+    }
+    case 'trapped':
+      return `Traps ${owned(f.piece)}: it is attacked, and every square it could move to is covered too`;
+    case 'attack-pinned':
+      return `Attacks ${owned(f.pinned)} once more — it can't step away (${f.absolute ? 'it is pinned to the king' : `moving it would expose the ${f.behind.role} on ${f.behind.square}`}), so ${colorName(ctx.mover)} now threatens to win it`;
+    case 'prevents': {
+      const why = f.reason === 'occupied'
+        ? `${colorName(ctx.mover)}'s ${f.by?.role ?? 'piece'} now stands on ${f.square}`
+        : f.reason === 'blocked'
+          ? `${the(f.by ?? { role: 'pawn', square: f.square, color: ctx.mover })} now blocks the way`
+          : f.by ? `${the(f.by)} now covers ${f.square}` : `${f.square} is now covered`;
+      return `Prevents ${f.san}, ${opp}'s best idea here (what ${opp} would play if ${colorName(ctx.mover)} passed): ${why}`;
+    }
+    case 'castling-lost':
+      return f.color === ctx.mover ? `${colorName(f.color)} gives up the right to castle` : `${colorName(f.color)} can no longer castle`;
+    case 'misses-mate':
+      return f.mateIn <= 1 ? `Misses checkmate in one: ${sanLine(f.line)}` : `Misses a forced mate in ${f.mateIn}: ${sanLine(f.line)}`;
     case 'pin':
       if (ctx.uci && f.pinner.square !== ctx.uci.slice(2, 4)) return `Uncovers a pin: ${the(f.pinner)} now pins ${owned(f.pinned)} to the ${f.absolute ? 'king' : `${f.behind.role} on ${f.behind.square}`}`;
       return f.absolute
@@ -233,6 +273,7 @@ function immediateFactText(f: Fact, ctx: ExplainContext): string | null {
         ? `Leaves ${the(f.piece)} hanging — it was already attacked and ${opp} can still win it (${points(-f.loss)})`
         : `Leaves ${the(f.piece)} hanging: ${opp} can win it (${points(-f.loss)})`;
     case 'allows-mate':
+      if (f.line?.length) return `Allows ${mateLinePhrase(f.inMoves, f.line)}`;
       return f.inMoves === 1 ? `Allows checkmate: ${opp} can mate next move` : `Allows ${opp} a forced mate in ${f.inMoves}`;
     case 'threat':
       return threatText(f);
@@ -282,7 +323,12 @@ function renderImmediate(facts: readonly Fact[], ctx: ExplainContext, line?: F<'
     if (f.type === 'pin') covered.add(f.pinned.square);
     if (f.type === 'skewer') [f.front, f.behind].forEach((t) => covered.add(t.square));
     if (f.type === 'discovered-attack') covered.add(f.target.square);
+    if (f.type === 'trapped') covered.add(f.piece.square);
+    if (f.type === 'attack-pinned') covered.add(f.pinned.square);
   }
+  // stepping out of check with the king and losing castling: one sentence
+  const ownCastlingLost = fs.find((f): f is F<'castling-lost'> => f.type === 'castling-lost' && f.color === ctx.mover && !f.at);
+  if (ownCastlingLost && fs.some((f) => f.type === 'escape-check')) fs = fs.filter((f) => f !== ownCastlingLost);
   fs = fs.filter((f) => !(f.type === 'attack' && covered.has(f.target.square)));
   // an attack whose capture is exactly the verified threat: the threat sentence says it (with the gain)
   const threatTo = fs.find((f): f is F<'threat'> => f.type === 'threat' && !f.mateIn)?.move.slice(2, 4);
@@ -347,6 +393,7 @@ function renderImmediate(facts: readonly Fact[], ctx: ExplainContext, line?: F<'
       }
     }
     let text = merged.get(f) ?? immediateFactText(f, ctx);
+    if (f.type === 'escape-check' && ownCastlingLost) text = `Steps out of check with the king — ${colorName(ctx.mover)} can no longer castle`;
     if (paysOff && f.type === 'hangs' && !f.already) text = `Sacrifices ${the(f.piece)} (${points(-f.loss)}) — ${paysOff}`;
     if (paysOff && f.type === 'capture' && f.outcome === 'loses-material') text = `Takes ${owned(f.captured)} as a sacrifice (${points(f.net)}) — ${paysOff}`;
     if (!text) continue;
@@ -366,8 +413,43 @@ function stepMainFact(step: LineStep): Fact | undefined {
   const big = facts.find((x) => x.type === 'capture' && PIECE_VALUES[x.captured.role] >= 3);
   const mate = facts.find((x) => x.type === 'checkmate');
   const fork = facts.find((x) => x.type === 'fork');
+  const trapped = facts.find((x) => x.type === 'trapped');
   const block = facts.find((x) => x.type === 'block-check');
-  return mate ?? fork ?? big ?? block ?? facts[0];
+  return mate ?? fork ?? trapped ?? big ?? block ?? facts[0];
+}
+
+const SAN_ROLES: Record<string, PieceRole> = { K: 'king', Q: 'queen', R: 'rook', B: 'bishop', N: 'knight' };
+/** The moving piece of a SAN move (a promotion counts as the promoted piece; castling as the king). */
+export function sanRole(san: string): PieceRole {
+  if (san.startsWith('O-O')) return 'king';
+  const promo = /=([QRBN])/.exec(san);
+  if (promo) return SAN_ROLES[promo[1]!]!;
+  return SAN_ROLES[san[0]!] ?? 'pawn';
+}
+
+/**
+ * Step i offers its piece (worth 3+): the next ply wins it by SEE on its square, and the line ends in favour of
+ * the side that offered it (mate, or ahead in material) — a sacrifice, not a blunder inside the engine line.
+ */
+function isSacrifice(steps: readonly LineStep[], i: number, result: F<'line'>['result'] | undefined): boolean {
+  const s = steps[i]!;
+  const next = capOf(steps[i + 1]);
+  if (!next || next.outcome !== 'wins-material' || next.captured.square !== s.uci.slice(2, 4)) return false;
+  const role = sanRole(s.san);
+  if (role === 'king' || PIECE_VALUES[role] < 3) return false;
+  // a step whose point is a tactic is told as that tactic (Nf6+ uncovering an attack on the rook)
+  if (s.facts.some((f) => f.type === 'checkmate' || f.type === 'fork' || f.type === 'skewer' || f.type === 'discovered-attack' || f.type === 'pin' || f.type === 'trapped')) return false;
+  const mover = steps[0]!.color;
+  const side = s.color;
+  if (side === mover ? result === 'mate' : result === 'mated') return true;
+  // material: the side that offered the piece ends the line at least as well off as before the offer
+  if (result !== 'wins-material' && result !== 'loses-material') return false;
+  let bal = 0; // side's running material change from step i on
+  for (let k = i; k < steps.length; k++) {
+    const c = capOf(steps[k]);
+    if (c) bal += (steps[k]!.color === side ? 1 : -1) * PIECE_VALUES[c.captured.role];
+  }
+  return bal >= 0 && (side === mover ? result === 'wins-material' : result === 'loses-material');
 }
 
 /** `back`: the capture takes back material lost earlier in the line (running balance; undefined = unknown). */
@@ -398,6 +480,10 @@ function stepClause(step: LineStep, mayWin = true, back?: boolean): string {
       return ` promotes to ${an(f.to)}`;
     case 'attack':
       return ` attacks the ${f.target.role}`;
+    case 'trapped':
+      return ` traps the ${f.piece.role} (it has no safe square)`;
+    case 'attack-pinned':
+      return ` attacks the pinned ${f.pinned.role}`;
     case 'block-check':
       return ' blocks the check';
     default:
@@ -454,7 +540,8 @@ function tradeAt(steps: readonly LineStep[], i: number): PieceRole | null {
 function stepWeight(s: LineStep): number {
   const f = stepMainFact(s);
   if (!f) return s.forced ? 2 : s.facts.some((x) => x.type === 'check') ? 1 : 0;
-  if (f.type === 'checkmate' || f.type === 'fork' || f.type === 'skewer' || f.type === 'promotion') return 4;
+  if (f.type === 'checkmate' || f.type === 'fork' || f.type === 'skewer' || f.type === 'promotion' || f.type === 'trapped') return 4;
+  if (f.type === 'attack-pinned') return 3;
   if (f.type === 'capture') return f.outcome === 'wins-material' || PIECE_VALUES[f.captured.role] >= 3 ? 4 : 3;
   if (f.type === 'discovered-attack' || f.type === 'pin') return 3;
   return s.forced ? 2 : 1;
@@ -495,6 +582,12 @@ function storyUnits(steps: readonly LineStep[], result?: F<'line'>['result']): U
       i++;
       continue;
     }
+    if (isSacrifice(steps, i, result)) {
+      const cap = capOf(s);
+      const role = sanRole(s.san);
+      units.push({ from: i, to: i, text: cap ? `${s.san} takes the ${cap.captured.role}, sacrificing the ${role}` : `${s.san} sacrifices the ${role}`, weight: 4 });
+      continue;
+    }
     units.push({ from: i, to: i, text: `${s.san}${stepClause(s, mayWin(s), backAt[i])}${s.forced ? ' (forced)' : ''}`, weight: stepWeight(s) });
   }
   return units;
@@ -507,10 +600,13 @@ function storyUnits(steps: readonly LineStep[], result?: F<'line'>['result']): U
 export function shownUnits(steps: readonly LineStep[], result?: F<'line'>['result']): Unit[] {
   const units = storyUnits(steps, result);
   const last = units.length - 1;
-  const fixed = new Set([0, 1, last].filter((i) => i >= 0 && i <= last));
+  // the last step only when it does something (a quiet last move adds nothing to the story — M5b)
+  const fixed = new Set([0, 1, ...(last <= 1 || units[last]!.weight > 0 ? [last] : [])].filter((i) => i >= 0 && i <= last));
   const rest = units.map((u, i) => ({ u, i })).filter(({ u, i }) => !fixed.has(i) && u.weight > 0);
   rest.sort((a, b) => b.u.weight - a.u.weight || a.i - b.i);
   const chosen = new Set([...fixed, ...rest.slice(0, Math.max(0, MAX_SHOWN_STEPS - fixed.size)).map((x) => x.i)]);
+  // a quiet last step right after a shown one is kept (no gap to bridge); after hidden steps it is dropped too
+  if (last >= 0 && !chosen.has(last) && chosen.has(last - 1)) chosen.add(last);
   return units.filter((_, i) => chosen.has(i));
 }
 
@@ -560,6 +656,8 @@ export function lineText(line: F<'line'>, ctx: ExplainContext): string {
     case 'unclear':
       break;
   }
+  // hidden quiet moves after the last shown step: the result is measured after them
+  if (result && prevTo < line.steps.length - 1) parts.push('…');
   return `${[...parts, ...(result ? [result] : [])].join(' → ')}.`;
 }
 
@@ -656,6 +754,8 @@ function longFactText(f: Fact, ctx: ExplainContext, all: AllFacts): string | nul
       if (line && line.materialDelta < 0) return `${me} gives up material, but the engine sees about ${pawns} pawns' worth of compensation in the position.`;
       return `The engine rates ${me}'s position about ${pawns} pawns better than the material count suggests.`;
     }
+    case 'castling-lost':
+      return f.at === 'line-end' ? `After these moves, ${colorName(f.color)}'s king can no longer castle.` : `${colorName(f.color)} can no longer castle.`;
     case 'deep-payoff':
       return 'The payoff is far away: a quick engine look rates this move lower — only a deep search sees why it works.';
     case 'necessary':
@@ -681,9 +781,23 @@ const NOTHING = {
   long: 'No notable long-term change.',
 } as const;
 
+/**
+ * A bad move whose Immediate level would say nothing (M5b): name what the engine's move does instead, point to a
+ * long-term drawback, or say honestly that the reason is hard to put into words.
+ */
+function missesText(f: F<'misses'>, ctx: ExplainContext, long: readonly Fact[]): string {
+  const reasons = missesReasons(f, ctx.mover);
+  if (reasons.length) return `Misses ${f.san}, which ${reasons[0]}${reasons[1] ? ` and ${reasons[1]}` : ''}.`;
+  const drawback = long.some((x) => x.type === 'positional' && (x.side === 'opponent' ? x.delta > 0 : x.delta < 0) && !x.at && x.feature !== 'mobility');
+  if (drawback) return `No tactical problem right away — the drawback is long-term (see below); the engine prefers ${f.san}.`;
+  return `No tactical problem right away — the engine prefers ${f.san} for long-term reasons that are hard to put into words.`;
+}
+
 export function renderExplanation(all: AllFacts, ctx: ExplainContext): Explanation {
   const line = all.short.find((f): f is F<'line'> => f.type === 'line');
-  const immediateText = renderImmediate(all.immediate.filter((f) => f.type !== 'nothing-notable'), ctx, line);
+  let immediateText = renderImmediate(all.immediate.filter((f) => f.type !== 'nothing-notable' && f.type !== 'misses'), ctx, line);
+  const misses = all.immediate.find((f): f is F<'misses'> => f.type === 'misses');
+  if (misses && immediateText.length === 0 && ctx.label && BAD_LABELS.has(ctx.label)) immediateText = [missesText(misses, ctx, all.long)];
   // Book: opening theory needs no narration unless the move itself is forcing
   const bookQuiet = ctx.label === 'book' && !!line && !(line.steps[0]?.facts.length) && !all.immediate.some((f) => f.type === 'threat');
   const shortText = line && line.steps.length > 0 ? [bookQuiet ? NOTHING.short : lineText(line, ctx)] : [];
@@ -716,13 +830,49 @@ const sameSquare = (a: PieceRef, b: PieceRef) => a.square === b.square && a.role
  * ("defends the pawn on f7", "attacks Black's pawn on b7 and wins it"). Only facts the played move doesn't
  * share; at most two.
  */
-export function betterReasons(better: readonly Fact[], played: readonly Fact[], mover: Color): string[] {
+export function betterReasons(better: readonly Fact[], played: readonly Fact[], mover: Color, uci?: string): string[] {
+  return betterReasonFacts(better, played, mover, uci).map((r) => r.phrase);
+}
+
+/** "creates a passed pawn on d5" — a long-term fact of the better move that is good for the mover, as a reason. */
+function positionalReason(f: F<'positional'>, mover: Color): string | null {
+  if (f.at) return null;
+  const own = f.side !== 'opponent';
+  const good = own ? f.delta > 0 : f.delta < 0;
+  if (!good && own) return null;
+  const opp = colorName(other(mover));
+  const plural = (f.squares?.length ?? 0) > 1;
+  switch (f.feature) {
+    case 'passed-pawn':
+      return own ? `creates ${plural ? 'passed pawns' : 'a passed pawn'}${onSquares(f.squares)}` : null;
+    case 'open-file-rook':
+      return own && f.squares?.length ? `puts the rook${onSquares(f.squares)} on an open file` : null;
+    case 'king-safety':
+      return own ? `keeps ${colorName(mover)}'s king safer` : `exposes ${opp}'s king`;
+    case 'isolated-pawn':
+      return own ? null : `leaves ${opp} with ${plural ? 'isolated pawns' : 'an isolated pawn'}${onSquares(f.squares)}`;
+    case 'doubled-pawn':
+      return own ? null : `leaves ${opp} with doubled pawns${filesOf(f.squares)}`;
+    case 'bishop-pair':
+      return own ? `keeps the bishop pair` : `takes away ${opp}'s bishop pair`;
+    case 'centre-control':
+      return f.delta > 0 ? 'takes more control of the centre' : null;
+    default:
+      return null;
+  }
+}
+
+/** `betterReasons` with the fact behind each phrase (the 'misses' fact stores them). */
+export function betterReasonFacts(better: readonly Fact[], played: readonly Fact[], mover: Color, uci?: string): { phrase: string; facts: Fact[] }[] {
   const opp = colorName(other(mover));
   const out: string[] = [];
+  const src: Fact[][] = [];
   const line = better.find((f): f is F<'line'> => f.type === 'line');
   const has = (pred: (f: Fact) => boolean) => played.some(pred);
   let lineUsed = false;
+  const quiet: { phrase: string; facts: Fact[] }[] = [];
   for (const f of better) {
+    const n = out.length;
     switch (f.type) {
       case 'checkmate':
         out.push('is checkmate');
@@ -737,7 +887,7 @@ export function betterReasons(better: readonly Fact[], played: readonly Fact[], 
         out.push(`skewers ${owned(f.front)}`);
         break;
       case 'pin':
-        out.push(`pins ${owned(f.pinned)}`);
+        out.push(uci && f.pinner.square !== uci.slice(2, 4) ? `uncovers a pin on ${owned(f.pinned)}` : `pins ${owned(f.pinned)}`);
         break;
       case 'discovered-attack':
         out.push(`uncovers an attack on ${owned(f.target)}`);
@@ -760,21 +910,56 @@ export function betterReasons(better: readonly Fact[], played: readonly Fact[], 
         if (wins) {
           out.push(`attacks ${owned(f.target)} and wins it`);
           lineUsed = true;
+          src.push([f, line!]);
         }
+        break;
+      }
+      // quiet reasons (M5b): told only when there is no tactical one
+      case 'trapped':
+        quiet.push({ phrase: `traps ${owned(f.piece)}`, facts: [f] });
+        break;
+      case 'attack-pinned':
+        if (!has((x) => x.type === 'attack-pinned' && sameSquare(x.pinned, f.pinned))) quiet.push({ phrase: `attacks ${owned(f.pinned)}, which is pinned`, facts: [f] });
+        break;
+      case 'prevents':
+        if (!has((x) => x.type === 'prevents' && x.move === f.move)) quiet.push({ phrase: `prevents ${f.san}`, facts: [f] });
+        break;
+      case 'castle':
+        if (!has((x) => x.type === 'castle')) quiet.push({ phrase: `castles ${f.side === 'king' ? 'kingside' : 'queenside'}`, facts: [f] });
+        break;
+      case 'develop':
+        if (!has((x) => x.type === 'develop')) quiet.push({ phrase: `develops the ${f.piece.role}`, facts: [f] });
+        break;
+      case 'positional': {
+        const p = positionalReason(f, mover);
+        const shared = has((x) => x.type === 'positional' && x.feature === f.feature && (x.side ?? '') === (f.side ?? '') && Math.sign(x.delta) === Math.sign(f.delta));
+        if (p && !shared) quiet.push({ phrase: p, facts: [f] });
         break;
       }
       default:
         break;
     }
+    if (out.length > n && src.length < out.length) src.push([f]);
   }
   const playedLine = played.find((f): f is F<'line'> => f.type === 'line');
   // a line result the played move matches is no reason ("leads to winning a pawn" when both win a pawn)
   const playedAsGood = !!line && !!playedLine && playedLine.result === line.result && playedLine.materialDelta >= line.materialDelta;
   if (line && !lineUsed && !playedAsGood && !out.some((r) => r.startsWith('wins'))) {
+    const n = out.length;
     if (line.result === 'mate' && line.mateIn) out.push(`forces mate in ${line.mateIn}`);
     else if (line.result === 'wins-material' && line.won?.length && !line.lost?.length) out.push(`leads to winning ${piecesPhrase(line.won)}`);
+    else if (line.result === 'wins-material' && line.won?.length && line.won.length <= 2 && (line.lost?.length ?? 0) <= 2) out.push(`leads to winning ${piecesPhrase(line.won)} for ${piecesPhrase(line.lost!)} (${points(line.materialDelta)})`);
+    else if (line.result === 'wins-material') out.push(`comes out ahead in material in the engine line (${points(line.materialDelta)})`);
+    if (out.length > n) src.push([line]);
   }
-  return [...new Set(out)].slice(0, 2);
+  const tactical = out.map((phrase, i) => ({ phrase, facts: src[i] ?? [] }));
+  const seen = new Set<string>();
+  return [...tactical, ...(tactical.length ? [] : quiet)].filter((r) => !seen.has(r.phrase) && !!seen.add(r.phrase)).slice(0, 2);
+}
+
+/** Render the reasons stored in a 'misses' fact (they were selected by `betterReasonFacts`). */
+function missesReasons(f: F<'misses'>, mover: Color): string[] {
+  return betterReasonFacts(f.facts, [], mover, f.uci).map((r) => r.phrase);
 }
 
 // --- Label --------------------------------------------------------------------------------------------------------

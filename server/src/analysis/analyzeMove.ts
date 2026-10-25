@@ -22,7 +22,7 @@
 import type { AnalysisSettings, Arrow, Candidate, Color, Fact, Label, MaterialCheck, MoveAnalysis, Score } from '@chess-coach/shared';
 import { ANALYSIS_VERSION, moveAccuracy, toWhitePov, winPercentForColor, winPercentFromScore } from '@chess-coach/shared';
 import { materialCheck, sameMoveUci } from './classify';
-import { BAD_LABELS, betterReasons, labelText, renderExplanation, verdictText } from './explain';
+import { BAD_LABELS, betterReasonFacts, type ExplainContext, labelText, renderExplanation, verdictText } from './explain';
 import { type PrevResult, deepParams as labelDeepParams, labelMove } from './label';
 import { type SearchParams, type Searcher, SearchCache } from './searchCache';
 import { type ReasonCode, lineDelta, suggest } from './suggest';
@@ -32,7 +32,7 @@ import { parseSquare } from 'chessops/util';
 import type { PvLine, SearchResult } from '../engine/uci';
 import { materialBalance, positionFromFen } from '../chess/material';
 import { immediateFacts } from '../facts/immediate';
-import { type ForcedInfo, type NarratedLine, type ThreatFact, forcedFromSearch, forcednessChecks, narrateLine, narrationPlies, nullMoveFen, refutationFact, threatFromSearch, threatStillWorks } from '../facts/line';
+import { type ForcedInfo, type NarratedLine, type ThreatFact, forcedFromSearch, forcednessChecks, mateLineSan, narrateLine, narrationPlies, nullMoveFen, preventsFact, pvFork, refutationFact, threatFromSearch, threatStillWorks } from '../facts/line';
 import { longTermFacts } from '../facts/longterm';
 
 export interface AnalyzeContext {
@@ -126,7 +126,8 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
   const threatParams: SearchParams = { depth: B.threat.depth, multipv: B.threat.multipv, maxMs: B.threat.maxMs };
   // the opponent's threat right now (what they'd play if the mover passed) — candidates that stop it say so
   const oppNull = nullMoveFen(fen);
-  const oppThreat = oppNull ? threatFromSearch(oppNull, await search('threat', oppNull, threatParams)) : null;
+  const oppNullSearch = oppNull ? await search('threat', oppNull, threatParams) : null;
+  const oppThreat = oppNull && oppNullSearch ? threatFromSearch(oppNull, oppNullSearch) : null;
   const work = async (line: PvLine, rank: number): Promise<MoveWork> => {
     const p = playMove(fen, line.move);
     const pv = legalPrefix(fen, line.pv.length && sameMoveUci(fen, line.pv[0]!, line.move) ? line.pv : [line.move]);
@@ -145,13 +146,24 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
     }
     const tf = now();
     const immediate = verifyWithLine(pruneRefuted(immediateFacts(fen, p.uci, prevOpt), p.uci, pv[1]), fen, pv);
+    addLineFork(immediate, fen, pv);
+    // prophylaxis: the opponent's best idea (null move) no longer works — unless the move answers a verified threat
+    if (oppNullSearch && !defends) {
+      const pf = preventsFact({ fenBefore: fen, uci: p.uci, nullSearch: oppNullSearch, score: line.score, threatMove: oppThreat?.move ?? null });
+      if (pf && !opponentPlays(pv, pf.move)) immediate.push(pf);
+    }
     if (threat && !replyTakesMovedPiece(p.uci, pv[1]) && !threatExistedBefore(fen, threat) && !targetHitsBack(p.fenAfter, threat)) immediate.push(threat);
     // "stops the threat" only if the engine line doesn't play it anyway
     // (a mate threat may still be played without mating: only material threats are checked against the PV)
     if (defends && !((defends as { mateIn?: number }).mateIn === undefined && opponentPlays(pv, (defends as { move: string }).move))) immediate.push(defends);
     // engine-verified forced mate against the mover that the best move avoids (board check only sees mate in 1)
     const matedIn = line.score.mate !== undefined && line.score.mate < 0 ? -line.score.mate : 0;
-    if (matedIn > 1 && !((best.score.mate ?? 0) < 0) && !immediate.some((f) => f.type === 'allows-mate')) immediate.push({ type: 'allows-mate', inMoves: matedIn });
+    if (matedIn > 1 && !((best.score.mate ?? 0) < 0) && !immediate.some((f) => f.type === 'allows-mate')) {
+      const am: Extract<Fact, { type: 'allows-mate' }> = { type: 'allows-mate', inMoves: matedIn };
+      const ml = matedIn <= MATE_LINE_MAX_MOVES ? mateLineSan(p.fenAfter, pv.slice(1), 2 * matedIn - 1) : null;
+      if (ml) am.line = ml;
+      immediate.push(am);
+    }
     const narrated = narrateLine(fen, pv, { settings, prev: prevMove, score: line.score });
     const isBest = sameMoveUci(fen, line.move, best.move);
     const material = isBest
@@ -179,10 +191,35 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
   const secondBestLoss = lines[1] ? Math.max(0, winBest - winPercentFromScore(lines[1].score)) : null;
   const explained = new Map<string, Candidate['explanation']>();
   const shortFacts = new Map<string, Fact[]>();
+  const allFacts = new Map<string, { immediate: Fact[]; short: Fact[]; long: Fact[]; ctx: ExplainContext }>();
+  const ownPlies = (w: MoveWork) => narrationPlies(fen, w.pv, settings, w.score, w.targetDelta !== undefined ? { targetDelta: w.targetDelta } : {});
+  // M5b: a bad move's line and the best move's line are told to a comparable length when only one of them reaches
+  // a material result at its own length (each still stops at its own quiet point at or after the longer one), so
+  // "Kh2 → Rd1+" isn't set against a best line that goes on to win a pawn
+  const bestW = cands[0]!;
+  const claims = (w: MoveWork) => {
+    const r = narrateLine(fen, w.pv, { settings, prev: prevMove, score: w.score, plies: ownPlies(w) }).line.result;
+    return r === 'wins-material' || r === 'loses-material';
+  };
+  // the line without a material result is told on to the other one's length; kept only if it then has a result too
+  const extend = new Map<string, number>();
+  if (BAD_LABELS.has(cr.label) && !sameMoveUci(fen, playedWork.uci, bestW.uci)) {
+    const [cp, cb] = [claims(playedWork), claims(bestW)];
+    if (cp && !cb && ownPlies(playedWork) > ownPlies(bestW)) extend.set(bestW.uci, ownPlies(playedWork));
+    if (cb && !cp && ownPlies(bestW) > ownPlies(playedWork)) extend.set(playedWork.uci, ownPlies(bestW));
+  }
   const explain = async (w: MoveWork, label?: Label): Promise<NonNullable<Candidate['explanation']>> => {
     const done = explained.get(w.uci);
     if (done) return done;
-    const plies = narrationPlies(fen, w.pv, settings, w.score, w.targetDelta !== undefined ? { targetDelta: w.targetDelta } : {});
+    const nOpts: { targetDelta?: number; minPlies?: number } = {};
+    if (w.targetDelta !== undefined) nOpts.targetDelta = w.targetDelta;
+    const ext = extend.get(w.uci);
+    let plies = narrationPlies(fen, w.pv, settings, w.score, nOpts);
+    if (ext !== undefined) {
+      const longer = narrationPlies(fen, w.pv, settings, w.score, { ...nOpts, minPlies: ext });
+      const r = narrateLine(fen, w.pv, { settings, prev: prevMove, score: w.score, plies: longer }).line.result;
+      if (r === 'wins-material' || r === 'loses-material') plies = longer;
+    }
     const forced = new Map<number, ForcedInfo>();
     for (const c of forcednessChecks(fen, w.pv, plies, settings)) {
       if (c.legalMoves <= 1) forced.set(c.index, { forced: true, alternatives: 0 });
@@ -215,18 +252,25 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
       const afterReply = playMove(w.fenAfter, w.pv[1]!).fenAfter;
       const nf = nullMoveFen(afterReply);
       const replyThreat = nf ? threatFromSearch(nf, await search('threat', nf, threatParams)) : null;
-      const allows = refutationFact({ fenBefore: fen, uci: w.uci, pv: w.pv, line: narrated.line, replyThreat });
+      const allows = refutationFact({ fenBefore: fen, uci: w.uci, pv: w.pv, line: narrated.line, replyThreat, bestLineDelta: lineDelta(shortFacts.get(cands[0]!.uci) ?? [cands[0]!.narrated.line]) });
       // the best move allows the same reply with the same effect: that is not what makes this move worse
       const b = cands[0]!;
       const bestAllows = sameMoveUci(fen, b.uci, w.uci) ? null : refutationFact({ fenBefore: fen, uci: b.uci, pv: b.pv, line: b.narrated.line });
       // the reply is exactly the opponent's verified threat from before the move: the move "doesn't stop" it
       // (only when it hits nothing new: Rg8+ walking into Kh7 is the move's own doing)
       if (allows && oppThreat && allows.reply.uci === oppThreat.move && !(allows.targets?.length)) allows.already = true;
+      // a short forced mate against the mover: name its moves (verified to end in checkmate on the board)
+      if (allows?.mateIn !== undefined && allows.mateIn <= MATE_LINE_MAX_MOVES) {
+        const ml = mateLineSan(w.fenAfter, w.pv.slice(1), 2 * allows.mateIn - 1);
+        if (ml) allows.mateLine = ml;
+      }
       if (allows && !(bestAllows && allowsSignature(bestAllows) === allowsSignature(allows))) immediate = [allows, ...immediate];
     }
     const short: Fact[] = [narrated.line, ...narrated.forcedReplies];
     shortFacts.set(w.uci, short);
-    const e = renderExplanation({ immediate, short, long }, label ? { mover, label, uci: w.uci } : { mover, uci: w.uci });
+    const ectx: ExplainContext = label ? { mover, label, uci: w.uci } : { mover, uci: w.uci };
+    allFacts.set(w.uci, { immediate, short, long, ctx: ectx });
+    const e = renderExplanation({ immediate, short, long }, ectx);
     factsMs += now() - tf;
     explained.set(w.uci, e);
     return e;
@@ -252,9 +296,17 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
 
   const bestWork = cands[0]!;
   const playedIsBest = sameMoveUci(fen, playedWork.uci, bestWork.uci);
+  // M3 missed-mate rule: the Immediate level names the mate the move misses (best line, ends in checkmate)
+  const mm = cr.labelReason.missedMate;
+  if (mm && !playedIsBest && !cr.checkmate && mm.mateIn <= MATE_LINE_MAX_MOVES) {
+    const ml = mateLineSan(fen, bestWork.pv, 2 * mm.mateIn - 1);
+    if (ml) playedWork.immediate = [{ type: 'misses-mate', mateIn: mm.mateIn, best: bestWork.san, line: ml }, ...playedWork.immediate];
+  }
+  // the best move first (when it isn't the played move): the played move's refutation compares with its line
+  const bestExplanation = playedIsBest ? null : await explain(bestWork);
   const playedCand = toCandidate(playedWork, await explain(playedWork, cr.label));
   playedCand.winLoss = cr.winLoss;
-  const bestCand = toCandidate(bestWork, await explain(bestWork));
+  const bestCand = toCandidate(bestWork, bestExplanation ?? (await explain(bestWork)));
   const pickCand = pickWork ? toCandidate(pickWork, await explain(pickWork)) : null;
   timings.facts = Math.round(factsMs);
   timings.factsTotal = Math.round(now() - tFacts);
@@ -293,15 +345,47 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
     arrows,
     timings,
   };
-  const better = BAD_LABELS.has(cr.label) && !playedIsBest
-    ? betterReasons([...bestWork.immediate, ...(shortFacts.get(bestWork.uci) ?? [])], [...playedWork.immediate, ...(shortFacts.get(playedWork.uci) ?? [])], mover)
+  // why the best move is better (its own verified facts, incl. quiet / long-term ones — M5b), for the label text and,
+  // when the played move's Immediate level has nothing else to say, as a 'misses' sentence there
+  const bf = allFacts.get(bestWork.uci);
+  const pf = allFacts.get(playedWork.uci);
+  const betterR = BAD_LABELS.has(cr.label) && !playedIsBest && bf && pf
+    ? betterReasonFacts([...bf.immediate, ...bf.short, ...bf.long], [...pf.immediate, ...pf.short, ...pf.long], mover, bestWork.uci)
     : [];
+  const better = betterR.map((r) => r.phrase);
+  if (BAD_LABELS.has(cr.label) && !playedIsBest && pf) {
+    const misses: Fact = { type: 'misses', san: bestWork.san, uci: bestWork.uci, facts: betterR.flatMap((r) => r.facts) };
+    playedCand.explanation = renderExplanation({ immediate: [...pf.immediate, misses], short: pf.short, long: pf.long }, pf.ctx);
+  }
   const hangs = playedWork.immediate.filter((f): f is Extract<Fact, { type: 'hangs' }> => f.type === 'hangs').sort((a, b) => b.loss - a.loss);
   const hang = hangs.find((h) => h.piece.square === cr.labelReason.material?.hung?.square) ?? hangs[0];
   analysis.labelText = labelText({ ...analysis, bestSan: bestWork.san, bestUci: bestWork.uci, checkmate: cr.checkmate, better, verifiedHang: hang ? { piece: hang.piece, loss: hang.loss, ...(hang.already ? { already: true } : {}) } : null }, settings);
   const verdict = verdictText(cr.label, playedIsBest);
   if (verdict) analysis.verdictText = verdict;
   return analysis;
+}
+
+/** Allowed / missed mates up to this many moves are told with their moves. */
+export const MATE_LINE_MAX_MOVES = 3;
+
+/**
+ * A checking fork the engine line carries out (`pvFork`): attach the follow-up to the board fork of the same piece,
+ * or — when the board-only test couldn't confirm it — add it, replacing the plain check / attack on the target.
+ */
+export function addLineFork(facts: Fact[], fen: string, pv: readonly string[]): void {
+  const fk = pvFork(fen, pv);
+  if (!fk || !fk.followUp) return;
+  const target = fk.targets.find((t) => t.role !== 'king')!;
+  const board = facts.find((f): f is Extract<Fact, { type: 'fork' }> => f.type === 'fork' && f.attacker.square === fk.attacker.square);
+  if (board) {
+    if (board.targets.some((t) => t.square === target.square)) board.followUp = fk.followUp;
+    return;
+  }
+  for (let i = facts.length - 1; i >= 0; i--) {
+    const f = facts[i]!;
+    if ((f.type === 'check' && !f.double && !f.discovered) || (f.type === 'attack' && f.target.square === target.square)) facts.splice(i, 1);
+  }
+  facts.unshift(fk);
 }
 
 /** The engine's expected reply (PV ply 2) captures the piece that just moved (on its destination square). */
@@ -348,12 +432,33 @@ export function verifyWithLine(facts: Fact[], fen: string, pv: readonly string[]
   const before = positionFromFen(fen);
   return facts
     .filter((f) => f.type !== 'hangs' || taken.has(f.piece.square))
+    .filter((f) => f.type !== 'trapped' || moverWins(fen, pv, f.piece.square))
     .map((f) => {
       if (f.type !== 'hangs' || f.already) return f;
       const sq = parseSquare(f.piece.square)!;
       const p = before.board.get(sq);
       return p && p.role === f.piece.role && p.color === f.piece.color && hangingLoss(before, sq) >= f.loss ? { ...f, already: true } : f;
     });
+}
+
+/**
+ * The mover captures the opponent piece standing on `square` after the move (following it if it moves) within the
+ * first VERIFY_PLIES of the move's PV.
+ */
+export function moverWins(fen: string, pv: readonly string[], square: string): boolean {
+  const pos = positionFromFen(fen);
+  const mover = pos.turn;
+  let sq: number | undefined = parseSquare(square);
+  for (const [i, m] of pv.slice(0, VERIFY_PLIES).entries()) {
+    const mv = legalMoveAt(pos, m);
+    if (!mv || sq === undefined) return false;
+    if (i > 0) {
+      if (pos.turn !== mover && mv.from === sq) sq = mv.to;
+      else if (pos.turn === mover && mv.to === sq) return true;
+    }
+    pos.play(mv);
+  }
+  return false;
 }
 
 /**
@@ -398,7 +503,7 @@ function pruneRefuted(facts: Fact[], uci: string, reply: string | undefined): Fa
   if (!replyTakesMovedPiece(uci, reply)) return facts;
   if (!facts.some((f) => f.type === 'capture')) return facts;
   const to = uci.slice(2, 4);
-  return facts.filter((f) => !(f.type === 'attack' && f.attacker.square === to));
+  return facts.filter((f) => !((f.type === 'attack' || f.type === 'attack-pinned') && f.attacker.square === to));
 }
 
 

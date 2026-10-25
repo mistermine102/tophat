@@ -34,6 +34,7 @@ import { guardCp } from '../analysis/classify';
 import { parseSquare } from 'chessops/util';
 import { positionFromFen } from '../chess/material';
 import { positionalDelta, positionalFeatures } from './positional';
+import { CASTLING_MIN_ENEMY_MATERIAL, castlingSides, pieceMaterial } from './immediate';
 
 export const POSITIONAL_ORDER: readonly PositionalFeature[] = [
   'king-safety', 'passed-pawn', 'bishop-pair', 'isolated-pawn', 'doubled-pawn', 'open-file-rook', 'development',
@@ -218,6 +219,27 @@ export function givesMaterialUp(immediate: readonly Fact[]): boolean {
   return immediate.some((f) => (f.type === 'hangs' && !f.already) || (f.type === 'capture' && f.outcome === 'loses-material'));
 }
 
+/**
+ * Line-end castling loss (M5b): a side that could still castle after the move (either side) can't at all at the end
+ * of the short line because its king moved (not by castling), while the other side keeps attacking material.
+ */
+export function castlingLostInLine(fenAfter: string, lineEndFen: string): Fact[] {
+  if (fenAfter === lineEndFen) return [];
+  const a = positionFromFen(fenAfter);
+  const e = positionFromFen(lineEndFen);
+  const out: Fact[] = [];
+  for (const color of ['white', 'black'] as const) {
+    const had = castlingSides(a, color);
+    if (!had.length || castlingSides(e, color).length) continue;
+    const k = e.board.kingOf(color);
+    const castled = k !== undefined && (k >> 3) === (color === 'white' ? 0 : 7) && ((k & 7) === 6 || (k & 7) === 2);
+    if (castled || k === a.board.kingOf(color)) continue; // castled, or only a rook moved
+    if (pieceMaterial(e, color === 'white' ? 'black' : 'white') < CASTLING_MIN_ENEMY_MATERIAL) continue;
+    out.push({ type: 'castling-lost', color, sides: had, at: 'line-end' });
+  }
+  return out;
+}
+
 export function longTermFacts(input: LongTermInput): Fact[] {
   const s = input.settings;
   const all = positionalFacts(input);
@@ -231,6 +253,8 @@ export function longTermFacts(input: LongTermInput): Fact[] {
     const gain = guardCp(input.score) - guardCp(input.bestScore) - 100 * input.lineMaterialDelta;
     if (gain >= s.explain.positionalGainMinCp) head.push({ type: 'positional-gain', cp: Math.round(gain) });
   }
+  // a king driven out during the short line (Bxf7+ Kxf7): that side can no longer castle
+  head.push(...castlingLostInLine(input.fenAfter, input.lineEndFen));
   const tail: Fact[] = [];
   if (input.shallowScore) {
     const winDeep = winPercentFromScore(input.score);
