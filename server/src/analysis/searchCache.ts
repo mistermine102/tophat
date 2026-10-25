@@ -19,12 +19,14 @@ export interface SearchParams {
   multipv: number;
   /** Time cap: stop at `depth` or after this many ms, whichever comes first. */
   maxMs?: number;
+  /** Node cap (UCI `go nodes`), optional: stop at `depth` or after this many nodes. */
+  maxNodes?: number;
   searchmoves?: string[];
 }
 
 /** Anything that can run a search (an Engine, or a fake in tests). */
 export interface Searcher {
-  search(req: { fen: string; depth: number; multipv: number; movetimeMs?: number; searchmoves?: string[] }): Promise<SearchResult>;
+  search(req: { fen: string; depth: number; multipv: number; movetimeMs?: number; nodes?: number; searchmoves?: string[] }): Promise<SearchResult>;
 }
 
 export interface SearchOutcome {
@@ -50,7 +52,8 @@ export class SearchCache {
     const epd = makeFen(positionFromFen(fen).toSetup(), { epd: true });
     const sm = p.searchmoves?.length ? `|s:${[...p.searchmoves].sort().join(',')}` : '';
     const t = p.maxMs ? `|t${p.maxMs}` : '';
-    return `${epd}|d${p.depth}${t}|m${p.multipv}${sm}`;
+    const nd = p.maxNodes ? `|n${p.maxNodes}` : '';
+    return `${epd}|d${p.depth}${t}${nd}|m${p.multipv}${sm}`;
   }
 
   /** Cached result for exactly these params (or a MultiPV superset), without searching. */
@@ -76,7 +79,7 @@ export class SearchCache {
     const inflight = this.pending.get(key);
     if (inflight) return { result: await inflight, cached: true };
     this.stats.misses++;
-    const req = { fen, depth: p.depth, multipv: p.multipv, ...(p.maxMs ? { movetimeMs: p.maxMs } : {}), ...(p.searchmoves?.length ? { searchmoves: p.searchmoves } : {}) };
+    const req = { fen, depth: p.depth, multipv: p.multipv, ...(p.maxMs ? { movetimeMs: p.maxMs } : {}), ...(p.maxNodes ? { nodes: p.maxNodes } : {}), ...(p.searchmoves?.length ? { searchmoves: p.searchmoves } : {}) };
     const promise = engine.search(req);
     this.pending.set(key, promise);
     try {

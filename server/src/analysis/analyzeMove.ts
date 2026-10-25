@@ -23,7 +23,7 @@ import type { AnalysisSettings, Arrow, Candidate, Color, Fact, Label, MaterialCh
 import { ANALYSIS_VERSION, moveAccuracy, toWhitePov, winPercentForColor, winPercentFromScore } from '@chess-coach/shared';
 import { materialCheck, sameMoveUci } from './classify';
 import { BAD_LABELS, betterReasons, labelText, renderExplanation, verdictText } from './explain';
-import { type PrevResult, labelMove } from './label';
+import { type PrevResult, deepParams as labelDeepParams, labelMove } from './label';
 import { type SearchParams, type Searcher, SearchCache } from './searchCache';
 import { type ReasonCode, lineDelta, suggest } from './suggest';
 import { legalMove as legalMoveAt, legalPrefix, playMove, positionStatus, pvToSan, uciSquares } from '../chess/notation';
@@ -92,7 +92,7 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
     else timings[name] = Math.round((timings[name] ?? 0) + (now() - t));
     return o.result;
   };
-  const deepParams: SearchParams = { depth: B.deep.depth, multipv: B.deep.multipv, maxMs: B.deep.maxMs };
+  const deepParams: SearchParams = labelDeepParams(settings); // = the next ply's deep search (label.ts)
 
   // 1. + 6. + classification (label.ts: deep, searchmoves, previous-move context, classifyMove)
   const lw = await labelMove(settings, search, input);

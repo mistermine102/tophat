@@ -56,7 +56,7 @@ const toLine = (l: PvLine): EngineMoveLine => ({ uci: l.move, score: l.score, pv
 
 export function deepParams(settings: AnalysisSettings): SearchParams {
   const d = settings.budget.deep;
-  return { depth: d.depth, multipv: d.multipv, maxMs: d.maxMs };
+  return { depth: d.depth, multipv: d.multipv, maxMs: d.maxMs, ...(d.maxNodes ? { maxNodes: d.maxNodes } : {}) };
 }
 
 /** Deep search at `fen` + the played move's line (searchmoves if it isn't among the deep lines). */
@@ -67,7 +67,7 @@ async function deepLines(search: SearchFn, settings: AnalysisSettings, fen: stri
   if (lines.length === 0) throw new Error(`engine returned no lines for ${fen}`);
   let playedLine = lines.find((l) => sameMoveUci(fen, l.move, uci));
   if (!playedLine) {
-    const r = await search(name === 'deep' ? 'searchmoves' : name, fen, { depth: B.depth, multipv: 1, maxMs: B.maxMs, searchmoves: [uci] });
+    const r = await search(name === 'deep' ? 'searchmoves' : name, fen, { ...deepParams(settings), multipv: 1, searchmoves: [uci] });
     playedLine = r.lines[0];
     if (!playedLine) throw new Error(`searchmoves ${uci} returned nothing in ${fen}`);
   }

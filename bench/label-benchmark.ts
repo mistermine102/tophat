@@ -9,7 +9,7 @@
 //
 //   npx tsx bench/label-benchmark.ts run    [--tag d18] [--depth 18] [--max-ms 5000|0] [--n 60] [--games id,id]
 //                                           [--threads 5] [--hash 512] [--fresh] [--db-tag other] [--verify-margin 1|0]
-//                                           [--set great.maxWinAfterBest=70,...]  (numeric settings overrides)
+//                                           [--set great.maxWinAfterBest=70,...]  (numeric settings overrides) [--max-nodes N]
 //   npx tsx bench/label-benchmark.ts report [--main d18] [--cold cold] [--depths d16,d18,d22] [--ref d22]
 //                                           [--verify d18v,coldv]
 //
@@ -187,7 +187,7 @@ async function runGame(id: string, settings: AnalysisSettings, cache: SearchCach
     const w = work!;
     const fen = w.fen;
     const deep = searches.get(SearchCache.key(fen, deepParams(settings)))!;
-    const smKey = SearchCache.key(fen, { depth: settings.budget.deep.depth, multipv: 1, maxMs: settings.budget.deep.maxMs, searchmoves: [w.played.uci] });
+    const smKey = SearchCache.key(fen, { ...deepParams(settings), multipv: 1, searchmoves: [w.played.uci] });
     const sm = searches.get(smKey);
     const second = w.lines[1];
     const playedRank = w.lines.findIndex((l) => l.move === w.playedLine.move) + 1;
@@ -254,6 +254,7 @@ async function run(): Promise<void> {
   const settings = structuredClone(DEFAULT_SETTINGS);
   settings.budget.deep.depth = depth;
   settings.budget.deep.maxMs = maxMs; // 0 -> no cap (SearchCache omits movetime)
+  if (opt('max-nodes')) settings.budget.deep.maxNodes = Number(opt('max-nodes')); // optional node cap
   if (opt('verify-margin') !== undefined) settings.budget.verify.margin = Number(opt('verify-margin')); // 0 = off
   // --set great.maxWinAfterBest=70,mate.allowedMaxMoves=2 : experiment with label settings (re-derived from cache)
   for (const kv of opt('set')?.split(',') ?? []) {

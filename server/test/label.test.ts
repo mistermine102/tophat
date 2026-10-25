@@ -4,7 +4,7 @@ import { DEFAULT_SETTINGS, type AnalysisSettings, type Score } from '@chess-coac
 import { INITIAL_FEN } from 'chessops/fen';
 import { describe, expect, it } from 'vitest';
 import { labelMove, type SearchFn } from '../src/analysis/label';
-import type { SearchParams } from '../src/analysis/searchCache';
+import { type SearchParams, SearchCache } from '../src/analysis/searchCache';
 import type { PvLine, SearchResult } from '../src/engine/uci';
 import { scoreForWin } from './helpers/classifyHelpers';
 
@@ -91,5 +91,23 @@ describe('labelMove: near-threshold verification', () => {
     expect((await labelMove(off, f.search, { fenBefore: INITIAL_FEN, uci: 'd2d4', earlierMovesAllBook: false })).verified).toBe(false);
     const m = fake([pv(1, 'e2e4', { mate: 5 }), pv(2, 'd2d4', { cp: 1500 })]);
     expect((await labelMove(S, m.search, { fenBefore: INITIAL_FEN, uci: 'd2d4', earlierMovesAllBook: false })).verified).toBe(false);
+  });
+});
+
+describe('optional node cap (settings.budget.deep.maxNodes)', () => {
+  it('is part of the SearchCache key, is sent as UCI nodes, and is used by both label searches', async () => {
+    const base = { depth: 16, multipv: 5, maxMs: 5000 };
+    expect(SearchCache.key(INITIAL_FEN, base)).not.toBe(SearchCache.key(INITIAL_FEN, { ...base, maxNodes: 2_000_000 }));
+    expect(SearchCache.key(INITIAL_FEN, base)).toBe(SearchCache.key(INITIAL_FEN, { ...base, maxNodes: 0 })); // 0 = none
+    const reqs: unknown[] = [];
+    const cache = new SearchCache(null);
+    await cache.search({ search: async (r) => (reqs.push(r), result([pv(1, 'e2e4', { cp: 20 })])) }, INITIAL_FEN, { ...base, maxNodes: 2_000_000 });
+    expect(reqs[0]).toMatchObject({ depth: 16, multipv: 5, movetimeMs: 5000, nodes: 2_000_000 });
+    const s = structuredClone(DEFAULT_SETTINGS);
+    s.budget.deep.maxNodes = 3_000_000;
+    const six = ['e2e4', 'g1f3', 'd2d4', 'c2c4', 'e2e3', 'b1c3'].map((m, i) => pv(i + 1, m, { cp: 20 - i })); // b1c3 is outside the top 5
+    const f = fake(six);
+    await labelMove(s, f.search, { fenBefore: INITIAL_FEN, uci: 'b1c3', earlierMovesAllBook: false }); // b1c3: searchmoves
+    expect(f.calls.map((c) => [c.name, c.p.maxNodes])).toEqual([['deep', 3_000_000], ['searchmoves', 3_000_000]]);
   });
 });

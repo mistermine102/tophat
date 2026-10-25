@@ -107,6 +107,11 @@ export interface SearchBudget {
    * 68 s, d18 MultiPV 1 > 120 s in the Opera game).
    */
   maxMs: number;
+  /**
+   * Optional node cap (M3): a stop condition that doesn't depend on CPU load. With Threads=1 and no time cap
+   * hit, a fixed-depth/nodes search is exactly reproducible (bench/reports/labels.md "Stability").
+   */
+  maxNodes?: number;
 }
 
 export interface AnalysisBudget {
