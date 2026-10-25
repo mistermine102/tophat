@@ -66,6 +66,10 @@ a Blunder.
 - Material loss ≥ 3 pawns **and** eval drop ≥ 250 cp (mover POV, clamped) → at least **Blunder**.
 - Material loss ≥ 2 pawns **and** eval drop ≥ 150 cp → at least **Mistake**.
 - The eval-drop guard exempts correct sacrifices (material goes, eval doesn't). Even trades lose no net material.
+- M3 (benchmark-driven): when even the best move leaves the mover totally lost (≤ −9 or mated), only a piece the
+  move itself leaves hanging fires the rule — comparing two of the winner's arbitrary winning lines is noise there.
+  A piece is called "hanging" only if it is en prise right after the move; otherwise the text says the material is
+  lost in the follow-up.
 - The UI states it honestly, e.g. *"Blunder ?? — you left your queen hanging (−9). You're still winning
   (+12.0 → +3.1), but this is the habit to fix."*
 

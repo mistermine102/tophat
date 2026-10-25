@@ -335,7 +335,7 @@ export function report(o: ReportOptions): void {
   for (const { g, p } of [...allowed, ...missed]) {
     const r = p.labels.default.reason;
     const rule = r.allowedMate ? `allows #${r.allowedMate.matedIn}${r.allowedMate.bestMatedIn ? ` (best #−${r.allowedMate.bestMatedIn})` : ''}` : `missed #${r.missedMate!.mateIn}`;
-    R.push(`| [${g.id}](${lichessUrl(g, p)}) | ${moveNo(p)} ${p.san} | ${rule} | ${p.labels.default.label} (${p.labels.default.winChance}) | ${p.bestSan} | ${fmtScore(p.playedScore)} | ${fmtScore(p.bestScore)} | ${p.lichess.judgement ?? '–'} | ${verdictCell(g, p)} |`);
+    R.push(`| [${g.id}](${lichessUrl(g, p)}) | ${moveNo(p)} ${p.san} | ${rule} | ${p.labels.default.label} (${p.labels.default.winChance}) | ${p.bestSan} | ${fmtScore(p.playedScore)} | ${fmtScore(p.bestScore)} | ${p.lichess.judgement ?? '–'} | ${eye[key(g, p)] || p.labels.default.label !== p.labels.default.winChance ? verdictCell(g, p) : "– (label unchanged)"} |`);
   }
   R.push('');
 

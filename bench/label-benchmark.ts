@@ -10,6 +10,7 @@
 //   npx tsx bench/label-benchmark.ts run    [--tag d18] [--depth 18] [--max-ms 5000|0] [--n 60] [--games id,id]
 //                                           [--threads 5] [--hash 512] [--fresh] [--db-tag other] [--verify-margin 1|0]
 //                                           [--set great.maxWinAfterBest=70,...]  (numeric settings overrides) [--max-nodes N]
+//                                           [--cache-only]  (never start the engine: uncached plies become errors)
 //   npx tsx bench/label-benchmark.ts report [--main d18] [--cold cold] [--depths d16,d18,d22] [--ref d22]
 //                                           [--verify d18v,coldv]
 //
@@ -125,11 +126,12 @@ export interface RunFile {
 /** Lazily started engine: a run whose searches are all cached never starts Stockfish. */
 class LazySearcher implements Searcher {
   private engine: Promise<Engine> | null = null;
-  constructor(private readonly opts: { threads: number; hashMb: number }) {}
+  constructor(private readonly opts: { threads: number; hashMb: number; cacheOnly?: boolean }) {}
   get started() {
     return this.engine !== null;
   }
   async search(req: Parameters<Searcher['search']>[0]): Promise<SearchResult> {
+    if (this.opts.cacheOnly) throw new Error('not in the search cache (--cache-only)');
     this.engine ??= Engine.start(this.opts);
     return (await this.engine).search(req);
   }
@@ -236,8 +238,12 @@ async function runGame(id: string, settings: AnalysisSettings, cache: SearchCach
     if (st === 'checkmate') lastRec.evalAfter = toWhitePov({ mate: 0 }, opp);
     else if (st === 'stalemate') lastRec.evalAfter = { cp: 0 };
     else {
-      const r = await search('final', fenAfter, deepParams(settings));
-      if (r.lines[0]) lastRec.evalAfter = toWhitePov(r.lines[0].score, opp);
+      try {
+        const r = await search('final', fenAfter, deepParams(settings));
+        if (r.lines[0]) lastRec.evalAfter = toWhitePov(r.lines[0].score, opp);
+      } catch (e) {
+        rec.errors.push(`final position: ${(e as Error).message}`);
+      }
     }
   }
   for (const r of searches.values()) rec.engineMs += r.timeMs;
@@ -276,7 +282,7 @@ async function run(): Promise<void> {
   if (flag('fresh')) for (const suffix of ['', '-wal', '-shm']) rmSync(dbPath + suffix, { force: true });
   const db = new CacheDb(dbPath);
   const cache = new SearchCache(db);
-  const searcher = new LazySearcher({ threads, hashMb });
+  const searcher = new LazySearcher({ threads, hashMb, cacheOnly: flag('cache-only') });
   const out: RunFile = { tag, depth, maxMs, threads, engine: '', createdAt: new Date().toISOString(), games: [], stats: cache.stats };
   const jsonPath = join(OUT_DIR, `labels-${tag}.json`);
   const t0 = performance.now();
@@ -286,7 +292,8 @@ async function run(): Promise<void> {
     const counts: Record<string, number> = {};
     for (const p of g.plies) counts[p.labels.default.label] = (counts[p.labels.default.label] ?? 0) + 1;
     process.stderr.write(`[${k + 1}/${ids.length}] ${id} ${g.plies.length} plies, engine ${(g.engineMs / 1000).toFixed(0)} s, wall ${(g.wallMs / 1000).toFixed(0)} s ${g.errors.length ? `ERRORS ${g.errors.join('; ')}` : ''} ${JSON.stringify(counts)}\n`);
-    out.engine = await searcher.name();
+    out.engine = searcher.started ? await searcher.name() : (db.get<{ name: string }>('settings', 'bench-engine')?.name ?? 'Stockfish (all searches from the cache)');
+    if (searcher.started) db.put('settings', 'bench-engine', { name: out.engine });
     writeFileSync(jsonPath, JSON.stringify(out));
   }
   process.stderr.write(`done ${tag}: ${ids.length} games in ${((performance.now() - t0) / 1000).toFixed(0)} s; searches ${cache.stats.misses} run, ${cache.stats.hits} cached -> ${jsonPath}\n`);
