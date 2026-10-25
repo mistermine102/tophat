@@ -63,10 +63,11 @@ chess-coach/
   server/scripts/analyze-pgn.ts    # full pipeline on a PGN (no HTTP) -> markdown report (+ JSON)
   server/scripts/profile-game.ts   # M4: cold-cache timing of a whole game per search type + focus / side-line latency
   scripts/start.mjs       # `npm start`: build the client if stale, serve it + the API on one port (5174), open the browser
+                          # (M6: already running on the port -> just opens the browser; no Stockfish -> runs setup-engine first)
   scripts/check-engine.mjs  # `npm run dev` pre-step: tells the user to run `npm run setup:engine` if Stockfish is missing
   bench/games/            # sample PGNs for analyze-pgn (Opera game, Kasparov–Topalov 1999, Deep Blue–Kasparov g6)
   client/src/ ...
-  client/e2e/             # playwright
+  client/e2e/             # playwright (M6: e2e/acceptance = beginner walk-through vs a running `npm start`, `npm run acceptance`)
   bench/                  # puzzle + annotated-games benchmarks, reports written to bench/reports/*.md
 ```
 

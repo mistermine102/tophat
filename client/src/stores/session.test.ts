@@ -138,4 +138,55 @@ describe('session store', () => {
     expect(await p).toBe(false);
     expect(session.state.loadError).toBe('Game not found.');
   });
+
+  it('M6: time-left estimate from the pace of the stream', async () => {
+    const { session } = await setup();
+    expect(session.etaSeconds.value).toBeNull(); // too few moves to know the pace
+    await vi.advanceTimersByTimeAsync(151 * 6);
+    const done = session.progress.value.done;
+    expect(done).toBeGreaterThanOrEqual(5);
+    const eta = session.etaSeconds.value!;
+    // ~0.15 s per ply in the mock: (72 - done) plies left
+    expect(eta).toBeGreaterThan((72 - done) * 0.1);
+    expect(eta).toBeLessThan((72 - done) * 0.25);
+  });
+
+  it('M6: next mistake jumps to the next inaccuracy or worse after the viewed position', async () => {
+    const { session } = await setup();
+    await vi.advanceTimersByTimeAsync(151 * 72);
+    const bad = Object.entries(session.state.analyses)
+      .filter(([, a]) => ['inaccuracy', 'mistake', 'miss', 'blunder'].includes(a.label))
+      .map(([p]) => Number(p))
+      .sort((a, b) => a - b);
+    expect(bad.length).toBeGreaterThan(1);
+    expect(session.nextMistakePly.value).toBe(bad[0]);
+    session.nextMistake();
+    expect(session.current.value?.mainPly).toBe(bad[0]);
+    session.nextMistake();
+    expect(session.current.value?.mainPly).toBe(bad[1]);
+    session.goToMainPly(72);
+    expect(session.nextMistakePly.value).toBeNull();
+  });
+
+  it('M6: back to game after playing a suggestion returns to the move it was an alternative to', async () => {
+    const { session } = await setup();
+    session.goToMainPly(21);
+    await nextTick();
+    const viewed = session.current.value!;
+    const from = viewed.parent!;
+    // an alternative to ply 21 played from its parent (what "Play it" does), two plies deep
+    const alt = session.state.game!.moves[20]!.uci === 'g1h1' ? 'a2a3' : 'g1h1';
+    session.playLine(from, [alt]);
+    await nextTick();
+    expect(session.state.tree!.inSideLine).toBe(true);
+    session.backToGame();
+    expect(session.current.value?.id).toBe(viewed.id);
+    // a plain drag from a position goes back to that position
+    session.goToMainPly(20);
+    await nextTick();
+    session.playMove(alt);
+    await nextTick();
+    session.backToGame();
+    expect(session.current.value?.mainPly).toBe(20);
+  });
 });

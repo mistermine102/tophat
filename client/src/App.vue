@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // v1 screen: header, board column (eval bar, board, navigation, eval graph), summary + move list, explanation.
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import BoardArea from './components/BoardArea.vue';
 import ExplanationPanel from './components/ExplanationPanel.vue';
 import MoveList from './components/MoveList.vue';
@@ -17,6 +17,12 @@ const game = computed(() => session.state.game);
 const progress = computed(() => session.progress.value);
 const analysing = computed(() => progress.value.total > 0 && progress.value.done + progress.value.failed < progress.value.total);
 const health = computed(() => session.state.health);
+/** 'about 2 min left' / 'under a minute left' (null until the pace is known). */
+const timeLeft = computed(() => {
+  const s = session.etaSeconds.value;
+  if (s === null) return null;
+  return s < 50 ? 'under a minute left' : `about ${Math.round(s / 60)} min left`;
+});
 
 const players = computed(() => {
   const h = game.value?.headers;
@@ -36,6 +42,33 @@ onMounted(async () => {
   showPgn.value = true;
 });
 
+// Explanation column: back to the top for every new move, and a "More below" hint while text is cut off.
+const exCol = ref<HTMLElement | null>(null);
+const moreBelow = ref(false);
+function updateMore() {
+  const el = exCol.value;
+  moreBelow.value = !!el && el.scrollHeight - el.scrollTop - el.clientHeight > 12;
+}
+function scrollMore() {
+  exCol.value?.scrollBy({ top: Math.max(120, (exCol.value.clientHeight * 2) / 3), behavior: 'smooth' });
+}
+let exObserver: ResizeObserver | null = null;
+watch(exCol, (el) => {
+  exObserver?.disconnect();
+  if (!el) return;
+  exObserver = new ResizeObserver(updateMore);
+  exObserver.observe(el);
+  if (el.firstElementChild) exObserver.observe(el.firstElementChild);
+});
+watch(
+  () => session.current.value?.id,
+  async () => {
+    await nextTick();
+    if (exCol.value) exCol.value.scrollTop = 0;
+    updateMore();
+  },
+);
+
 function onKey(e: KeyboardEvent) {
   const t = e.target as HTMLElement | null;
   if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
@@ -46,6 +79,7 @@ function onKey(e: KeyboardEvent) {
     Home: () => session.first(),
     End: () => session.last(),
     f: () => session.flip(),
+    n: () => session.nextMistake(),
   };
   const act = actions[e.key];
   if (act && session.state.tree) {
@@ -56,6 +90,7 @@ function onKey(e: KeyboardEvent) {
 onMounted(() => window.addEventListener('keydown', onKey));
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKey);
+  exObserver?.disconnect();
   session.dispose();
 });
 </script>
@@ -86,10 +121,11 @@ onBeforeUnmount(() => {
           class="inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-xs"
           :class="analysing ? 'bg-amber-500/10 text-amber-300' : progress.failed ? 'bg-rose-500/10 text-rose-200' : 'bg-emerald-500/10 text-emerald-300'"
           data-testid="progress"
+          :title="analysing ? 'The engine checks every move of the game. Moves that are done can be viewed already; the move you are looking at is analysed first.' : undefined"
         >
           <span v-if="analysing" class="h-3 w-3 animate-spin rounded-full border-2 border-amber-400 border-t-transparent"></span>
           <span v-else-if="!progress.failed">✓</span>
-          <template v-if="analysing">Analysed {{ progress.done }}/{{ progress.total }}</template>
+          <template v-if="analysing">Analysed {{ progress.done }}/{{ progress.total }}<span v-if="timeLeft" class="text-amber-300/70" data-testid="time-left"> · {{ timeLeft }}</span></template>
           <template v-else-if="progress.failed">Analysed {{ progress.done }}/{{ progress.total }}</template>
           <template v-else>Analysis complete</template>
           <span v-if="progress.failed" class="text-rose-300" data-testid="failed-count">· {{ progress.failed }} failed</span>
@@ -123,8 +159,20 @@ onBeforeUnmount(() => {
         <SummaryPanel />
         <MoveList />
       </div>
-      <div class="min-h-0 min-w-[300px] flex-1 overflow-y-auto pr-1">
-        <ExplanationPanel />
+      <div class="relative min-h-0 min-w-[300px] flex-1">
+        <div ref="exCol" class="h-full overflow-y-auto pr-1" @scroll="updateMore">
+          <ExplanationPanel />
+        </div>
+        <template v-if="moreBelow">
+          <div class="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-[#141416] to-transparent"></div>
+          <button
+            class="absolute bottom-1.5 left-1/2 -translate-x-1/2 rounded-full bg-neutral-700 px-3 py-1 text-xs font-medium text-neutral-100 shadow-lg ring-1 ring-white/10 hover:bg-neutral-600"
+            data-testid="more-below"
+            @click="scrollMore"
+          >
+            More below ↓
+          </button>
+        </template>
       </div>
     </main>
 

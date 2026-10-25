@@ -18,6 +18,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "npm run e2e -w client",
+    "acceptance": "npm run acceptance -w client",
     "setup:engine": "node scripts/setup-engine.mjs",
     "bench:engine": "npm run bench:engine -w server",
     "typecheck": "npm run typecheck --workspaces --if-present",

@@ -2,7 +2,8 @@
 // `npm start`: the whole app on one port — builds the client (only when its sources changed since the last build),
 // then runs the server with SERVE_CLIENT=1 so Express serves client/dist next to /api, and opens the browser.
 //   PORT (default 5174), --no-open (don't open a browser); every server env (ENGINE_THREADS, ...) is passed through.
-// Without Stockfish the server still starts and prints how to install it (`npm run setup:engine`).
+// Without Stockfish it first runs the download (`npm run setup:engine`); if that fails the server still starts and
+// prints how to install it. If Chess Coach is already running on the port, it only opens the browser again.
 
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, statSync } from 'node:fs';
@@ -28,6 +29,37 @@ function newestMtime(paths) {
   return newest;
 }
 
+async function probe() {
+  // Is something already listening on the port? 'coach' = a running Chess Coach, 'other' = another program.
+  try {
+    const res = await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(3000) });
+    const body = await res.json().catch(() => null);
+    return body && typeof body === 'object' && 'ok' in body ? 'coach' : 'other';
+  } catch (e) {
+    return e?.cause?.code === 'ECONNREFUSED' ? 'free' : e?.name === 'TimeoutError' ? 'other' : 'free';
+  }
+}
+
+const noOpen = process.argv.includes('--no-open') || process.env.NO_OPEN === '1';
+const portState = await probe();
+if (portState === 'coach') {
+  console.log(`[start] Chess Coach is already running at ${url}${noOpen ? '' : ' — opening it in your browser'}.`);
+  if (!noOpen) openBrowser(url);
+  process.exit(0);
+}
+if (portState === 'other') {
+  console.error(`[start] Another program is using port ${port}. Close it, or start Chess Coach on another port:`);
+  console.error('          PowerShell:       $env:PORT=5180; npm start');
+  console.error('          Command Prompt:   set PORT=5180 && npm start');
+  process.exit(1);
+}
+
+const enginePath = process.env.STOCKFISH_PATH || join(repo, 'engine', 'stockfish.exe');
+if (!existsSync(enginePath) && !process.env.STOCKFISH_PATH) {
+  console.log('[start] Stockfish is not installed yet — downloading it first (same as `npm run setup:engine`) …');
+  spawnSync(process.execPath, [join(repo, 'scripts', 'setup-engine.mjs')], { cwd: repo, stdio: 'inherit' });
+}
+
 const sources = [join(client, 'src'), join(client, 'index.html'), join(client, 'vite.config.ts'), join(client, 'package.json'), join(repo, 'shared', 'src')];
 const stale = !existsSync(distIndex) || newestMtime(sources) > statSync(distIndex).mtimeMs;
 if (stale) {
@@ -41,12 +73,13 @@ if (stale) {
   console.log('[start] client build is up to date');
 }
 
-const server = spawn(process.execPath, ['--import', 'tsx', join('src', 'index.ts')], {
+// node:sqlite prints an "experimental feature" warning on every start: noise for the user.
+const server = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', '--import', 'tsx', join('src', 'index.ts')], {
   cwd: join(repo, 'server'),
   stdio: ['inherit', 'pipe', 'inherit'],
   env: { ...process.env, SERVE_CLIENT: '1', PORT: String(port) },
 });
-let opened = process.argv.includes('--no-open') || process.env.NO_OPEN === '1';
+let opened = noOpen;
 server.stdout.setEncoding('utf8');
 server.stdout.on('data', (chunk) => {
   process.stdout.write(chunk);

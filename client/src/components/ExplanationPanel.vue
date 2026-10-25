@@ -91,8 +91,9 @@ const opening = computed(() => {
         <div v-if="header" class="mt-0.5 text-sm text-neutral-400">{{ [header.event, header.date].filter(Boolean).join(' · ') }}</div>
         <div v-if="opening" class="mt-2 text-sm text-neutral-300">Opening: {{ opening }}</div>
         <p class="mt-3 text-sm text-neutral-400">
-          Step through the game with <kbd class="kbd">→</kbd> or the buttons below the board. Drag a piece to try your own
-          move — it’s analysed as a side line.
+          Step through the game with <kbd class="kbd">→</kbd> or the buttons below the board, or press
+          <b class="font-semibold text-neutral-300">Next mistake</b> (<kbd class="kbd">N</kbd>) to jump from error to error. Drag a piece to try
+          your own move — it’s analysed too.
         </p>
       </section>
       <section class="rounded-lg bg-neutral-800/40 p-4 ring-1 ring-white/5" data-testid="key-moments">
@@ -147,12 +148,12 @@ const opening = computed(() => {
             <p v-if="a" class="mt-1 text-sm leading-snug text-neutral-300" data-testid="label-reason">
               {{ reason }}
               <span v-if="isMateLabel(a)" class="block pt-0.5 text-xs text-neutral-500" data-testid="mate-rule-note">
-                By win chance alone this would be “{{ LABELS[a.labelReason.winChance].name }}”; the mate rule
-                ({{ a.labelReason.allowedMate && a.label === 'blunder' ? 'a move that allows a short forced mate' : 'a missed short forced mate' }}) makes it {{ meta?.name }}.
+                Winning chances alone would say “{{ LABELS[a.labelReason.winChance].name }}”. It’s marked {{ meta?.name }} because it
+                {{ a.labelReason.allowedMate && a.label === 'blunder' ? 'allows a quick forced mate' : 'misses a quick forced mate' }} — worth noticing even when the game is decided.
               </span>
               <span v-else-if="isMaterialLabel(a)" class="block pt-0.5 text-xs text-neutral-500">
-                By win chance alone this would be “{{ LABELS[a.labelReason.winChance].name }}”; the material rule makes it
-                {{ meta?.name }}.
+                Winning chances alone would say “{{ LABELS[a.labelReason.winChance].name }}”. It’s marked {{ meta?.name }} because it
+                gives away material for nothing — a habit worth fixing even when the game is decided.
               </span>
             </p>
             <div v-else-if="error" class="mt-1 text-sm text-rose-300" data-testid="ply-error">
@@ -170,7 +171,7 @@ const opening = computed(() => {
             </div>
             <p v-else-if="pending" class="mt-1 flex items-center gap-2 text-sm text-neutral-400">
               <span class="h-3 w-3 animate-spin rounded-full border-2 border-neutral-500 border-t-transparent"></span>
-              {{ node.mainPly === null ? 'Analysing your move…' : 'Waiting for the engine — this move was moved to the front of the queue.' }}
+              {{ node.mainPly === null ? 'Analysing your move…' : 'Analysing this move now — usually a few seconds.' }}
             </p>
           </div>
         </div>
@@ -214,7 +215,7 @@ const opening = computed(() => {
           :candidate="suggestions.best"
           :analysis="a"
           :from="node.parent"
-          :notice="suggestions.deepOnly ? 'Deep engine move — hard to explain. No simpler good move with a concrete point was found.' : null"
+          :notice="suggestions.deepOnly ? 'Deep engine move — hard to explain: its real point lies further ahead than the lines below. No simpler good move with a clear short-term point was found.' : null"
         />
       </div>
     </template>

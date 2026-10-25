@@ -5,6 +5,7 @@ import { computed, inject, reactive, watch, type InjectionKey } from 'vue';
 import { ApiError, type ApiClient, type Health, type Unsubscribe } from '../api/types';
 import { MoveTree, type TreeNode } from '../lib/moveTree';
 import { loadRecent, recentKey, rememberGame, type RecentGame } from '../lib/recent';
+import { LABELS } from '../lib/labels';
 import { computeSummary } from '../lib/summary';
 
 export interface SideEntry {
@@ -61,6 +62,8 @@ export function createSession(api: ApiClient, opts: SessionOptions = {}) {
     health: null as Health | null,
     /** Squares highlighted on the board (hovering a square name in an explanation). */
     highlight: [] as string[],
+    /** For the time-left estimate: when this session started waiting for the stream, and how many plies were done then. */
+    rate: null as { start: number; doneAtStart: number; last: number } | null,
   });
 
   let unsubscribe: Unsubscribe | null = null;
@@ -104,6 +107,20 @@ export function createSession(api: ApiClient, opts: SessionOptions = {}) {
     return { done: Math.min(done, total), total, failed };
   });
 
+  /**
+   * Rough seconds left for the whole game, from the pace since this session started streaming (null until a few
+   * moves have arrived — the first ones are fast because the opening is quick for the engine).
+   */
+  const etaSeconds = computed<number | null>(() => {
+    const r = state.rate;
+    const p = progress.value;
+    if (!r) return null;
+    const doneHere = p.done - r.doneAtStart;
+    const left = p.total - p.done - p.failed;
+    if (doneHere < 4 || left <= 0 || r.last <= r.start) return null;
+    return Math.round(((r.last - r.start) / 1000 / doneHere) * left);
+  });
+
   function stopStream() {
     unsubscribe?.();
     unsubscribe = null;
@@ -124,6 +141,7 @@ export function createSession(api: ApiClient, opts: SessionOptions = {}) {
     state.preview = null;
     state.highlight = [];
     state.connectionError = null;
+    state.rate = null;
   }
 
   function applyGame(game: GameInfo) {
@@ -138,9 +156,12 @@ export function createSession(api: ApiClient, opts: SessionOptions = {}) {
 
   function startStream(id: string) {
     stopStream();
+    const now = Date.now();
+    state.rate = { start: now, doneAtStart: Object.keys(state.analyses).length, last: now };
     unsubscribe = api.stream(id, {
       onAnalysis(ply, analysis) {
         if (state.game?.id !== id) return;
+        if (!state.analyses[ply] && state.rate) state.rate.last = Date.now();
         state.analyses[ply] = analysis;
         delete state.plyErrors[ply];
         state.connectionError = null;
@@ -301,8 +322,29 @@ export function createSession(api: ApiClient, opts: SessionOptions = {}) {
   function playLine(from: TreeNode, ucis: string[], count = ucis.length): void {
     const tree = state.tree;
     if (!tree) return;
+    // "Back to game" should come back to the game move whose alternative this is
+    const here = tree.current;
+    tree.returnTo = here.mainPly !== null && here.parent?.id === from.id ? here : null;
     const nodes = tree.playLine(ucis.slice(0, count), from);
     if (nodes.length) tree.goTo(nodes[nodes.length - 1]!);
+  }
+
+  /** Next main-line ply after the viewed position with an inaccuracy or worse (either side), or null. */
+  const nextMistakePly = computed<number | null>(() => {
+    const tree = state.tree;
+    const game = state.game;
+    if (!tree || !game) return null;
+    const from = tree.branchPoint(tree.current).mainPly ?? 0;
+    for (let p = from + 1; p <= game.moves.length; p++) {
+      const a = state.analyses[p];
+      if (a && LABELS[a.label].severity >= 3) return p;
+    }
+    return null;
+  });
+
+  function nextMistake() {
+    const p = nextMistakePly.value;
+    if (p !== null) state.tree?.goToMainPly(p);
   }
 
   function flip() {
@@ -344,6 +386,9 @@ export function createSession(api: ApiClient, opts: SessionOptions = {}) {
     currentAnalysis,
     summary,
     progress,
+    etaSeconds,
+    nextMistakePly,
+    nextMistake,
     analysisFor,
     isPending,
     errorFor,
