@@ -404,6 +404,7 @@ function tacticalFacts(
 
   // --- pins and skewers (any mover slider; new only) ---
   const checkersAfter = after.ctx().checkers;
+  const pinsBefore = pinsAgainst(before.board, opp, { relative: true });
   const sliders = after.board[mover].intersect(after.board.bishopsAndQueens().union(after.board.rooksAndQueens()));
   for (const s of sliders) {
     for (const p of attackedPieces(after.board, s)) {
@@ -429,6 +430,16 @@ function tacticalFacts(
           // moving the pinned piece must expose the piece behind to a winning capture by the pinner
           const g = exchangeBehind(after, s, p, x);
           if (g <= 0) continue;
+        }
+        // (round 7) already pinned to the same piece by another slider (Re8 through d8, then Rdd8): not a new pin —
+        // the move adds an attacker (told as attack-pinned when the piece can now be won)
+        const old = pinsBefore.find((q) => q.pinned === p && q.behind === x);
+        if (old) {
+          if (see(after, p, mover) > 0 && see(before, p, mover) <= 0 && !facts.some((f) => f.type === 'attack-pinned' && f.pinned.square === sqName(p))) {
+            facts.push({ type: 'attack-pinned', attacker: ref(after, s), pinned: ref(after, p), pinner: ref(before, old.pinner), behind: ref(after, x), absolute });
+          }
+          covered.add(key(s, p));
+          continue;
         }
         facts.push({ type: 'pin', pinner: ref(after, s), pinned: ref(after, p), behind: ref(after, x), absolute });
         covered.add(key(s, p));

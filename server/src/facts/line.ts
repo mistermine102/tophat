@@ -240,6 +240,8 @@ export interface NarrationOptions {
 
 /** Minimum gain (cp) of the opponent's null-move idea over their best reply now, for a 'prevents' fact. */
 export const PREVENTS_MIN_CP = 150;
+/** (round 7) A story's stop point should leave the material within this many pawns of the deep eval when a later one does. */
+export const EVAL_CLOSE_PAWNS = 2;
 /** No 'prevents' facts when the position is decided (|eval| above this, cp). */
 export const PREVENTS_MAX_EVAL_CP = 500;
 
@@ -395,7 +397,16 @@ export function narrationPlies(fenBefore: string, pv: readonly string[], setting
     return undefined;
   };
   const lo = Math.min(Math.max(min, opts.minPlies ?? 0), n);
-  const end = first(lo, (k) => (stopOk(k) || claimOk(k)) && agrees(k)) ?? first(lo, stopOk);
+  let end = first(lo, (k) => (stopOk(k) || claimOk(k)) && agrees(k)) ?? first(lo, stopOk);
+  // (round 7) a stop point whose material is still far from the engine's eval (Kf7: "loses a pawn" at 0 → +4.8)
+  // gives way to a later one within the horizon that matches it (the rook lost to the Ne6+ fork)
+  if (end !== undefined && evalPawns !== null && Math.abs(evalPawns) < 9) {
+    const close = (k: number) => Math.abs(info.start + info.delta[k]! - evalPawns) <= EVAL_CLOSE_PAWNS;
+    if (!close(end)) {
+      const later = first(end + 1, (k) => (stopOk(k) || claimOk(k)) && close(k));
+      if (later !== undefined) end = later;
+    }
+  }
   if (end === undefined) {
     // never quiet: the material result will be resolved or 'unclear' — but don't stop right after a capture
     // whose recapture is the next move (…Bxf6+ gxf6)
@@ -844,13 +855,18 @@ export function refutationFact(input: RefutationInput): AllowsFact | null {
   const lineTakes = (sq: string) => input.line.steps.some((s, i) => i >= 2 && s.color !== mover && s.uci.slice(2, 4) === sq && s.facts.some((f) => f.type === 'capture'));
   // a reply piece the mover can simply win (…Qxf2+ Rbxf2) threatens nothing: no targets, no threat
   const replyLoose = !after.isEnd() && hangingLoss(after, reply.to) > 0;
-  const targets = replyLoose ? [] : fresh.length >= 2 ? fresh.slice(0, 3) : fresh.filter((t) => lineTakes(t.square) && input.line.result === 'loses-material');
+  // (round 7) not while the mover is in check: "under attack" is distorted by the check (…Bd4+ "hitting" c4 and g4)
+  const targets = replyLoose || after.isCheck() ? [] : fresh.length >= 2 ? fresh.slice(0, 3) : fresh.filter((t) => lineTakes(t.square) && input.line.result === 'loses-material');
 
   // (M5b) the reply's threat is told only when it is mate or the line carries it out: an attacked piece that simply
   // steps away (…Rfc8 "threatening" Rxc7 — Qd7) is not what refutes the move
   const rt = input.replyThreat ?? null;
   const threatPlayed = !!rt && (rt.mateIn !== undefined || lineTakes(rt.move.slice(2, 4)) || input.line.steps.some((s, i) => i >= 2 && s.color !== mover && s.uci === rt.move));
-  const threat = replyLoose || !threatPlayed ? null : rt;
+  // (round 7) …nor a material threat on a piece that was already en prise before the move (Rxa7 was on before Rd1+)
+  const beforePos = positionFromFen(input.fenBefore);
+  const tsq = rt && rt.mateIn === undefined ? parseSquare(rt.move.slice(2, 4)) : undefined;
+  const wasEnPrise = tsq !== undefined && beforePos.board.get(tsq)?.color === mover && hangingLoss(beforePos, tsq) > 0;
+  const threat = replyLoose || !threatPlayed || wasEnPrise ? null : rt;
   if (threat && !kept.some((f) => f.type === 'checkmate')) kept.push(threat);
 
   const out: AllowsFact = { type: 'allows', reply: { san, uci: standardUci(afterMove, reply) }, facts: kept };

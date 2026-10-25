@@ -25,6 +25,7 @@ Categories: **FALSE** (wrong on the board / contradicts the line), **MISLEADING*
 | 4 (3 reviewer agents) | 7 games, r4 | 180 | 4 (one root cause, fixed after the round) | 26 | 21 | 64 | 56 / 4 |
 | 5 (4 reviewer agents, M5b) | 7 fresh games, r5 | 239 | 6 | 50 | 21 | 59 | 77 / 7 |
 | 6 (4 new reviewer agents) | same 7 games, r6 | 239 | 10 (6 root causes, 2 introduced by r5 fixes; all fixed after) | 32 | 31 | 53 | 79 / 8 |
+| 7 (4 new reviewer agents) | same 7 games, r7 | 239 | 0 | 28 | 29 | 68 | 81 / 6 |
 
 WEAK rose from round 2 to 3 because reviewers moved on to wording once the gross errors were gone. After round 4 the
 remaining FALSE root cause (uncovered pins worded as made by the moving piece) was fixed and spot-checked on the r5
@@ -218,3 +219,25 @@ suggestions ("Nothing special" for the engine's top move) instead of wrong ones.
 Not fixed after round 6 (recorded): "The only good move here" sits in the Long-term level (SPEC puts "necessary" there);
 "deep engine move — hard to explain" on suggestions with concrete content; suggestions' Immediate level often equals
 the played move's (no "difference" fact); passed-pawn races; pawn forks where the forking pawn can be taken.
+
+### Round 7 — 4 new independent reviewer agents, same 239 entries (r7 code)
+
+Totals: FALSE 0, MISLEADING 28, USELESS 29, WEAK 68; picks 81 good / 6 bad. Per game (F/M/U/W, picks): PnAHyM23
+0/6/5/8, 26/2 · YMOxEowk 0/5/6/19, 16/1 · 57RP5sCb 0/3/3/2, 4/0 · FroOipnY 0/4/3/4, 10/1 · KyoqPCST 0/4/7/12, 12/0 ·
+2hOytwun 0/4/3/9, 11/1 · Kasparov–Topalov 0/2/2/14, 2/1. All four reviewers: "no FALSE sentence" (every square,
+pin, fork, mate and material tally they checked held). MISLEADING 28 is not yet clearly below round 4 (26), so one
+more round.
+
+| Game, ply | Move | Level | Sentence | Cat. | Root cause → fix |
+|---|---|---|---|---|---|
+| YMOxEowk 38/40/41 | Ne6 / fxe6 / Rdd8 | Short / Imm | "Rdd8 pins the bishop on c8 to the rook" (Re8 already pinned it through d8) | MISLEADING | → a piece already pinned to the same piece by another slider is no new pin; the move is told as adding an attacker (`attack-pinned`) when the piece can now be won |
+| KyoqPCST 52/55, 57RP 24, FroOipnY 49 | Kf7 / Rh7+ / … | Short | "Black loses a pawn (−1)" (the line goes on to lose a rook; eval 0 → +4.8) | MISLEADING | → a stop point whose material is > 2 pawns from the deep eval gives way to a later stop point (within the horizon) that matches it |
+| YMOxEowk 58 | Rd1+ | Imm | "Doesn't stop Kh2: then White threatens Rxa7" (a7 already hanging) | MISLEADING | → a reply's material threat on a piece that was already en prise before the move is not told |
+| FroOipnY 39 | c4 | Imm | "Allows Bd4+: then White's pawns on c4 and g4 are both under attack" | MISLEADING | → no "under attack" targets while the mover is in check after the reply (the check distorts SEE) |
+| 57RP5sCb 25 | Ne5 (top) | Imm | "Leaves the knight under-protected … (−1)" (the line keeps material level) | MISLEADING | → an under-protected piece (loss ≤ half its value) is not told when the move's line loses nothing |
+
+Not fixed (recorded for later): pawn forks whose forking pawn can be captured are told as "attacks the knight" /
+"sacrifices the pawn" (PnAH 14/15); the Stafford trap behind 6.Bg5's illusory pin (Bxd8 Bxf2+ Ke2 Bg4#) is not named;
+suggestions whose Immediate level equals the played move's (Bd5 / Bb1, h3 / Kf1); "The only good move here" in the
+Long-term level; "deep engine move — hard to explain" on suggestions with a concrete story; perpetual checks /
+repetitions are not recognised; no passed-pawn-race facts.

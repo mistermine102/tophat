@@ -319,6 +319,8 @@ function renderImmediate(facts: readonly Fact[], ctx: ExplainContext, line?: F<'
   // the line shows the opponent's threat played anyway, or the "saved" piece taken later: not stopped / not safe
   const oppTakesLater = (sq: string) => !!line?.steps.some((s, i) => i > 0 && s.color !== ctx.mover && s.uci.slice(2, 4) === sq && s.facts.some((x) => x.type === 'capture'));
   fs = fs.filter((f) => !(f.type === 'escape' && oppTakesLater(f.piece.square)));
+  // (round 7) an under-protected piece (small SEE loss) whose line loses nothing: the engine doesn't let it cost material
+  if (line && line.result !== 'unclear' && line.result !== 'mated' && line.materialDelta >= 0) fs = fs.filter((f) => !(f.type === 'hangs' && !f.already && f.loss <= PIECE_VALUES[f.piece.role] / 2));
   // "stops the threat on X" and "saves / defends X" say the same thing once
   const stopped = new Set(fs.filter((f): f is F<'defends-threat'> => f.type === 'defends-threat').map((f) => f.move.slice(2, 4)));
   fs = fs.filter((f) => !((f.type === 'escape' && stopped.has(f.from)) || (f.type === 'defend' && stopped.has(f.piece.square))));

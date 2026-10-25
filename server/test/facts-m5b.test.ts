@@ -337,6 +337,20 @@ describe('round 6 regressions', () => {
   });
 });
 
+describe('round 7 regressions', () => {
+  it('a piece already pinned by another rook is not "pinned" again: the move adds an attacker (YMOxEowk Rdd8)', () => {
+    const f = immediateFacts(legalFen('r1b1R3/6k1/8/8/8/8/8/3R2K1 w - - 0 1'), 'd1d8');
+    expect(of(f, 'pin')).toHaveLength(0);
+    expect(of(f, 'attack-pinned')).toMatchObject([{ attacker: { square: 'd8' }, pinned: { square: 'c8' }, pinner: { square: 'e8' }, behind: { square: 'a8' } }]);
+  });
+
+  it('an under-protected piece is not mentioned when the line loses nothing', () => {
+    const hang: Fact = { type: 'hangs', piece: { role: 'knight', square: 'e5', color: 'white' }, loss: 1 };
+    const level: Extract<Fact, { type: 'line' }> = { type: 'line', steps: [], materialDelta: 0, result: 'trade' };
+    expect(renderExplanation({ immediate: [hang], short: [level], long: [] }, { mover: 'white', label: 'best' }).immediate.text).toEqual(['Nothing special happens right away.']);
+  });
+});
+
 describe('no false "No forcing follow-up."', () => {
   it('a story without facts says the engine line goes on with a check', () => {
     const step = (ply: number, san: string) => ({ ply, san, uci: 'a1a2', color: (ply % 2 ? 'black' : 'white') as 'white' | 'black', facts: [] as Fact[] });
