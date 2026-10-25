@@ -118,6 +118,23 @@ describe('renderExplanation tones', () => {
     const e = renderExplanation({ immediate: [], short: [NC3_LINE], long: [] }, { mover: 'white', label: 'blunder' });
     expect(e.short.story).toEqual(story);
   });
+  it("a mating line: the losing side's steps are neutral", () => {
+    // Opera game 15...Nxd7?? 16.Qb8+! Nxb8 17.Rd8#
+    const line: LineF = {
+      type: 'line',
+      steps: [
+        { ply: 1, san: 'Nxd7', uci: 'b8d7', color: 'black', facts: [{ type: 'capture', captured: p('bishop', 'd7', 'white'), outcome: 'recapture', net: 3 }] },
+        { ply: 2, san: 'Qb8+', uci: 'b3b8', color: 'white', facts: [{ type: 'check' }] },
+        { ply: 3, san: 'Nxb8', uci: 'd7b8', color: 'black', facts: [{ type: 'capture', captured: p('queen', 'b8', 'white'), outcome: 'wins-material', net: 9 }] },
+        { ply: 4, san: 'Rd8#', uci: 'd1d8', color: 'white', facts: [{ type: 'checkmate' }] },
+      ],
+      materialDelta: 0,
+      result: 'mated',
+      mateIn: 2,
+    };
+    const { story } = lineStory(line, { mover: 'black' });
+    expect(story!.map((s) => s.tone)).toEqual(['neutral', 'bad', 'neutral', 'bad']);
+  });
   it('contrastWithPlayed keeps tones parallel to the reordered text', () => {
     const played = renderExplanation({ immediate: [{ type: 'develop', piece: p('knight', 'c3', 'white') }], short: [], long: [] }, W);
     const better = renderExplanation({ immediate: [{ type: 'develop', piece: p('knight', 'c3', 'white') }, { type: 'capture', captured: p('pawn', 'e5', 'black'), outcome: 'wins-material', net: 1 }], short: [], long: [] }, W);

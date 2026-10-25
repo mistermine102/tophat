@@ -714,6 +714,9 @@ function storyUnits(steps: readonly LineStep[], result?: F<'line'>['result']): U
   const mover = steps[0]?.color;
   // "wins" only for the side that comes out of the line ahead: a pawn grab that loses a knight just "takes"
   const mayWin = (s: LineStep) => (s.color === mover ? result === 'wins-material' || result === 'mate' : result === 'loses-material' || result === 'mated');
+  // (UI round) in a mating line, the losing side's steps help nothing (Nxb8 "takes the queen" walks into Rd8#)
+  const doomed = (s: LineStep) => (result === 'mated' && s.color === mover) || (result === 'mate' && s.color !== mover);
+  const toneOf = (s: LineStep, t: Tone): Tone => (doomed(s) ? 'neutral' : t);
   const units: Unit[] = [];
   let bal = 0; // the mover's material change so far in the line
   const backAt = steps.map((s, i) => {
@@ -741,14 +744,14 @@ function storyUnits(steps: readonly LineStep[], result?: F<'line'>['result']): U
     if (isSacrifice(steps, i, result)) {
       const cap = capOf(s);
       const role = sanRole(s.san);
-      units.push({ from: i, to: i, text: cap ? `${s.san} takes the ${cap.captured.role}, sacrificing the ${role}` : `${s.san} sacrifices the ${role}`, weight: 4, tone: s.color === mover ? 'good' : 'bad' });
+      units.push({ from: i, to: i, text: cap ? `${s.san} takes the ${cap.captured.role}, sacrificing the ${role}` : `${s.san} sacrifices the ${role}`, weight: 4, tone: toneOf(s, s.color === mover ? 'good' : 'bad') });
       continue;
     }
     const clause = stepClause(s, mayWin(s), backAt[i]);
     // (UI round) a step that does something is good for its side; a forced reply without a clause = the opponent had no choice
     const blocks = clause === ' blocks the check';
     const tone: Tone = clause && !blocks ? (s.color === mover ? 'good' : 'bad') : s.forced && s.color !== mover ? 'good' : 'neutral';
-    units.push({ from: i, to: i, text: `${s.san}${clause}${s.forced ? ' (forced)' : ''}`, weight: stepWeight(s), tone });
+    units.push({ from: i, to: i, text: `${s.san}${clause}${s.forced ? ' (forced)' : ''}`, weight: stepWeight(s), tone: toneOf(s, tone) });
   }
   return units;
 }
