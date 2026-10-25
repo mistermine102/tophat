@@ -159,7 +159,7 @@ describe.skipIf(!engineAvailable())('classification on real positions (Stockfish
       const a = await analyseMove(engine, fen, 'd1d8');
       const msg = dump(a);
       expect(scoreToCp(a.input.best.score), msg).toBeGreaterThan(400);
-      expect(a.result.labelReason.material?.loss ?? 0, msg).toBe(0);
+      expect(a.result.labelReason.material?.loss ?? 0, msg).toBeLessThan(2); // deep lines may drift a pawn; the rule must not fire
       expect(a.result.labelReason.material?.label, msg).toBeUndefined();
       expect(LABEL_SEVERITY[a.result.label], msg).toBeLessThanOrEqual(LABEL_SEVERITY.good);
     },

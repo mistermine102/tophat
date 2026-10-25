@@ -104,7 +104,8 @@ const toLine = (l: PvLine): EngineMoveLine => ({ uci: l.move, score: l.score, pv
 /** Deep MultiPV search + searchmoves for the played move -> ClassifyInput -> classifyMove. */
 export async function analyseMove(engine: Engine, fenBefore: string, uci: string, opts: AnalyseOptions = {}): Promise<Analysed> {
   const settings = opts.settings ?? DEFAULT_SETTINGS;
-  const depth = opts.depth ?? settings.budget.deep.depth;
+  // Scenario premises (forced mates etc.) need a stable search: never go below d18 even if the product default is lower.
+  const depth = opts.depth ?? Math.max(settings.budget.deep.depth, 18);
   const multipv = opts.multipv ?? settings.budget.deep.multipv;
   const fen = legalFen(fenBefore);
   const res = await engine.search({ fen, depth, multipv });
