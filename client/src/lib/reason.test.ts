@@ -10,16 +10,35 @@ describe('label reasons', () => {
     const a = analyses[52]!; // 26... Re1??
     expect(isMaterialLabel(a)).toBe(true);
     expect(labelReasonText(a, { moverIsYou: true })).toBe(
-      'You left the rook on e1 hanging (−5). You’re still winning (eval for Black: M9 → +6.7), but this is the habit to fix.'.replace('’', "'"),
+      'You left the rook on e1 hanging (−5 points). You’re still winning (eval for Black: M9 → +6.7), but this is the habit to fix.'.replace('’', "'"),
     );
-    expect(labelReasonText(a, { moverIsYou: false })).toMatch(/^Black left the rook on e1 hanging \(−5\)\. Black is still winning/);
+    expect(labelReasonText(a, { moverIsYou: false })).toMatch(/^Black left the rook on e1 hanging \(−5 points\)\. Black is still winning/);
   });
 
   it('material-rule escalation when not winning', () => {
     const a = analyses[33]!; // 17. Nxe5
     expect(a.labelReason.winChance).toBe('mistake');
     expect(a.label).toBe('blunder');
-    expect(labelReasonText(a, { moverIsYou: false })).toBe('White left the knight on e5 hanging (−3).');
+    expect(labelReasonText(a, { moverIsYou: false })).toBe('White took a pawn with the knight, but the knight can be taken back (−3 points).');
+  });
+
+  it('material rule: a hanging piece is named only when it is the whole loss; captures say what was taken', () => {
+    const a = analyses[52]!; // 26... Re1??
+    const m = a.labelReason.material!;
+    // the line loses more than the hung piece (e.g. a pawn left hanging, then a promotion): told as the line comparison
+    const bigger: MoveAnalysis = { ...a, labelReason: { ...a.labelReason, material: { ...m, loss: 8, hung: { ...m.hung!, role: 'pawn' }, hungLoss: 1 } } };
+    expect(labelReasonText(bigger, { moverIsYou: false })).toMatch(/^Black lost material: the engine line ends 8 points worse than after Rxf2. Black is still winning/);
+    // a capture whose capturing piece is lost: "took a pawn with the queen, but the queen can be taken back"
+    const capture: MoveAnalysis = {
+      ...a,
+      fenBefore: '4k3/3p4/8/1Q2K3/8/8/8/8 w - - 0 1',
+      uci: 'b5d7',
+      san: 'Qxd7+',
+      color: 'white',
+      winAfter: 50,
+      labelReason: { ...a.labelReason, material: { ...m, loss: 8, hung: { role: 'queen', square: 'd7', color: 'white' }, hungLoss: 8 } },
+    };
+    expect(labelReasonText(capture, { moverIsYou: true })).toBe('You took a pawn with the queen, but the queen can be taken back (−8 points).');
   });
 
   it('great, miss, book, forced and win-chance labels', () => {

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-defineProps<{ canPrev: boolean; canNext: boolean; inSideLine: boolean }>();
-const emit = defineEmits<{ first: []; prev: []; next: []; last: []; flip: []; back: [] }>();
+defineProps<{ canPrev: boolean; canNext: boolean; inSideLine: boolean; canMistake: boolean }>();
+const emit = defineEmits<{ first: []; prev: []; next: []; last: []; flip: []; back: []; mistake: [] }>();
 </script>
 
 <template>
@@ -21,6 +21,17 @@ const emit = defineEmits<{ first: []; prev: []; next: []; last: []; flip: []; ba
       <svg viewBox="0 0 20 20" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
         <path d="M6 3v13M6 16l-3-3M6 16l3-3M14 17V4M14 4l-3 3M14 4l3 3" />
       </svg>
+    </button>
+    <button
+      v-if="!inSideLine"
+      class="ml-auto inline-flex h-9 items-center gap-1.5 rounded-md bg-neutral-800 px-3 text-sm text-neutral-200 ring-1 ring-white/5 transition hover:bg-neutral-700 disabled:cursor-default disabled:opacity-35 disabled:hover:bg-neutral-800"
+      data-testid="next-mistake"
+      title="Jump to the next inaccuracy, mistake, miss or blunder (N)"
+      :disabled="!canMistake"
+      @click="emit('mistake')"
+    >
+      Next mistake
+      <svg viewBox="0 0 20 20" class="h-4 w-4" fill="currentColor"><path d="M4 4v12l7-6zM11 4v12l7-6z" /></svg>
     </button>
     <button
       v-if="inSideLine"

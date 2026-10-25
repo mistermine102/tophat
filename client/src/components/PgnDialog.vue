@@ -13,6 +13,10 @@ const busy = ref(false);
 const area = ref<HTMLTextAreaElement | null>(null);
 const isMock = session.api.mode === 'mock';
 const recent = computed(() => session.state.recent.filter((r) => r.id !== session.state.game?.id));
+// First run: ask for the chess.com username right here (it decides which side is 'You' and the board side).
+const savedName = computed(() => session.state.settings.username);
+const askName = ref(!session.state.settings.username && !isMock);
+const username = ref('');
 
 onMounted(() => area.value?.focus());
 
@@ -24,6 +28,8 @@ async function submit() {
   busy.value = true;
   error.value = null;
   try {
+    const name = username.value.trim();
+    if (askName.value && name) await session.saveSettings({ username: name }).catch(() => undefined);
     await session.importPgn(pgn.value);
     emit('close');
   } catch (e) {
@@ -56,19 +62,44 @@ function onKey(e: KeyboardEvent) {
 
 <template>
   <ModalDialog title="Open a game" :closable="props.closable" width="max-w-2xl" @close="emit('close')">
-    <label for="pgn" class="block text-sm text-neutral-300">
-      Paste the PGN of a finished game <span class="text-neutral-500">(chess.com: Share → PGN → Copy)</span>
-    </label>
+    <p v-if="!props.closable" class="mb-3 text-sm leading-relaxed text-neutral-300" data-testid="welcome">
+      Chess Coach goes through one of your finished games move by move: a label for every move (Best, Mistake,
+      Blunder …), what the move did, and a better move to try.
+    </p>
+    <label for="pgn" class="block text-sm font-medium text-neutral-200">Paste your game (PGN)</label>
+    <p class="mt-0.5 text-xs text-neutral-400">
+      On chess.com: open the finished game → <b class="font-semibold text-neutral-300">Share</b> (arrow icon under the board) →
+      <b class="font-semibold text-neutral-300">PGN</b> → <b class="font-semibold text-neutral-300">Copy PGN</b>, then click below and press Ctrl+V.
+    </p>
     <textarea
       id="pgn"
       ref="area"
       v-model="pgn"
       data-testid="pgn-input"
       spellcheck="false"
-      class="mt-2 h-56 w-full resize-y rounded-lg bg-neutral-900 p-3 font-mono text-xs leading-relaxed text-neutral-200 ring-1 ring-white/10 outline-none placeholder:text-neutral-600 focus:ring-amber-500/60"
+      class="mt-2 h-48 w-full resize-y rounded-lg bg-neutral-900 p-3 font-mono text-xs leading-relaxed text-neutral-200 ring-1 ring-white/10 outline-none placeholder:text-neutral-600 focus:ring-amber-500/60"
       placeholder='[Event "Live Chess"]&#10;[White "..."]&#10;[Black "..."]&#10;&#10;1. e4 e5 2. Nf3 ...'
       @keydown="onKey"
     ></textarea>
+    <div v-if="askName" class="mt-3">
+      <label for="pgn-username" class="block text-sm font-medium text-neutral-200">
+        Your chess.com username <span class="font-normal text-neutral-500">(optional, asked once)</span>
+      </label>
+      <input
+        id="pgn-username"
+        v-model="username"
+        data-testid="pgn-username"
+        autocomplete="off"
+        spellcheck="false"
+        class="mt-1 h-9 w-64 max-w-full rounded-md bg-neutral-900 px-3 text-sm text-neutral-100 ring-1 ring-white/10 outline-none placeholder:text-neutral-600 focus:ring-amber-500/60"
+        placeholder="e.g. magnuscarlsen"
+        @keydown="onKey"
+      />
+      <span class="ml-2 text-xs text-neutral-500">so the board shows your side and “You” means you</span>
+    </div>
+    <p v-else-if="savedName" class="mt-2 text-xs text-neutral-500" data-testid="playing-as">
+      Your chess.com username: <span class="text-neutral-300">{{ savedName }}</span> (change it in Settings)
+    </p>
     <p v-if="error" class="mt-2 rounded-md bg-rose-500/10 px-3 py-2 text-sm text-rose-300 ring-1 ring-rose-500/30" data-testid="pgn-error">
       {{ error }}
     </p>
@@ -83,12 +114,12 @@ function onKey(e: KeyboardEvent) {
         Analyse game
       </button>
       <button
-        v-if="isMock"
+        v-if="isMock || !props.closable"
         class="h-9 rounded-md bg-neutral-700 px-3 text-sm text-neutral-100 hover:bg-neutral-600"
         data-testid="pgn-sample"
         @click="sample"
       >
-        Use sample game
+        {{ isMock ? "Use sample game" : "No game at hand? Try a sample" }}
       </button>
       <span class="ml-auto text-xs text-neutral-500">Ctrl+Enter to submit · first game of the PGN is used</span>
     </div>

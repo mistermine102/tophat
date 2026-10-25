@@ -53,10 +53,10 @@ const complete = computed(() => progress.value.total > 0 && progress.value.done 
     </div>
     <div class="mt-1 text-[10px] text-neutral-500">Accuracy %</div>
     <div class="mt-1.5 grid grid-cols-2 gap-x-3">
-      <div v-for="(g, gi) in groups" :key="gi" class="grid grid-cols-[1fr_1.25rem_1.25rem] items-center gap-x-1 gap-y-[3px]">
+      <div v-for="(g, gi) in groups" :key="gi" class="grid grid-cols-[1fr_21px_21px] items-center gap-x-1 gap-y-[3px]">
         <span class="text-[10px] text-neutral-500"></span>
-        <span class="text-center text-[10px] font-semibold text-amber-300/80" title="You">Y</span>
-        <span class="text-center text-[10px] font-semibold text-neutral-400" title="Opponent">O</span>
+        <span class="text-center text-[9px] font-semibold text-amber-300/80" title="You">You</span>
+        <span class="text-center text-[9px] font-semibold text-neutral-400" title="Opponent">Opp</span>
         <template v-for="l in g" :key="l">
           <span class="flex min-w-0 items-center gap-1 text-[12px] text-neutral-300">
             <LabelGlyph :label="l" size="xs" />

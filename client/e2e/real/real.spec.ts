@@ -111,7 +111,7 @@ test('focus: the viewed ply jumps the queue; pending states', async ({ page }) =
   // jump to the end right away: ply 35 should arrive long before the background queue gets there
   await page.keyboard.press('End');
   await expect(page.getByTestId('label-card')).toContainText('18. Kd2#');
-  await expect(page.getByTestId('label-card')).toContainText('Waiting for the engine');
+  await expect(page.getByTestId('label-card')).toContainText('Analysing this move now');
   await shot(page, '06-pending-focused', 100);
   const t0 = Date.now();
   await expect(page.locator('[data-node="m35"] [data-label]')).toHaveCount(1, { timeout: 30_000 });
@@ -286,7 +286,7 @@ test('allowed mate (M3 mate rule): a Blunder in a lost position, explained in th
   await expect(page.getByTestId('label-name')).toHaveText('Blunder');
   await expect(page.getByTestId('label-reason')).toContainText('You allowed mate in one. You were already losing, but');
   await expect(page.getByTestId('label-reason')).toContainText('would have avoided it — watch for mating threats.');
-  await expect(page.getByTestId('mate-rule-note')).toContainText('the mate rule (a move that allows a short forced mate) makes it Blunder');
+  await expect(page.getByTestId('mate-rule-note')).toContainText('marked Blunder because it allows a quick forced mate');
   await shot(page, '20-allowed-mate');
   // the mating move itself
   await page.locator('[data-node="m2"]').click();

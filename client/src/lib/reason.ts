@@ -6,7 +6,8 @@
 // next to a White-POV one.
 import type { Color, Label, MoveAnalysis } from '@chess-coach/shared';
 import { fromWhitePov } from '@chess-coach/shared';
-import { isCheckmate } from './chess';
+import { parseSquare } from 'chessops/util';
+import { isCheckmate, tryPosition } from './chess';
 import { formatScore } from './format';
 import { LABELS } from './labels';
 
@@ -62,6 +63,40 @@ function mateReason(a: MoveAnalysis, ctx: ReasonContext, best: string | null): s
   return null;
 }
 
+const points = (n: number) => `${n} ${n === 1 ? 'point' : 'points'}`;
+
+/**
+ * The material-rule sentence. A piece is named as "hanging" only when losing it is the whole story (its own
+ * exchange loss covers the line's loss); otherwise the loss is told as the line comparison, like the server's
+ * labelText ("h5 left a pawn hanging (−8)" would be wrong when the 8 points come from a later promotion).
+ */
+function materialSentence(a: MoveAnalysis, who: string, best: string | null): string {
+  const m = a.labelReason.material!;
+  const hung = m.hung && m.hung.color === a.color ? m.hung : null;
+  const hungLoss = m.hungLoss ?? m.loss;
+  if (hung && hungLoss >= m.loss) {
+    const to = a.uci.slice(2, 4);
+    const captured = a.san.includes('x') ? capturedRole(a.fenBefore, to, a.uci) : null;
+    if (captured && hung.square === to) {
+      return `${who} took a ${captured} with the ${hung.role}, but the ${hung.role} can be taken back (−${points(hungLoss)}).`;
+    }
+    return `${who} left the ${hung.role} on ${hung.square} hanging (−${points(hungLoss)}).`;
+  }
+  return `${who} lost material: the engine line ends ${points(m.loss)} worse than after ${best ?? 'the best move'}.`;
+}
+
+/** Role of the piece a capture takes (en passant: pawn). */
+function capturedRole(fenBefore: string, to: string, uci: string): string | null {
+  const pos = tryPosition(fenBefore);
+  if (!pos) return null;
+  const sq = parseSquare(to);
+  if (sq === undefined) return null;
+  const piece = pos.board.get(sq);
+  if (piece) return piece.role;
+  const from = parseSquare(uci.slice(0, 2));
+  return from !== undefined && pos.board.get(from)?.role === 'pawn' ? 'pawn' : null;
+}
+
 export function labelReasonText(a: MoveAnalysis, ctx: ReasonContext): string {
   const r = a.labelReason;
   const who = ctx.moverIsYou ? 'You' : sideName(a.color);
@@ -90,11 +125,7 @@ export function labelReasonText(a: MoveAnalysis, ctx: ReasonContext): string {
       break;
   }
   if (isMaterialLabel(a)) {
-    const m = r.material!;
-    const what = m.hung
-      ? `left the ${m.hung.role} on ${m.hung.square} hanging (−${m.loss})`
-      : `gave up ${m.loss} ${m.loss === 1 ? 'pawn' : 'pawns'} of material compared with the best line`;
-    const sentence = `${who} ${what}.`;
+    const sentence = materialSentence(a, who, best);
     if (a.winAfter >= 70) {
       const are = ctx.moverIsYou ? "You're" : `${sideName(a.color)} is`;
       return `${sentence} ${are} still winning (eval for ${sideName(a.color)}: ${moverEval(a, 'before')} → ${moverEval(a, 'after')}), but this is the habit to fix.`;

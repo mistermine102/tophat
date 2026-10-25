@@ -23,7 +23,7 @@ export default defineConfig({
   reporter: [['list']],
   use: { trace: 'retain-on-failure' },
   projects: [
-    { name: 'mock', testIgnore: /real[\\/]/, use: { baseURL: `http://localhost:${MOCK_PORT}` } },
+    { name: 'mock', testIgnore: /(real|acceptance)[\\/]/, use: { baseURL: `http://localhost:${MOCK_PORT}` } },
     ...(withReal
       ? [{ name: 'real', testDir: './e2e/real', timeout: 240_000, use: { baseURL: `http://localhost:${REAL_CLIENT_PORT}` } }]
       : []),
