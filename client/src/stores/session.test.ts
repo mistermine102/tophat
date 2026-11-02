@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { nextTick } from 'vue';
 import { MockApiClient } from '../api/mock';
 import { FIXTURE_ID } from '../fixtures/game';
-import { createSession } from './session';
+import { createSession, HEALTH_RETRY_MS } from './session';
 
 beforeEach(() => vi.useFakeTimers());
 afterEach(() => vi.useRealTimers());
@@ -86,15 +86,56 @@ describe('session store', () => {
     expect(session.state.tree!.inSideLine).toBe(true);
   });
 
-  it('settings change re-orients the open game', async () => {
-    const { session } = await setup();
-    const p = session.saveSettings({ username: 'BishopBlunder99' });
-    await vi.advanceTimersByTimeAsync(60);
+  it('flipping the board switches "You" and is remembered for the game', async () => {
+    const store = new Map<string, string>();
+    const storage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v) };
+    const api = new MockApiClient({ intervalMs: 150, createDelayMs: 0 });
+    const open = async (session: ReturnType<typeof createSession>) => {
+      const p = session.openGame(FIXTURE_ID);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(await p).toBe(true);
+    };
+    const first = createSession(api, { storage });
+    await open(first);
+    expect(first.state.you).toBe('black'); // the server's (mock's) guess
+    first.flip();
+    expect(first.state.orientation).toBe('white');
+    expect(first.state.you).toBe('white');
+    first.dispose();
+    // reopened later: still White
+    const again = createSession(api, { storage });
+    await open(again);
+    expect(again.state.you).toBe('white');
+    expect(again.state.orientation).toBe('white');
+    again.dispose();
+  });
+
+  it('a game opens on the side of the chess.com name looked up last', async () => {
+    const store = new Map<string, string>();
+    const storage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v) };
+    const api = new MockApiClient({ intervalMs: 150, createDelayMs: 0 });
+    const s1 = createSession(api, { storage });
+    s1.rememberChessComName('bishopblunder99'); // White in the fixture game
+    s1.dispose();
+    const s2 = createSession(api, { storage });
+    expect(s2.state.chessComName).toBe('bishopblunder99');
+    const p = s2.openGame(FIXTURE_ID);
+    await vi.advanceTimersByTimeAsync(1);
     await p;
-    expect(session.state.you).toBe('white');
-    expect(session.state.orientation).toBe('white');
-    session.flip();
-    expect(session.state.orientation).toBe('black');
+    expect(s2.state.you).toBe('white');
+    s2.dispose();
+  });
+
+  it('importPgn with a known side (a game from your chess.com list) opens on that side', async () => {
+    const api = new MockApiClient({ intervalMs: 150, createDelayMs: 0 });
+    const store = new Map<string, string>();
+    const s = createSession(api, { storage: { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => void store.set(k, v) } });
+    const { FIXTURE_PGN } = await import('../fixtures/game');
+    const p = s.importPgn(FIXTURE_PGN, 'white');
+    await vi.advanceTimersByTimeAsync(5);
+    await p;
+    expect(s.state.you).toBe('white');
+    s.dispose();
   });
 
   it('a failed ply is counted, not auto-focused, and retried on request; reconnect clears the error', async () => {
@@ -188,5 +229,22 @@ describe('session store', () => {
     await nextTick();
     session.backToGame();
     expect(session.current.value?.mainPly).toBe(20);
+  });
+
+  it('checks the engine again while it is offline, so "Engine offline" clears once it is back', async () => {
+    const api = new MockApiClient({ createDelayMs: 0 });
+    const down = { ok: false, engine: null, error: 'server restarting' };
+    const up = { ok: true, engine: 'Stockfish 19' };
+    const health = vi.spyOn(api, 'health').mockResolvedValueOnce(down).mockResolvedValueOnce(down).mockResolvedValue(up);
+    const session = createSession(api);
+    await session.checkHealth();
+    expect(session.state.health?.ok).toBe(false);
+    await vi.advanceTimersByTimeAsync(HEALTH_RETRY_MS);
+    expect(session.state.health?.ok).toBe(false);
+    await vi.advanceTimersByTimeAsync(HEALTH_RETRY_MS);
+    expect(session.state.health?.ok).toBe(true);
+    await vi.advanceTimersByTimeAsync(HEALTH_RETRY_MS * 3);
+    expect(health).toHaveBeenCalledTimes(3); // no more checks once it is up
+    session.dispose();
   });
 });

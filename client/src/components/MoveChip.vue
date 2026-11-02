@@ -23,10 +23,10 @@ const tint = computed(() => (props.badges && a.value && (severe.value || a.value
 
 <template>
   <button
-    class="group inline-flex items-center gap-1 rounded px-1.5 py-[3px] text-left text-[13px] leading-tight transition"
+    class="group inline-flex items-center gap-1 rounded-lg px-1.5 py-[3px] text-left text-[13px] leading-tight transition"
     :class="[
       block ? 'w-full' : '',
-      active ? 'bg-amber-500/25 text-white ring-1 ring-amber-400/60' : 'text-neutral-200 hover:bg-white/10',
+      active ? 'cc-chip-active' : 'text-neutral-200 hover:bg-white/10',
     ]"
     :data-node="node.id"
     :data-active="active || undefined"
@@ -35,7 +35,7 @@ const tint = computed(() => (props.badges && a.value && (severe.value || a.value
     @click="session.goTo(node)"
   >
     <span v-if="number" class="text-neutral-500">{{ number }}</span>
-    <span class="font-medium" :style="severe ? { color: LABELS[a!.label].color } : undefined">{{ node.san }}</span>
+    <span class="font-medium" :style="severe && !active ? { color: LABELS[a!.label].color } : undefined">{{ node.san }}</span>
     <LabelGlyph v-if="a" :label="a.label" :size="badges ? 'md' : 'xs'" class="ml-auto opacity-90 group-hover:opacity-100" />
     <span
       v-else-if="pending"
@@ -45,3 +45,14 @@ const tint = computed(() => (props.badges && a.value && (severe.value || a.value
     <span v-else-if="failed" class="ml-auto text-xs text-rose-400" title="Analysis failed">!</span>
   </button>
 </template>
+
+<style scoped>
+/* the move on the board: a solid chocolate tab with light text (the label glyph keeps its colour) */
+.cc-chip-active {
+  background: var(--th-ink);
+  color: var(--th-paper);
+}
+.cc-chip-active :deep([data-label]) {
+  box-shadow: 0 0 0 1.5px var(--th-paper);
+}
+</style>

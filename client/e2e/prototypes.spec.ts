@@ -57,7 +57,6 @@ for (const ui of ['a', 'b', 'c'] as const) {
     await page.setViewportSize({ width: 1366, height: 768 });
     await openSample(page, ui);
     await expect(page.locator(`[data-layout="${ui}"]`)).toBeVisible();
-    await expect(page.getByTestId(`ui-${ui}`)).toHaveAttribute('aria-pressed', 'true');
     await expect(page.getByTestId('progress')).toContainText('Analysis complete', { timeout: 30_000 });
 
     // 26... Re1 (ply 52): a material-rule Blunder by Black (the fixture user plays Black: the board starts flipped)
@@ -66,7 +65,8 @@ for (const ui of ['a', 'b', 'c'] as const) {
     await expectBadgeOn(page, 'e1', { 'data-label': 'blunder', 'data-kind': 'label' });
     // what hurts is marked ✗, and comes first
     const tones = page.getByTestId('explanation').getByTestId('tone-line');
-    await expect(tones.first()).toBeVisible();
+    // (layout A: the verdict carries the tone; its ✓ / ✗ lines are optional — no Better card)
+    if (ui !== 'a') await expect(tones.first()).toBeVisible();
     expect(await page.getByTestId('explanation').locator('[data-tone="bad"]').count()).toBeGreaterThan(0);
     await shot(page, `proto-${ui}-mock-1366x768-blunder`);
 
@@ -81,10 +81,29 @@ for (const ui of ['a', 'b', 'c'] as const) {
     await expect(page.getByTestId('explanation').locator('[data-tone="good"]').first()).toBeVisible();
 
     if (ui === 'a') {
+      // the move's consequences on the board (red = bad for the mover); no tint just for being attacked
       await page.locator('[data-node="m52"]').click();
-      await page.getByTestId('details-toggle').click();
-      await expect(page.getByTestId('details').getByTestId('level-immediate')).toBeVisible();
-      await shot(page, 'proto-a-mock-1366x768-details');
+      await expect(page.locator('[data-testid="board-tag"][data-tone="bad"]').first()).toBeVisible();
+      expect(await page.locator('cg-board square[class*=cc-hang-]').count()).toBe(0);
+      // no Better card and no colour legend: the better move is the arrow on the board
+      await expect(page.getByTestId('better')).toHaveCount(0);
+      await expect(page.getByTestId('board-legend')).toHaveCount(0);
+      // the players around the board: you (Black, at the bottom) below it, the opponent above; not in the header
+      await expect(page.getByTestId('players')).toHaveCount(0);
+      const boardBox = (await page.getByTestId('board').boundingBox())!;
+      const top = page.getByTestId('player-white');
+      const bottom = page.getByTestId('player-black');
+      await expect(top).toContainText('BishopBlunder99');
+      await expect(top.getByTestId('player-result')).toHaveText('Lost');
+      await expect(bottom).toContainText('coach_tester');
+      await expect(bottom.getByTestId('player-result')).toHaveText('Won');
+      expect((await top.boundingBox())!.y).toBeLessThan(boardBox.y);
+      expect((await bottom.boundingBox())!.y).toBeGreaterThan(boardBox.y + boardBox.height - 2);
+      await shot(page, 'proto-a-mock-1366x768-marks');
+      // flipped: the players swap places
+      await page.keyboard.press('f');
+      expect((await page.getByTestId('player-white').boundingBox())!.y).toBeGreaterThan(boardBox.y + boardBox.height - 2);
+      await page.keyboard.press('f');
     }
     if (ui === 'b') {
       // "Show me why" replays the line on the board: replay bar, toned marker on the step's square

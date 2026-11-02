@@ -1,5 +1,5 @@
-// Screen layout switch (UI prototypes): `?ui=classic|a|b|c`, default classic. Only presentation differs — every
-// layout uses the same session store.
+// Screen layout: A (board-first) is the app's screen. The older layouts stay reachable by URL only
+// (`?ui=classic|b|c`, no switch in the header). Only presentation differs — every layout uses the same session store.
 import { ref } from 'vue';
 
 export type UiMode = 'classic' | 'a' | 'b' | 'c';
@@ -13,16 +13,16 @@ export const UI_MODES: readonly { id: UiMode; short: string; name: string; hint:
 
 export function parseUiMode(search: string): UiMode {
   const v = new URLSearchParams(search).get('ui')?.toLowerCase();
-  return v === 'a' || v === 'b' || v === 'c' || v === 'classic' ? v : 'classic';
+  return v === 'a' || v === 'b' || v === 'c' || v === 'classic' ? v : 'a';
 }
 
-export const uiMode = ref<UiMode>(typeof location === 'undefined' ? 'classic' : parseUiMode(location.search));
+export const uiMode = ref<UiMode>(typeof location === 'undefined' ? 'a' : parseUiMode(location.search));
 
 export function setUiMode(mode: UiMode) {
   uiMode.value = mode;
   if (typeof location === 'undefined') return;
   const url = new URL(location.href);
-  if (mode === 'classic') url.searchParams.delete('ui');
+  if (mode === 'a') url.searchParams.delete('ui');
   else url.searchParams.set('ui', mode);
   history.replaceState(null, '', url);
 }

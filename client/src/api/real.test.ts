@@ -34,7 +34,7 @@ describe('RealApiClient', () => {
       if (u === '/api/games' && init?.method === 'POST') return jsonResponse(200, game);
       if (u.endsWith('/focus')) return new Response(null, { status: 204 });
       if (u === '/api/analyse') return jsonResponse(200, analyses[1]);
-      if (u === '/api/settings') return jsonResponse(200, { username: 'x' });
+      if (u.startsWith('/api/chesscom/')) return jsonResponse(200, { username: 'Me', games: [] });
       if (u.startsWith('/api/games/')) return jsonResponse(200, { game, analyses: { '1': analyses[1], '2': analyses[2] }, summary: null });
       return jsonResponse(404, { error: 'nope' });
     });
@@ -46,16 +46,16 @@ describe('RealApiClient', () => {
     expect(snap.analyses[2]!.san).toBe('e5');
     await api.focus('g1', 12);
     await api.analyse({ fenBefore: 'f', uci: 'e2e4', prev: { fenBefore: 'p', uci: 'd2d4' } });
-    await api.getSettings();
-    await api.putSettings({ username: 'me' });
+    expect(await api.chessComGames('Me')).toEqual({ username: 'Me', games: [] });
+    await api.chessComGames('Me', 100);
 
     expect(calls).toEqual([
       { url: '/api/games', method: 'POST', body: { pgn: '1. e4' } },
       { url: '/api/games/abc%2F1', method: 'GET', body: undefined },
       { url: '/api/games/g1/focus', method: 'POST', body: { ply: 12 } },
       { url: '/api/analyse', method: 'POST', body: { fenBefore: 'f', uci: 'e2e4', prev: { fenBefore: 'p', uci: 'd2d4' } } },
-      { url: '/api/settings', method: 'GET', body: undefined },
-      { url: '/api/settings', method: 'PUT', body: { username: 'me' } },
+      { url: '/api/chesscom/Me/games', method: 'GET', body: undefined },
+      { url: '/api/chesscom/Me/games?limit=100', method: 'GET', body: undefined },
     ]);
   });
 
@@ -68,7 +68,7 @@ describe('RealApiClient', () => {
     const api = new RealApiClient('/api', (async () => {
       throw new TypeError('Failed to fetch');
     }) as typeof fetch);
-    const err = await api.getSettings().catch((e: unknown) => e);
+    const err = await api.chessComGames('me').catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ApiError);
     expect((err as ApiError).message).toMatch(/Cannot reach/);
   });

@@ -38,7 +38,7 @@ async function drag(page: Page, from: string, to: string) {
 }
 
 async function openSample(page: Page) {
-  await page.goto('/?mock=1');
+  await page.goto('/?mock=1&ui=classic');
   await expect(page.getByTestId('pgn-input')).toBeVisible();
   await page.getByTestId('pgn-sample').click();
   await page.getByTestId('pgn-submit').click();
@@ -51,7 +51,7 @@ for (const size of SIZES) {
     await page.addInitScript(() => localStorage.clear());
 
     // Empty state: the PGN dialog opens on first load; bad PGN shows an error.
-    await page.goto('/?mock=1');
+    await page.goto('/?mock=1&ui=classic');
     await expect(page.getByTestId('pgn-input')).toBeVisible();
     await page.getByTestId('pgn-input').fill('1. e4 e5 2. Ke3');
     await page.getByTestId('pgn-submit').click();
@@ -132,15 +132,10 @@ for (const size of SIZES) {
     await expect(page.getByTestId('label-card')).toContainText('Rd3#');
     await shot(page, '09-final-position', size.name);
 
-    // Start position: game overview with key moments; settings dialog.
+    // Start position: game overview with key moments; the board was flipped above, so White (BishopBlunder99) is "You".
     await page.keyboard.press('Home');
     await expect(page.getByTestId('key-moments')).toContainText('Blunder');
     await shot(page, '10-overview', size.name);
-    await page.getByTestId('open-settings').click();
-    await expect(page.getByTestId('settings-username')).toHaveValue('coach_tester');
-    await shot(page, '11-settings', size.name, 150);
-    await page.getByTestId('settings-username').fill('BishopBlunder99');
-    await page.getByTestId('settings-save').click();
     await expect(page.getByTestId('board')).toHaveClass(/orientation-white/);
     await expect(page.getByTestId('summary')).toContainText('BishopBlunder99');
   });

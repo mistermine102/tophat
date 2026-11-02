@@ -202,9 +202,9 @@ describe('positional / quiet mistakes', () => {
   });
 
   it('no reason found: honest fallback; a long-term drawback is pointed to', () => {
-    expect(render([{ type: 'misses', san: 'g3', uci: 'g2g3', facts: [] }])).toEqual(['No tactical problem right away — the engine prefers g3 for long-term reasons that are hard to put into words.']);
+    expect(render([{ type: 'misses', san: 'g3', uci: 'g2g3', facts: [] }])).toEqual(['No tactical problem right away — g3 was better, for long-term reasons that are hard to put into words.']);
     const exposed: Fact = { type: 'positional', feature: 'king-safety', delta: -1, side: 'own', detail: 'shield 3->2', squares: ['g1'] };
-    expect(render([{ type: 'misses', san: 'g3', uci: 'g2g3', facts: [] }], [exposed])[0]).toMatch(/drawback is long-term/);
+    expect(render([{ type: 'misses', san: 'g3', uci: 'g2g3', facts: [] }], [exposed])[0]).toMatch(/a long-term drawback/);
   });
 
   it('the misses sentence leads a bad move that only does good things; not when a negative fact explains it', () => {
@@ -212,7 +212,7 @@ describe('positional / quiet mistakes', () => {
     const hang: Fact = { type: 'hangs', piece: { role: 'knight', square: 'c3', color: 'white' }, loss: 3 };
     expect(render([hang, { type: 'misses', san: 'Rfe1', uci: 'f1e1', facts: [threat] }])).toEqual(['Leaves the knight on c3 hanging: Black can win it (−3 points).']);
     // (M5c) without a verified reason the honest fallback still leads (a Mistake is not a list of merits)
-    expect(render([{ type: 'check' }, { type: 'misses', san: 'g3', uci: 'g2g3', facts: [] }])).toEqual(['No tactical problem right away — the engine prefers g3 for long-term reasons that are hard to put into words.', 'Gives check.']);
+    expect(render([{ type: 'check' }, { type: 'misses', san: 'g3', uci: 'g2g3', facts: [] }])).toEqual(['No tactical problem right away — g3 was better, for long-term reasons that are hard to put into words.', 'Gives check.']);
     const good = renderExplanation({ immediate: [{ type: 'misses', san: 'g3', uci: 'g2g3', facts: [] }], short: [], long: [] }, { mover: 'white', label: 'good' }).immediate.text;
     expect(good).toEqual(['Nothing special happens right away.']);
   });
@@ -233,7 +233,7 @@ describe('positional / quiet mistakes', () => {
     const line: Extract<Fact, { type: 'line' }> = { type: 'line', steps: [], materialDelta: -3, result: 'loses-material' };
     const allows = refutationFact({ fenBefore: fen, uci: 'e1f1', pv: pv('e1f1 a7a6'), line, bestLineDelta: 0 });
     expect(allows).toMatchObject({ type: 'allows', reply: { san: 'a6' }, gain: 3 });
-    expect(renderExplanation({ immediate: [allows!], short: [], long: [] }, { mover: 'white', label: 'mistake' }).immediate.text).toEqual(['After a6, the engine line costs White 3 points of material (see the short term).']);
+    expect(renderExplanation({ immediate: [allows!], short: [], long: [] }, { mover: 'white', label: 'mistake' }).immediate.text).toEqual(['After a6, White loses 3 points of material with best play.']);
     // the best line loses as much: not this move's fault
     expect(refutationFact({ fenBefore: fen, uci: 'e1f1', pv: pv('e1f1 a7a6'), line, bestLineDelta: -2 })).toBeNull();
   });
@@ -334,7 +334,7 @@ describe('round 6 regressions', () => {
     expect(betterReasons([cap], [cap], 'black')).toEqual([]);
     const lost: Extract<Fact, { type: 'line' }> = { type: 'line', steps: [], materialDelta: -2, result: 'loses-material' };
     const t = renderExplanation({ immediate: [{ type: 'misses', san: 'Rae8', uci: 'a8e8', facts: [] }], short: [lost], long: [] }, { mover: 'black', label: 'mistake' }).immediate.text;
-    expect(t).toEqual(['Nothing is lost right away, but the engine line costs Black 2 points (see the short term); the engine prefers Rae8.']);
+    expect(t).toEqual(['Nothing is lost right away, but Black loses 2 points with best play; Rae8 was better.']);
   });
 });
 
@@ -381,7 +381,7 @@ describe('no false "No forcing follow-up."', () => {
   it('a story without facts says the engine line goes on with a check', () => {
     const step = (ply: number, san: string) => ({ ply, san, uci: 'a1a2', color: (ply % 2 ? 'black' : 'white') as 'white' | 'black', facts: [] as Fact[] });
     const line: Extract<Fact, { type: 'line' }> = { type: 'line', steps: [step(1, 'Re3'), step(2, 'Rgh2'), step(3, 'Kf7')], materialDelta: 0, result: 'quiet', nextForcing: 'Rh7+' };
-    expect(lineText(line, B)).toBe('Re3 → Rgh2 → Kf7; the engine line then goes on with Rh7+.');
+    expect(lineText(line, B)).toBe('Re3 → Rgh2 → Kf7; best play then goes on with Rh7+.');
     expect(lineText({ ...line, nextForcing: undefined } as never, B)).toBe('No forcing follow-up.');
   });
 });
@@ -394,7 +394,7 @@ describe('sacrifices in the Immediate level', () => {
     const imm = immediateFacts(fen, 'd1d4');
     const best = renderExplanation({ immediate: imm, short: [line], long: [] }, { mover: 'white', label: 'best', uci: 'd1d4' }).immediate.text;
     expect(line.result).toBe('trade');
-    expect(best[0]).toBe("Takes Black's pawn on d4 and leaves the rook where it can be taken, but in the engine line Black doesn't take it.");
+    expect(best[0]).toBe("Takes Black's pawn on d4 and leaves the rook where it can be taken, but Black's best reply doesn't take it.");
     // when the line takes it and comes out level, it is a sacrifice won back
     const taken = narrateLine(fen, pv('d1d4 c5d4 e1e7 a7b6'), { settings: S, plies: 2 }).line;
     void taken;

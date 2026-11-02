@@ -29,7 +29,7 @@ onBeforeUnmount(() => (open.value = false));
 <template>
   <div ref="root" class="relative">
     <button
-      class="flex h-5 items-center gap-1 rounded-full bg-neutral-700 pl-1.5 pr-2 text-[11px] font-semibold text-neutral-200 hover:bg-neutral-600"
+      class="flex h-5 items-center gap-1 rounded-full border-[1.5px] border-[var(--th-ink)] bg-neutral-800 pl-1.5 pr-2 text-[11px] font-semibold text-neutral-200 hover:bg-neutral-700"
       title="What do the symbols mean?"
       aria-label="Label legend"
       data-testid="legend-button"
@@ -39,7 +39,7 @@ onBeforeUnmount(() => (open.value = false));
     </button>
     <div
       v-if="open"
-      class="absolute left-0 top-7 z-30 w-[340px] rounded-lg bg-neutral-900 p-3 text-left shadow-xl ring-1 ring-white/10"
+      class="th-panel absolute left-0 top-7 z-30 w-[340px] p-3 text-left"
       data-testid="legend"
     >
       <div class="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-400">Move labels</div>
@@ -52,7 +52,7 @@ onBeforeUnmount(() => (open.value = false));
           </span>
         </li>
       </ul>
-      <p class="mt-2.5 border-t border-white/5 pt-2 text-[11px] leading-snug text-neutral-400">
+      <p class="mt-2.5 border-t border-white/10 pt-2 text-[11px] leading-snug text-neutral-400">
         Win chance is from the point of view of the side that moved. {{ EVAL_POV_HINT }}
       </p>
     </div>

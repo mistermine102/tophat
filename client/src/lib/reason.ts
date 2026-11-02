@@ -82,7 +82,7 @@ function materialSentence(a: MoveAnalysis, who: string, best: string | null): st
     }
     return `${who} left the ${hung.role} on ${hung.square} hanging (−${points(hungLoss)}).`;
   }
-  return `${who} lost material: the engine line ends ${points(m.loss)} worse than after ${best ?? 'the best move'}.`;
+  return `${who} lost material: with best play it ends ${points(m.loss)} worse than after ${best ?? 'the best move'}.`;
 }
 
 /** Role of the piece a capture takes (en passant: pawn). */
@@ -136,7 +136,7 @@ export function labelReasonText(a: MoveAnalysis, ctx: ReasonContext): string {
   if (loss < 0.05 && a.label !== 'best') return LABELS[a.label].blurb;
   switch (a.label) {
     case 'best':
-      return a.played.rank === 1 || !best ? 'The engine’s top choice.' : `As good as the engine’s top move (${best}).`;
+      return a.played.rank === 1 || !best ? 'The best move.' : `As good as the best move (${best}).`;
     case 'excellent':
       return `Almost as good as the best move${best ? `, ${best}` : ''} (${pct(loss)} win chance lost).`;
     case 'good':

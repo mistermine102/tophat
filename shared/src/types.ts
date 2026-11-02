@@ -130,3 +130,18 @@ export interface SideSummary { accuracy: number | null; counts: Partial<Record<L
 export interface GameSummary { white: SideSummary; black: SideSummary; done: number; total: number }
 
 export interface Settings { username: string | null }
+
+/** A finished game from chess.com's public archives (GET /api/chesscom/:username/games). */
+export interface ChessComPlayer { username: string; rating: number | null; result: string }
+export interface ChessComGame {
+  url: string;
+  pgn: string;
+  /** Unix seconds. */
+  endTime: number;
+  timeClass: string;   // bullet | blitz | rapid | daily
+  timeControl: string; // "600", "180+2", "1/86400"
+  rated: boolean;
+  white: ChessComPlayer;
+  black: ChessComPlayer;
+}
+export interface ChessComGames { username: string; games: ChessComGame[] }

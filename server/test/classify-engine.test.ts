@@ -70,7 +70,7 @@ describe.skipIf(!engineAvailable())('classification on real positions (Stockfish
       expect(a.input.played.score.mate, msg).toBeGreaterThan(0);
       expect(a.result.labelReason.material, msg).toMatchObject({ loss: 0 });
       expect(a.result.labelReason.material?.label, msg).toBeUndefined();
-      expect(a.result.label, msg).toBe('best'); // a slower mate keeps win%
+      expect(a.result.label, msg).toBe('excellent'); // a slower mate keeps win% (Excellent: only the #1 is Best)
       // and the mating queen sacrifice itself
       const q = await analyseMove(engine, fen, 'c4g8');
       expect(q.result.label, dump(q)).toBe('best');

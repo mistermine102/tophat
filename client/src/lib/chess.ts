@@ -157,3 +157,26 @@ export function materialBalance(fen: string): number {
   }
   return sum;
 }
+
+const START_COUNT: Record<Exclude<PieceRole, 'king'>, number> = { pawn: 8, knight: 2, bishop: 2, rook: 2, queen: 1 };
+
+/** The opponent's pieces `by` has taken in `fen` (missing from a full set; promotions can hide some), cheapest first. */
+export function capturedBy(fen: string, by: 'white' | 'black'): PieceRole[] {
+  const pos = tryPosition(fen);
+  if (!pos) return [];
+  const victim = by === 'white' ? 'black' : 'white';
+  const count: Record<string, number> = { pawn: 0, knight: 0, bishop: 0, rook: 0, queen: 0 };
+  for (const sq of pos.board[victim]) {
+    const role = pos.board.getRole(sq)!;
+    if (role !== 'king') count[role]!++;
+  }
+  // a promoted piece stands in for a missing pawn
+  let extra = 0;
+  for (const role of ['knight', 'bishop', 'rook', 'queen'] as const) extra += Math.max(0, count[role]! - START_COUNT[role]);
+  const out: PieceRole[] = [];
+  for (const role of ['pawn', 'knight', 'bishop', 'rook', 'queen'] as const) {
+    const missing = START_COUNT[role] - count[role]! - (role === 'pawn' ? extra : 0);
+    for (let i = 0; i < missing; i++) out.push(role);
+  }
+  return out;
+}

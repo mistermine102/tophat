@@ -4,9 +4,9 @@
 //  - analyse() answers side-line moves after `analyseDelayMs` (fixture analysis if it is a known game move,
 //    otherwise a generic analysis built with chessops).
 //  - Any other pasted PGN works too: its plies get generic analyses.
-import type { GameInfo, MoveAnalysis, Settings } from '@chess-coach/shared';
+import type { ChessComGames, GameInfo, MoveAnalysis } from '@chess-coach/shared';
 import { genericAnalysis } from '../fixtures/generic';
-import { FIXTURE_USERNAME, fixtureGame } from '../fixtures/game';
+import { FIXTURE_PGN, FIXTURE_USERNAME, fixtureGame } from '../fixtures/game';
 import { PgnImportError, pgnToGame, sideOf } from '../fixtures/pgnGame';
 import { computeSummary } from '../lib/summary';
 import { ApiError, type AnalyseRequest, type ApiClient, type GameSnapshot, type Health, type StreamHandlers, type Unsubscribe } from './types';
@@ -15,8 +15,6 @@ export interface MockOptions {
   intervalMs?: number;
   analyseDelayMs?: number;
   createDelayMs?: number;
-  /** Persist settings (browser: localStorage). */
-  storage?: Pick<Storage, 'getItem' | 'setItem'> | null;
 }
 
 interface MockGame {
@@ -28,31 +26,19 @@ interface MockGame {
   listeners: Set<StreamHandlers>;
 }
 
-const SETTINGS_KEY = 'chess-coach:mock-settings';
 const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 export class MockApiClient implements ApiClient {
   readonly mode = 'mock' as const;
   private readonly games = new Map<string, MockGame>();
-  private settings: Settings = { username: FIXTURE_USERNAME };
   private readonly intervalMs: number;
   private readonly analyseDelayMs: number;
   private readonly createDelayMs: number;
-  private readonly storage: Pick<Storage, 'getItem' | 'setItem'> | null;
 
   constructor(opts: MockOptions = {}) {
     this.intervalMs = opts.intervalMs ?? 150;
     this.analyseDelayMs = opts.analyseDelayMs ?? 300;
     this.createDelayMs = opts.createDelayMs ?? 150;
-    this.storage = opts.storage ?? null;
-    const saved = this.storage?.getItem(SETTINGS_KEY);
-    if (saved) {
-      try {
-        this.settings = JSON.parse(saved) as Settings;
-      } catch {
-        /* ignore */
-      }
-    }
   }
 
   private register(game: GameInfo, all: Record<number, MoveAnalysis>): MockGame {
@@ -76,14 +62,15 @@ export class MockApiClient implements ApiClient {
   }
 
   private orient(game: GameInfo): GameInfo {
-    return { ...game, ...sideOf(game.headers, this.settings.username) };
+    // like the server: a first guess at your side (the fixture player); the client may flip it
+    return { ...game, ...sideOf(game.headers, FIXTURE_USERNAME) };
   }
 
   async createGame(pgn: string): Promise<GameInfo> {
     await delay(this.createDelayMs);
     let parsed: GameInfo;
     try {
-      parsed = pgnToGame(pgn, this.settings.username);
+      parsed = pgnToGame(pgn, FIXTURE_USERNAME);
     } catch (e) {
       if (e instanceof PgnImportError) throw new ApiError(e.message, 400);
       throw new ApiError(`Could not read the PGN: ${(e as Error).message}`, 400);
@@ -181,19 +168,29 @@ export class MockApiClient implements ApiClient {
     }
   }
 
+  /** One game: the fixture (any username; "nobody" is an unknown player). */
+  async chessComGames(username: string): Promise<ChessComGames> {
+    await delay(this.createDelayMs);
+    if (username.toLowerCase() === 'nobody') throw new ApiError(`chess.com has no player called "${username}".`, 404);
+    return {
+      username,
+      games: [
+        {
+          url: 'https://www.chess.com/game/live/1',
+          pgn: FIXTURE_PGN,
+          endTime: Date.UTC(2026, 9, 18) / 1000,
+          timeClass: 'rapid',
+          timeControl: '600',
+          rated: true,
+          white: { username: 'BishopBlunder99', rating: 812, result: 'checkmated' },
+          black: { username: FIXTURE_USERNAME, rating: 835, result: 'win' },
+        },
+      ],
+    };
+  }
+
   async health(): Promise<Health> {
     return { ok: true, engine: 'Mock engine' };
   }
 
-  async getSettings(): Promise<Settings> {
-    await delay(0);
-    return { ...this.settings };
-  }
-
-  async putSettings(settings: Settings): Promise<Settings> {
-    await delay(50);
-    this.settings = { username: settings.username?.trim() || null };
-    this.storage?.setItem(SETTINGS_KEY, JSON.stringify(this.settings));
-    return { ...this.settings };
-  }
 }

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 // Compact game summary for the prototype layouts: per side accuracy and the error counts (?! ? ✕ ??) plus great
-// moves, one row each ("You" first).
+// moves, one row per player (name + colour dot; the side at the bottom of the board first).
 import type { Color, Label } from '@chess-coach/shared';
 import { computed } from 'vue';
 import { LABELS } from '../lib/labels';
@@ -32,17 +32,20 @@ const complete = computed(() => progress.value.total > 0 && progress.value.done 
 </script>
 
 <template>
-  <section class="rounded-lg bg-neutral-800/70 px-3 py-2 ring-1 ring-white/5" data-testid="summary">
+  <section class="th-panel px-3.5 py-2.5" data-testid="summary">
     <div class="mb-1 flex items-center justify-between">
       <span class="flex items-center gap-2">
-        <span class="text-[11px] font-semibold uppercase tracking-wide text-neutral-400">Accuracy</span>
+        <span class="th-display text-[15px] font-semibold italic text-neutral-400">Accuracy</span>
         <LabelLegend />
       </span>
       <span v-if="!complete && progress.total" class="text-[11px] text-neutral-500" data-testid="summary-progress">partial · {{ progress.done }}/{{ progress.total }}</span>
     </div>
     <div v-for="r in rows" :key="r.who" class="flex items-center gap-2 py-0.5">
-      <span class="w-8 text-[10px] font-semibold uppercase tracking-wide" :class="r.who === 'You' ? 'text-amber-300' : 'text-neutral-400'">{{ r.who }}</span>
-      <span class="w-11 text-right text-base font-bold tabular-nums text-neutral-50" :data-testid="r.who === 'You' ? 'acc-you' : 'acc-opp'">{{ r.acc }}</span>
+      <span class="flex w-[7.5rem] min-w-0 items-center gap-1.5 text-[13px] font-semibold text-neutral-300" :title="r.name">
+        <span class="h-2.5 w-2.5 shrink-0 rounded-full" :class="r.color === 'white' ? 'th-side-white' : 'th-side-black'"></span>
+        <span class="truncate">{{ r.name }}</span>
+      </span>
+      <span class="th-display w-14 text-right text-[22px] font-bold leading-tight tabular-nums text-neutral-50" :data-testid="r.who === 'You' ? 'acc-you' : 'acc-opp'">{{ r.acc }}</span>
       <span class="ml-auto flex items-center gap-1.5">
         <span
           v-for="c in r.counts"

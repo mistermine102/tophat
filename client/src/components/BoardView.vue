@@ -7,12 +7,15 @@ import type { DrawShape } from 'chessground/draw';
 import type { Key } from 'chessground/types';
 import { computed, ref } from 'vue';
 import { isCheck, legalDests, needsPromotion, sideToMove, uciSquares } from '../lib/chess';
+import { type Consequences, moveConsequences } from '../lib/consequences';
 import { useSession } from '../stores/session';
 import BoardBadge from './BoardBadge.vue';
+import BoardTags from './BoardTags.vue';
 import ChessBoard from './ChessBoard.vue';
 import PromotionPicker from './PromotionPicker.vue';
 
-const props = withDefaults(defineProps<{ arrows?: boolean }>(), { arrows: true });
+// consequences (layout A): what the move does as tinted, tagged squares and thin arrows (lib/consequences.ts)
+const props = withDefaults(defineProps<{ arrows?: boolean; consequences?: boolean }>(), { arrows: true, consequences: false });
 const session = useSession();
 const board = ref<InstanceType<typeof ChessBoard> | null>(null);
 const node = computed(() => session.current.value);
@@ -29,6 +32,10 @@ const lastMove = computed(() => {
 });
 const check = computed(() => isCheck(fen.value));
 
+const cons = computed<Consequences | null>(() =>
+  props.consequences && !preview.value && analysis.value ? moveConsequences(analysis.value) : null,
+);
+
 const ORDER: Record<Arrow['kind'], number> = { played: 0, threat: 1, best: 2, pick: 3 };
 const shapes = computed<DrawShape[]>(() => {
   if (preview.value) return (preview.value.arrows ?? []).map((a) => ({ orig: a.from as Key, dest: a.to as Key, brush: a.brush }));
@@ -39,10 +46,14 @@ const shapes = computed<DrawShape[]>(() => {
     (a) => !((a.kind === 'pick' || a.kind === 'best') && (noSuggestion || played.startsWith(a.from + a.to))),
   );
   const contrast = arrows.some((a) => a.kind === 'pick' || a.kind === 'best');
-  return arrows
+  const suggestions: DrawShape[] = arrows
     .filter((a) => a.kind !== 'played' || contrast)
     .sort((a, b) => ORDER[a.kind] - ORDER[b.kind])
-    .map((a) => ({ orig: a.from as Key, dest: a.to as Key, brush: a.kind }));
+    // with consequence marks red means "bad for the mover": the mover's own threat is drawn as a good (thin) arrow
+    .map((a) => ({ orig: a.from as Key, dest: a.to as Key, brush: cons.value && a.kind === 'threat' ? 'goodThin' : a.kind }));
+  if (!cons.value) return suggestions;
+  const thin: DrawShape[] = cons.value.arrows.map((x) => ({ orig: x.from as Key, dest: x.to as Key, brush: x.tone === 'good' ? 'goodThin' : 'badThin' }));
+  return [...thin, ...suggestions];
 });
 
 /** The badge: the current move's label on its destination square (or the preview's marker). */
@@ -90,6 +101,7 @@ function cancelPromotion() {
       :shapes="shapes"
       :movable="!preview && !promotion"
       :highlight="session.state.highlight"
+      :marks="cons?.marks ?? []"
       @move="onMove"
     />
     <BoardBadge
@@ -100,6 +112,7 @@ function cancelPromotion() {
       :error="!!badge && 'error' in badge"
       :tone="badge && 'tone' in badge ? badge.tone : null"
     />
+    <BoardTags v-if="cons" :marks="cons.marks" :orientation="session.state.orientation" />
     <PromotionPicker v-if="promotion" :color="turn" @pick="onPromote" @cancel="cancelPromotion" />
     <div v-if="preview" class="pointer-events-none absolute -inset-[3px] z-10 rounded-[3px] ring-[3px] ring-sky-400/80"></div>
   </div>

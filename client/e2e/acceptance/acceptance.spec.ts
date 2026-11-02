@@ -1,5 +1,5 @@
 // M6 acceptance walk-through as a beginner, against a running `npm start` (real engine, default profile).
-// See playwright.acceptance.config.ts. For each game: paste, watch the streaming, set the username, step through
+// See playwright.acceptance.config.ts. For each game: paste, watch the streaming, flip to your side, step through
 // every mistake / blunder / miss and read the panel, "Play it", drag pieces, back to game, flip, reload.
 // Everything the panel said is written to ACCEPT_OUT/log-<game>.md (with layout checks) for a human to read;
 // screenshots go to ACCEPT_OUT/<size>-<game>-<step>.png.
@@ -22,7 +22,7 @@ const read = (rel: string) => readFileSync(new URL(rel, import.meta.url), 'utf8'
 interface GameCase {
   key: string;
   pgn: string;
-  /** chess.com username to set (which side is "You"). */
+  /** Your player name in the PGN (decides which side is "You"; empty: Black). */
   username: string;
   /** Main-line plies (position after it) to drag a piece in. */
   dragPlies: number[];
@@ -129,11 +129,11 @@ async function waitLabel(page: Page, timeout = 60_000): Promise<number> {
   return Date.now() - t0;
 }
 
-async function setUsernameViaUi(page: Page, name: string) {
-  await page.getByTestId('open-settings').click();
-  await page.getByTestId('settings-username').fill(name);
-  await page.getByTestId('settings-save').click();
-  await expect(page.getByTestId('settings-username')).toHaveCount(0);
+/** "You" = the side at the bottom: flip the board when it shows the other side. */
+async function playAs(page: Page, color: 'white' | 'black') {
+  const cls = (await page.getByTestId('board').getAttribute('class')) ?? '';
+  if (!cls.includes(`orientation-${color}`)) await page.getByTestId('flip').click();
+  await expect(page.getByTestId('board')).toHaveClass(new RegExp(`orientation-${color}`));
 }
 
 test.describe.configure({ mode: 'serial' });
@@ -156,19 +156,15 @@ for (const g of GAMES) {
         sessionStorage.setItem('accept-init', '1');
       }
     });
-    await page.request.put('/api/settings', { data: { username: null } });
 
     // 1. first launch
-    await page.goto('/');
+    await page.goto('/?ui=classic');
     await expect(page.getByTestId('pgn-input')).toBeVisible();
     if (g.full) await shot(page, `${g.key}-01-first-launch`);
     log.add(`- first launch layout: ${await layout(page)}`);
 
     // 2. paste + analyse
     await page.getByTestId('pgn-input').fill(g.pgn);
-    // first run: the dialog asks for the username itself (M6); the other games set it in Settings afterwards
-    const askField = page.getByTestId('pgn-username');
-    if (g.full && (await askField.count())) await askField.fill(username);
     if (g.full) await shot(page, `${g.key}-02-pasted`, 100);
     const t0 = Date.now();
     await page.getByTestId('pgn-submit').click();
@@ -180,10 +176,10 @@ for (const g of GAMES) {
     await page.waitForTimeout(3000);
     log.add(`- progress after 4.5 s: "${(await page.getByTestId('progress').innerText()).trim()}"`);
 
-    // 3. username -> board side, "You"
-    if (!g.full) await setUsernameViaUi(page, username);
+    // 3. your side: flip the board if needed ("You" = the side at the bottom)
+    await playAs(page, youColor);
     const orient = (await page.getByTestId('board').getAttribute('class')) ?? '';
-    log.add(`- after username: board ${orient.includes('orientation-black') ? 'black' : 'white'} at bottom (expected ${youColor}); summary You = "${(await page.getByTestId('summary').innerText()).split('\n').slice(0, 6).join(' / ')}"`);
+    log.add(`- after flip: board ${orient.includes('orientation-black') ? 'black' : 'white'} at bottom (expected ${youColor}); summary You = "${(await page.getByTestId('summary').innerText()).split('\n').slice(0, 6).join(' / ')}"`);
     expect(orient.includes(`orientation-${youColor}`)).toBe(true);
 
     // 4. step into the game while it streams (pending moves)

@@ -41,10 +41,10 @@ const items = computed(() => props.lines.map((l) => ({ ...l, segs: squareSegment
 <style scoped>
 .sq-ref {
   cursor: default;
-  border-bottom: 1px dotted rgb(163 163 163 / 0.5);
+  border-bottom: 1px dotted rgb(74 46 31 / 0.45);
 }
 .sq-ref:hover {
-  color: #fcd34d;
-  border-bottom-color: #fcd34d;
+  color: #a34a28;
+  border-bottom-color: #a34a28;
 }
 </style>

@@ -1,10 +1,14 @@
-// Session store: the loaded game, streamed analyses, the move tree/cursor, side-line analyses, settings.
+// Session store: the loaded game, streamed analyses, the move tree/cursor, side-line analyses, your side.
+// "You" = the side at the bottom of the board: flipping the board switches it, and the choice is remembered per game
+// (lib/sides.ts). A game opens with the remembered side, else the side whose player name matches the chess.com name
+// last looked up in the Open dialog, else the server's guess (GameInfo.you).
 // Plain Vue reactivity; one instance per app (provided via `provide`/`inject`, see useSession()).
-import type { Color, GameInfo, GameSummary, MoveAnalysis, Settings, Tone } from '@chess-coach/shared';
+import type { Color, GameInfo, GameSummary, MoveAnalysis, Tone } from '@chess-coach/shared';
 import { computed, inject, reactive, watch, type InjectionKey } from 'vue';
 import { ApiError, type ApiClient, type Health, type Unsubscribe } from '../api/types';
 import { MoveTree, type TreeNode } from '../lib/moveTree';
 import { loadRecent, recentKey, rememberGame, type RecentGame } from '../lib/recent';
+import { loadChessComName, loadSide, saveChessComName, saveSide, sideOfName } from '../lib/sides';
 import { LABELS } from '../lib/labels';
 import { computeSummary } from '../lib/summary';
 
@@ -41,13 +45,8 @@ export interface SessionOptions {
   onGameChange?: (id: string | null) => void;
 }
 
-export function sideFromSettings(game: GameInfo, username: string | null): { you: Color; orientation: Color } | null {
-  const u = username?.trim().toLowerCase();
-  if (!u) return null;
-  if (game.headers.White?.toLowerCase() === u) return { you: 'white', orientation: 'white' };
-  if (game.headers.Black?.toLowerCase() === u) return { you: 'black', orientation: 'black' };
-  return { you: 'white', orientation: 'white' };
-}
+/** How often the engine's health is checked again while it is offline. */
+export const HEALTH_RETRY_MS = 5000;
 
 export function createSession(api: ApiClient, opts: SessionOptions = {}) {
   const focusDebounceMs = opts.focusDebounceMs ?? 250;
@@ -67,7 +66,8 @@ export function createSession(api: ApiClient, opts: SessionOptions = {}) {
     loadError: null as string | null,
     connectionError: null as string | null,
     preview: null as Preview | null,
-    settings: { username: null } as Settings,
+    /** The chess.com username last looked up in the Open dialog (remembered in the browser). */
+    chessComName: loadChessComName(storage, api.mode),
     recent: loadRecent(storage, recentKey(api.mode)) as RecentGame[],
     /** Last /api/health answer (null = not checked yet). */
     health: null as Health | null,
@@ -158,9 +158,9 @@ export function createSession(api: ApiClient, opts: SessionOptions = {}) {
   function applyGame(game: GameInfo) {
     state.game = game;
     state.tree = new MoveTree(game);
-    const fromSettings = sideFromSettings(game, state.settings.username);
-    state.you = fromSettings?.you ?? game.you;
-    state.orientation = fromSettings?.orientation ?? game.orientation;
+    const side = loadSide(storage, api.mode, game.id) ?? sideOfName(game.headers, state.chessComName) ?? game.you;
+    state.you = side;
+    state.orientation = side;
     state.progress = { done: 0, total: game.moves.length };
     state.recent = rememberGame(storage, recentKey(api.mode), game);
   }
@@ -200,13 +200,21 @@ export function createSession(api: ApiClient, opts: SessionOptions = {}) {
       onOpen() {
         if (state.game?.id !== id) return;
         state.connectionError = null;
+        // the stream is back, so the server is: refresh a stale "Engine offline"
+        if (state.health && !state.health.ok) void checkHealth();
       },
     });
   }
 
+  // While the engine (or the server) is down, look again every few seconds: "Engine offline" clears by itself once
+  // it is back (e.g. after the dev server restarts), instead of staying until the page is reloaded.
+  let healthTimer: ReturnType<typeof setTimeout> | null = null;
   async function checkHealth(): Promise<Health> {
+    if (healthTimer) clearTimeout(healthTimer);
+    healthTimer = null;
     const h = await api.health();
     state.health = h;
+    if (!h.ok) healthTimer = setTimeout(() => void checkHealth(), HEALTH_RETRY_MS);
     return h;
   }
 
@@ -256,11 +264,12 @@ export function createSession(api: ApiClient, opts: SessionOptions = {}) {
     }
   }
 
-  /** Import a PGN. Throws ApiError (e.g. 400 bad PGN) for the dialog to show. */
-  async function importPgn(pgn: string): Promise<void> {
+  /** Import a PGN (`side`: your side, when known — e.g. a game from your chess.com list). Throws ApiError (e.g. 400 bad PGN) for the dialog to show. */
+  async function importPgn(pgn: string, side?: Color): Promise<void> {
     state.loading = true;
     try {
       const game = await api.createGame(pgn);
+      if (side) saveSide(storage, api.mode, game.id, side);
       const ok = await openGame(game.id);
       if (!ok) throw new ApiError(state.loadError ?? 'Could not open the game.');
     } finally {
@@ -358,36 +367,30 @@ export function createSession(api: ApiClient, opts: SessionOptions = {}) {
     if (p !== null) state.tree?.goToMainPly(p);
   }
 
+  /** Turn the board around; the side at the bottom is "You" (remembered for this game). */
   function flip() {
-    state.orientation = state.orientation === 'white' ? 'black' : 'white';
+    setSide(state.orientation === 'white' ? 'black' : 'white');
+  }
+
+  function setSide(side: Color) {
+    state.orientation = side;
+    state.you = side;
+    if (state.game) saveSide(storage, api.mode, state.game.id, side);
+  }
+
+  function rememberChessComName(name: string) {
+    state.chessComName = name;
+    saveChessComName(storage, api.mode, name);
   }
 
   function setPreview(p: Preview | null) {
     state.preview = p;
   }
 
-  async function loadSettings() {
-    try {
-      state.settings = await api.getSettings();
-    } catch {
-      /* server down: keep defaults */
-    }
-  }
-
-  async function saveSettings(s: Settings): Promise<void> {
-    state.settings = await api.putSettings(s);
-    if (state.game) {
-      const side = sideFromSettings(state.game, state.settings.username);
-      if (side) {
-        state.you = side.you;
-        state.orientation = side.orientation;
-      }
-    }
-  }
-
   function dispose() {
     stopStream();
     if (focusTimer) clearTimeout(focusTimer);
+    if (healthTimer) clearTimeout(healthTimer);
   }
 
   return {
@@ -408,13 +411,12 @@ export function createSession(api: ApiClient, opts: SessionOptions = {}) {
     playMove,
     playLine,
     flip,
+    rememberChessComName,
     setPreview,
-    loadSettings,
     checkHealth,
     retryPly,
     retrySide,
     setHighlight,
-    saveSettings,
     dispose,
     ...nav,
   };

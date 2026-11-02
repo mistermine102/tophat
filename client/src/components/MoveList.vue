@@ -6,9 +6,9 @@ import { useSession } from '../stores/session';
 import MoveChip from './MoveChip.vue';
 import VariationLine from './VariationLine.vue';
 
-const props = withDefaults(defineProps<{ badges?: boolean }>(), { badges: false });
+const props = withDefaults(defineProps<{ badges?: boolean; sideLines?: boolean }>(), { badges: false, sideLines: true });
 const session = useSession();
-const items = computed(() => (session.state.tree ? buildMoveRows(session.state.tree) : []));
+const items = computed(() => (session.state.tree ? buildMoveRows(session.state.tree, { sideLines: props.sideLines }) : []));
 const scroller = ref<HTMLElement | null>(null);
 
 watch(
@@ -29,9 +29,9 @@ watch(
 </script>
 
 <template>
-  <section class="flex min-h-0 flex-1 flex-col rounded-lg bg-neutral-800/70 ring-1 ring-white/5" data-testid="move-list">
+  <section class="th-panel flex min-h-0 flex-1 flex-col overflow-hidden" data-testid="move-list">
     <div class="flex items-center justify-between px-3 pt-2.5 pb-1.5">
-      <span class="text-xs font-semibold uppercase tracking-wide text-neutral-400">Moves</span>
+      <span class="th-display text-[15px] font-semibold italic text-neutral-400">Moves</span>
       <button
         v-if="session.state.tree && session.current.value?.ply !== 0"
         class="text-[11px] text-neutral-500 hover:text-neutral-300"

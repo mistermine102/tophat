@@ -1,6 +1,6 @@
 // Data-layer contract used by the UI. Two implementations: RealApiClient (HTTP API from ARCHITECTURE.md) and
 // MockApiClient (fixture data + simulated streaming, `?mock=1`).
-import type { GameInfo, GameSummary, MoveAnalysis, Settings } from '@chess-coach/shared';
+import type { ChessComGames, GameInfo, GameSummary, MoveAnalysis } from '@chess-coach/shared';
 
 export interface GameSnapshot {
   game: GameInfo;
@@ -43,8 +43,8 @@ export interface ApiClient {
   stream(id: string, handlers: StreamHandlers): Unsubscribe;
   focus(id: string, ply: number): Promise<void>;
   analyse(req: AnalyseRequest): Promise<MoveAnalysis>;
-  getSettings(): Promise<Settings>;
-  putSettings(settings: Settings): Promise<Settings>;
+  /** The newest finished games of a chess.com player (GET /api/chesscom/:username/games), at most `limit` (server default 50). */
+  chessComGames(username: string, limit?: number): Promise<ChessComGames>;
   /** Is the analysis engine running? Never throws (an unreachable server is `{ ok: false }`). */
   health(): Promise<Health>;
 }

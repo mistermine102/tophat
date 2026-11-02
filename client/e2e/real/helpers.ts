@@ -19,14 +19,18 @@ export async function requireEngine(page: Page) {
   test.skip(!body.ok, `engine not available: ${body.error ?? res.status()}`);
 }
 
-export async function setUsername(page: Page, username: string | null) {
-  const res = await page.request.put('/api/settings', { data: { username } });
-  expect(res.ok()).toBe(true);
+/**
+ * Remember a chess.com name, as if it had been looked up in the Open dialog: a pasted game whose player has this name
+ * opens on that side ("You" = the side at the bottom). Call before the first navigation (an init script, run after
+ * the test's localStorage.clear()).
+ */
+export async function rememberName(page: Page, name: string) {
+  await page.addInitScript((n) => localStorage.setItem('chess-coach:chesscom-name', n), name);
 }
 
 /** Open the app (fresh localStorage) and paste a PGN into the dialog. */
 export async function importPgn(page: Page, pgn: string) {
-  await page.goto('/');
+  await page.goto('/?ui=classic'); // these tests cover the classic screen (the app's default is layout A)
   await expect(page.getByTestId('pgn-input')).toBeVisible();
   await page.getByTestId('pgn-input').fill(pgn);
   await page.getByTestId('pgn-submit').click();

@@ -3,6 +3,7 @@
 // errors, click to jump). Used by every layout.
 import { computed } from 'vue';
 import { moveNumberLabel } from '../lib/chess';
+import { ENDING_TEXT, gameEnding } from '../lib/ending';
 import { LABELS } from '../lib/labels';
 import { useSession } from '../stores/session';
 import LabelGlyph from './LabelGlyph.vue';
@@ -17,6 +18,10 @@ const header = computed(() => {
     white: h.White ?? 'White',
     black: h.Black ?? 'Black',
     result: h.Result ?? '*',
+    ending: (() => {
+      const e = gameEnding(g);
+      return e ? ENDING_TEXT[e] : null;
+    })(),
     date: h.Date?.replace(/\./g, '-') ?? '',
     event: [h.Event, h.TimeControl ? `${Math.round(Number(h.TimeControl) / 60) || h.TimeControl} min` : null].filter(Boolean).join(' · '),
   };
@@ -29,7 +34,7 @@ const keyMoments = computed(() =>
       ply: e.m.ply,
       label: e.a!.label,
       move: `${moveNumberLabel(e.m.fenBefore)} ${e.m.san}`,
-      you: e.m.color === session.state.you,
+      color: e.m.color,
     })),
 );
 const opening = computed(() => {
@@ -45,11 +50,11 @@ const opening = computed(() => {
 
 <template>
   <div class="flex flex-col gap-3" data-testid="game-overview">
-      <section class="rounded-lg bg-neutral-800/70 p-4 ring-1 ring-white/5">
-        <div class="text-xs font-semibold uppercase tracking-wide text-neutral-400">Game</div>
-        <div v-if="header" class="mt-1 text-lg font-semibold text-neutral-50">
+      <section class="th-panel p-4">
+        <div class="th-display text-[15px] font-semibold italic text-neutral-400">Game</div>
+        <div v-if="header" class="th-display mt-1 text-xl font-bold text-neutral-50">
           {{ header.white }} <span class="text-neutral-500">vs</span> {{ header.black }}
-          <span class="ml-1 text-base font-medium text-neutral-400">{{ header.result }}</span>
+          <span class="ml-1 text-base font-medium text-neutral-400">{{ header.result }}<template v-if="header.ending"> · {{ header.ending }}</template></span>
         </div>
         <div v-if="header" class="mt-0.5 text-sm text-neutral-400">{{ [header.event, header.date].filter(Boolean).join(' · ') }}</div>
         <div v-if="opening" class="mt-2 text-sm text-neutral-300">Opening: {{ opening }}</div>
@@ -59,9 +64,9 @@ const opening = computed(() => {
           your own move — it’s analysed too.
         </p>
       </section>
-      <section class="rounded-lg bg-neutral-800/40 p-4 ring-1 ring-white/5" data-testid="key-moments">
+      <section class="th-panel p-4" data-testid="key-moments">
         <div class="mb-2 flex items-baseline justify-between">
-          <span class="text-xs font-semibold uppercase tracking-wide text-neutral-400">Key moments</span>
+          <span class="th-display text-[15px] font-semibold italic text-neutral-400">Key moments</span>
           <span class="text-[11px] text-neutral-500">Great moves and errors · click to jump</span>
         </div>
         <p v-if="!keyMoments.length" class="text-sm italic text-neutral-500">
@@ -77,9 +82,7 @@ const opening = computed(() => {
             <LabelGlyph :label="k.label" size="sm" />
             <span class="w-20 shrink-0 font-medium text-neutral-100">{{ k.move }}</span>
             <span class="min-w-0 flex-1 truncate" :style="{ color: LABELS[k.label].color }">{{ LABELS[k.label].name }}</span>
-            <span class="text-[10px] font-semibold uppercase tracking-wide" :class="k.you ? 'text-amber-300' : 'text-neutral-500'">
-              {{ k.you ? 'You' : 'Opp' }}
-            </span>
+            <span class="h-2.5 w-2.5 shrink-0 rounded-full" :class="k.color === 'white' ? 'th-side-white' : 'th-side-black'" :title="k.color === 'white' ? 'White' : 'Black'"></span>
           </button>
         </div>
       </section>
@@ -89,6 +92,6 @@ const opening = computed(() => {
 <style scoped>
 @reference "../style.css";
 .kbd {
-  @apply rounded border border-neutral-600 bg-neutral-700 px-1 text-xs text-neutral-200;
+  @apply rounded-md border border-neutral-600 bg-neutral-700 px-1 text-xs text-neutral-200;
 }
 </style>

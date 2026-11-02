@@ -75,7 +75,7 @@ export function makeExplanation(spec: LevelsSpec | undefined, mover: Color): Exp
 
 export function winChanceLabel(rank: number, winLoss: number): Label {
   const t = DEFAULT_SETTINGS.labels;
-  if (rank === 1 || winLoss <= t.bestMaxLoss) return 'best';
+  if (rank === 1) return 'best';
   if (winLoss <= t.excellentMaxLoss) return 'excellent';
   if (winLoss <= t.goodMaxLoss) return 'good';
   if (winLoss <= t.inaccuracyMaxLoss) return 'inaccuracy';

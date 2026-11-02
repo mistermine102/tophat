@@ -276,8 +276,8 @@ describe('long level', () => {
     const e = renderExplanation({ immediate: [], short: [lost], long: [{ type: 'positional-gain', cp: 120 }, { type: 'deep-payoff' }] }, B);
     expect(e.long.text).toMatchInlineSnapshot(`
       [
-        "Black gives up material, but the engine sees about 1.2 pawns' worth of compensation in the position.",
-        "The payoff is far away: a quick engine look rates this move lower — only a deep search sees why it works.",
+        "Black gives up material, but gets about 1.2 pawns' worth of compensation in the position.",
+        "The payoff is far away: at first glance this move looks worse — only a deep look shows why it works.",
       ]
     `);
     expect(renderExplanation({ immediate: [], short: [], long: [{ type: 'necessary' }] }, B).long.text).toMatchInlineSnapshot(`
@@ -293,14 +293,14 @@ describe('label text', () => {
   it('material blunder while still winning', () => {
     const t = labelText({ ...base, label: 'blunder', labelReason: { winChance: 'excellent', material: { playedLine: 3, bestLine: 11, loss: 8, evalDropCp: 930, label: 'blunder', hung: { role: 'queen', square: 'g5', color: 'white' } } }, san: 'Qg5', verifiedHang: { piece: { role: 'queen', square: 'g5', color: 'white' }, loss: 8 } }, S);
     // without a verified hang on the board, the label doesn't name a piece
-    expect(labelText({ ...base, label: 'blunder', labelReason: { winChance: 'excellent', material: { playedLine: 3, bestLine: 11, loss: 8, evalDropCp: 930, label: 'blunder', hung: { role: 'rook', square: 'c1', color: 'white' } } }, san: 'Qg5' }, S)).toMatch(/^Blunder \?\? — Qg5 loses material: the engine line ends 8 points worse than after Nd5\./);
-    expect(t).toMatchInlineSnapshot(`"Blunder ?? — Qg5 leaves the queen on g5 hanging (−8 points). White is still winning (engine eval +17.8 → +8.5), but this is the habit to fix."`);
+    expect(labelText({ ...base, label: 'blunder', labelReason: { winChance: 'excellent', material: { playedLine: 3, bestLine: 11, loss: 8, evalDropCp: 930, label: 'blunder', hung: { role: 'rook', square: 'c1', color: 'white' } } }, san: 'Qg5' }, S)).toMatch(/^Blunder \?\? — Qg5 loses material: with best play it ends 8 points worse than after Nd5\./);
+    expect(t).toMatchInlineSnapshot(`"Blunder ?? — Qg5 leaves the queen on g5 hanging (−8 points). White is still winning (eval +17.8 → +8.5), but this is the habit to fix."`);
   });
   it('material lost later in the line is not called "hanging" (M3 regression: Opera 10...cxb5)', () => {
     const material = { playedLine: -6, bestLine: -2, loss: 4, evalDropCp: 300, label: 'blunder' as const, lostInLine: [{ role: 'knight' as const, square: 'd7', color: 'black' as const, ply: 6 }] };
     const t = labelText({ ...base, color: 'black', evalBefore: { cp: -540 }, evalAfter: { cp: -800 }, winBefore: 10, winAfter: 5, winLoss: 4, label: 'blunder', labelReason: { winChance: 'good', material } }, S);
     expect(t).not.toMatch(/hanging/);
-    expect(t).toMatchInlineSnapshot(`"Blunder ?? — loses material: the engine line ends 4 points worse than after Nd5. Black's winning chances go from 10% to 6%."`);
+    expect(t).toMatchInlineSnapshot(`"Blunder ?? — loses material: with best play it ends 4 points worse than after Nd5. Black's winning chances go from 10% to 6%."`);
   });
   it('allowed mate / missed mate', () => {
     const lost = { ...base, color: 'black' as const, evalBefore: { cp: 1010 }, evalAfter: { mate: 2 }, winBefore: 2.4, winAfter: 2.4, winLoss: 0, bestSan: 'Qxd7' };
@@ -323,7 +323,7 @@ describe('label text', () => {
       r('forced'),
     ]).toMatchInlineSnapshot(`
       [
-        "Best — as good as the engine's top move (Nd5).",
+        "Best — as good as the best move (Nd5).",
         "Great ! — the only good move here: the next best loses 18% winning chances.",
         "Good — a little weaker than Nd5 (−25% winning chances).",
         "Inaccuracy ?! — Nd5 was better (−25% winning chances).",

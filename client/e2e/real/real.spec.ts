@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import { ALLOWED_MATE, BAD_ILLEGAL, FROM_FEN, LASKER_CHESSCOM, SHILLING_CHESSCOM, STALEMATE, TWO_PLIES, longGame } from '../pgns';
-import { drag, importPgn, labelledMoves, progressOf, requireEngine, setUsername, shot } from './helpers';
+import { drag, importPgn, labelledMoves, progressOf, rememberName, requireEngine, shot } from './helpers';
 
 const OPERA = readFileSync(new URL('../../../bench/games/opera-game.pgn', import.meta.url), 'utf8');
 
@@ -26,12 +26,12 @@ async function waitComplete(page: Page, timeout = 120_000) {
 }
 
 test('chess.com PGN: board opens at once, analyses stream in, summary, checkmate, reload from cache', async ({ page }) => {
-  await setUsername(page, 'SzymonJ');
+  await rememberName(page, 'SzymonJ');
   const t0 = Date.now();
   await importPgn(page, SHILLING_CHESSCOM);
   await expect(page.getByTestId('board')).toBeVisible();
   expect(Date.now() - t0).toBeLessThan(5_000);
-  // username -> orientation + "You"
+  // the remembered chess.com name -> orientation + "You"
   await expect(page.getByTestId('board')).toHaveClass(/orientation-black/);
   await expect(page.getByTestId('summary')).toContainText('SzymonJ');
   await expect(page.getByTestId('players')).toContainText('SomeOpponent');
@@ -89,11 +89,8 @@ test('chess.com PGN: board opens at once, analyses stream in, summary, checkmate
   expect(Date.now() - t1).toBeLessThan(3_000);
   await expect(page.getByTestId('board')).toHaveClass(/orientation-black/);
 
-  // settings: a different username flips "You" (neither side -> White)
-  await page.getByTestId('open-settings').click();
-  await expect(page.getByTestId('settings-username')).toHaveValue('SzymonJ');
-  await page.getByTestId('settings-username').fill('SomeOpponent');
-  await page.getByTestId('settings-save').click();
+  // flipping the board switches "You": White (SomeOpponent) at the bottom, so Black's last move is the opponent's
+  await page.getByTestId('flip').click();
   await expect(page.getByTestId('board')).toHaveClass(/orientation-white/);
   await page.keyboard.press('End');
   await expect(page.getByTestId('label-card')).toContainText('Opponent');
@@ -101,7 +98,7 @@ test('chess.com PGN: board opens at once, analyses stream in, summary, checkmate
 
 test('focus: the viewed ply jumps the queue; pending states', async ({ page }) => {
   await page.setViewportSize({ width: 1920, height: 1080 });
-  await setUsername(page, 'EdLasker1912');
+  await rememberName(page, 'EdLasker1912');
   await importPgn(page, LASKER_CHESSCOM);
   await expect(page.getByTestId('board')).toBeVisible();
   await expect(page.getByTestId('board')).toHaveClass(/orientation-white/);
@@ -127,7 +124,7 @@ test('focus: the viewed ply jumps the queue; pending states', async ({ page }) =
 });
 
 test('side lines, "Try this", keyboard on the board, square highlight, legend', async ({ page }) => {
-  await setUsername(page, 'EdLasker1912');
+  await rememberName(page, 'EdLasker1912');
   await importPgn(page, LASKER_CHESSCOM); // analysed by the previous test (cache)
   await waitComplete(page, 120_000);
 
@@ -202,7 +199,6 @@ test('bad PGNs are rejected with a readable message', async ({ page }) => {
 });
 
 test('edge games: 2 plies, stalemate, start from a FEN', async ({ page }) => {
-  await setUsername(page, null);
   // two plies
   await importPgn(page, TWO_PLIES);
   await waitComplete(page, 60_000);
@@ -238,7 +234,6 @@ test('edge games: 2 plies, stalemate, start from a FEN', async ({ page }) => {
 });
 
 test('engine crash mid-analysis recovers; a failed ply can be retried', async ({ page }) => {
-  await setUsername(page, null);
   await importPgn(page, OPERA);
   await expect(page.getByTestId('board')).toBeVisible();
   await expect.poll(() => labelledMoves(page), { timeout: 60_000 }).toBeGreaterThanOrEqual(2);
@@ -276,7 +271,7 @@ test('allowed mate (M3 mate rule): a Blunder in a lost position, explained in th
   // White (a knight down to a queen: lost either way) plays 1. a3?? and allows 1... Qe1#; h3 / Nd2 / Nc3 avoid it.
   // By win chance alone that is at most a Mistake (White's win chance was already tiny); the mate rule makes it a
   // Blunder. (A constructed position: in the fast E2E profile (d10) the Opera game's 15... Nxd7 is not reliable.)
-  await setUsername(page, null); // "You" = White
+  // no name remembered: "You" = White
   await importPgn(page, ALLOWED_MATE);
   await waitComplete(page, 60_000);
   const chip = page.locator('[data-node="m1"]');
@@ -294,7 +289,6 @@ test('allowed mate (M3 mate rule): a Blunder in a lost position, explained in th
 });
 
 test('long game (160 plies): UI stays responsive', async ({ page }) => {
-  await setUsername(page, null);
   const t0 = Date.now();
   await importPgn(page, longGame(160));
   await expect(page.locator('[data-node^="m"]')).toHaveCount(160);
@@ -313,9 +307,9 @@ test('long game (160 plies): UI stays responsive', async ({ page }) => {
 
 test('1920x1080 screenshots of finished games', async ({ page }) => {
   await page.setViewportSize({ width: 1920, height: 1080 });
-  await setUsername(page, 'SzymonJ');
+  await rememberName(page, 'SzymonJ');
   const id = await gameId(page, SHILLING_CHESSCOM);
-  await page.goto(`/?game=${id}`);
+  await page.goto(`/?game=${id}&ui=classic`);
   await waitComplete(page, 10_000);
   await page.keyboard.press('End');
   await shot(page, '03-checkmate');
@@ -328,7 +322,7 @@ test('1920x1080 screenshots of finished games', async ({ page }) => {
   }
   await shot(page, '10-suggestion');
   const opera = await gameId(page, OPERA);
-  await page.goto(`/?game=${opera}`);
+  await page.goto(`/?game=${opera}&ui=classic`);
   await waitComplete(page, 10_000);
   await page.locator('[data-node="m20"]').click(); // 10... cxb5 (material rule)
   await shot(page, '19-opera-material');

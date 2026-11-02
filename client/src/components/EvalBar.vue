@@ -15,12 +15,12 @@ const labelAtBottom = computed(() => (leader.value === props.orientation));
 
 <template>
   <div
-    class="relative h-full w-7 overflow-hidden rounded-md bg-neutral-700 ring-1 ring-black/40"
+    class="relative h-full w-7 overflow-hidden rounded-[9px] border-2 border-[var(--th-ink)] bg-[var(--th-ink)]"
     data-testid="eval-bar"
     :title="score || mated ? `Evaluation (White's view): ${text}` : 'Not analysed yet'"
   >
     <div
-      class="absolute inset-x-0 bg-neutral-100 transition-[height] duration-300 ease-out"
+      class="absolute inset-x-0 bg-[var(--th-paper)] transition-[height] duration-300 ease-out"
       :class="orientation === 'white' ? 'bottom-0' : 'top-0'"
       :style="{ height: `${score || mated ? white : 50}%` }"
     ></div>
@@ -30,13 +30,13 @@ const labelAtBottom = computed(() => (leader.value === props.orientation));
       class="absolute inset-x-0 text-center text-[10px] font-bold leading-none tabular-nums"
       :class="[
         labelAtBottom ? 'bottom-1.5' : 'top-1.5',
-        leader === 'white' ? 'text-neutral-800' : 'text-neutral-100',
+        leader === 'white' ? 'text-[var(--th-ink)]' : 'text-[var(--th-paper)]',
       ]"
     >
       {{ text }}
     </div>
     <div v-if="pending && !score && !mated" class="absolute inset-0 flex items-center justify-center">
-      <span class="h-3 w-3 animate-spin rounded-full border-2 border-neutral-400 border-t-transparent"></span>
+      <span class="h-3 w-3 animate-spin rounded-full border-2 border-[var(--th-paper-2)] border-t-transparent"></span>
     </div>
   </div>
 </template>

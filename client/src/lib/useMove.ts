@@ -20,7 +20,8 @@ export function useMove(session: Session) {
     const p = node.value?.parent;
     return p && p.ply > 0 && p.fenBefore ? `${moveNumberLabel(p.fenBefore)} ${p.san}` : null;
   });
-  const ctx = computed(() => ({ moverIsYou: moverIsYou.value, prevMove: prevMove.value }));
+  // sentences name the side ("White gave away …"), never "you": the viewer may be neither player
+  const ctx = computed(() => ({ moverIsYou: false, prevMove: prevMove.value }));
   const verdict = computed(() => (a.value ? moveVerdict(a.value, ctx.value) : null));
   const points = computed(() => (a.value && verdict.value ? keyPoints(a.value, verdict.value) : []));
   const better = computed(() => betterMove(a.value));

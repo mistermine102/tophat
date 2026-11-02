@@ -8,9 +8,9 @@ export interface ToneLine {
 }
 
 export const TONE_META: Record<Tone, { icon: string; color: string; soft: string; word: string }> = {
-  good: { icon: '✓', color: '#4ade80', soft: 'rgba(74, 222, 128, 0.10)', word: 'helps' },
-  bad: { icon: '✗', color: '#f87171', soft: 'rgba(248, 113, 113, 0.10)', word: 'hurts' },
-  neutral: { icon: '•', color: '#a3a3a3', soft: 'rgba(163, 163, 163, 0.08)', word: '' },
+  good: { icon: '✓', color: '#3f7d4e', soft: 'rgba(63, 125, 78, 0.13)', word: 'helps' },
+  bad: { icon: '✗', color: '#b5402a', soft: 'rgba(181, 64, 42, 0.12)', word: 'hurts' },
+  neutral: { icon: '•', color: '#957a66', soft: 'rgba(149, 122, 102, 0.12)', word: '' },
 };
 
 /** A level that only says "nothing notable" (shown muted / left out). */

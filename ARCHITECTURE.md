@@ -159,7 +159,7 @@ are cached elsewhere). Also `has(key)`, `priorityOf(key)`, `size`, `busy`, `onId
 ## Analysis budget (defaults in settings, tune with measurements)
 
 Per analysed move `(fenBefore, move)`:
-1. **Deep** search at `fenBefore`, MultiPV 5, depth **16** (M4; was 18 — M3: d16 is as close to a d22 reference as d18 at half the cost, bench/reports/labels.md §7) → candidates, best line, 2nd best (Great).
+1. **Deep** search at `fenBefore`, MultiPV 5, depth **14** (was 16 in M4, 18 before; on a 57-ply game d14 took 17.9 s vs 33.9 s and differed from d16 on 5–6 labels, while two d16 runs differed on 7 — within run-to-run noise; the M4 tables below were measured at d16) → candidates, best line, 2nd best (Great).
    If the played move isn't among the 5, an extra deep search with `searchmoves=[move]`.
 2. **Shallow** search at `fenBefore`, MultiPV 5, depth 8 → explainability test.
 3. **Threat** search for the played move and for the pick: position after the move with the side to move
@@ -585,7 +585,8 @@ Additions made in the UI round (tones; all additive optional fields, `ANALYSIS_V
 | GET | `/api/games/:id/stream` | — | SSE: `event: analysis` data `{ ply, analysis }`; `event: progress` `{ done, total }`; `event: summary` `GameSummary`; `event: error` `{ ply, message }`. On connect, replays already-finished analyses. |
 | POST | `/api/games/:id/focus` | `{ ply }` | 204; bumps that ply (and ply+1, then ply−1 — M4) to FOCUS priority |
 | POST | `/api/analyse` | `{ fenBefore, uci, prev?: { fenBefore, uci } }` | `MoveAnalysis` (SIDELINE priority; `prev` enables Miss detection) |
-| GET/PUT | `/api/settings` | `Settings` | `Settings` (persisted in sqlite) |
+| GET/PUT | `/api/settings` | `Settings` | `Settings` (persisted in sqlite). **No longer used by the client** (no username setting): the client decides "You" itself (see below); the server's `GameInfo.you` is only its first guess |
+| GET | `/api/chesscom/:username/games?limit=30` | — | `ChessComGames` `{ username, games: ChessComGame[] }`, newest first (`server/src/chesscom.ts`: chess.com public API, newest monthly archives first, at most 6 archives, `rules: 'chess'` only, limit ≤ 100). 400 bad name/limit, 404 unknown player, 502 chess.com unreachable / rate-limited |
 | GET | `/api/health` | — | `{ ok: true, engine: 'Stockfish 19' }`; 503 `{ ok: false, engine: null, error }` if the engine isn't running |
 
 `ply` is 1-based index into `moves` (ply 1 = the game's first move — Black's for a SetUp/FEN game with Black to
@@ -593,7 +594,10 @@ move; use `GameMove.color` / the FEN for move numbers, never `ply` parity).
 
 M2 details: `POST /api/games` returns the same id for a re-imported game (only `GameInfo`; finished analyses come
 from `GET /api/games/:id` or the stream replay);
-GameInfo `you`/`orientation` follow the *current* username setting. SSE: subscribe-then-replay (an analysis can
+GameInfo `you`/`orientation` follow the *current* username setting (a first guess only — the client keeps its own:
+"You" = the side at the bottom of the board, flipping switches it and is remembered per game in localStorage
+(`client/src/lib/sides.ts`); a game opens on the remembered side, else the side whose player name is the chess.com
+name last looked up in the Open dialog (localStorage), else `GameInfo.you`). SSE: subscribe-then-replay (an analysis can
 arrive twice — idempotent), `progress` + `summary` after every finished ply, heartbeat comment `: ping` every
 15 s, cleanup on disconnect; the stream stays open after the game is done. `focus` → 204, 404 unknown game, 400
 bad ply. `/api/analyse` → 400 for an illegal move / bad FEN / a `prev` that doesn't lead to `fenBefore`, 503
@@ -613,7 +617,7 @@ M2-client additions (client wired to the real server end to end):
   cpus − 2), `ENGINE_PROCESSES` (M4, default threads / 2), `ENGINE_HASH_MB` (per process; M4: 256, was 512),
   `SERVE_CLIENT=1` (M4: also serve client/dist with an index.html fallback — `npm start`), `ANALYSIS_PROFILE` (`default` | `fast`: deep d10/1 s, shallow d6, threat /
   forcedness d8, 300 ms caps — own settings hash, so its cache entries never mix with full-depth ones),
-  `LOG_ANALYSIS=1` (per-ply timing + focus bumps on stdout), `CHESS_COACH_TEST_HOOKS=1` (mounts
+  `LOG_ANALYSIS=1` (per-ply timing + focus bumps on stdout), `CHESSCOM_API` (chess.com API base, default `https://api.chess.com/pub`; E2E sets a dead port), `CHESS_COACH_TEST_HOOKS=1` (mounts
   `POST /api/test/kill-engine` → kills the Stockfish processes; `POST /api/test/fail-next {n}` → the next n analysis
   attempts throw an EngineError; each ply is attempted twice). Vite: `CLIENT_PORT` (5173), `API_PORT` (5174).
 - E2E (`npm run e2e`): Playwright projects `mock` (`e2e/*.spec.ts`, `?mock=1`, port 5183) and `real`

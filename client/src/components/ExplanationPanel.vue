@@ -58,7 +58,7 @@ const suggestions = computed(() => {
           <span v-else class="mt-0.5 inline-block h-8 w-8 shrink-0 rounded-full bg-neutral-700"></span>
           <div class="min-w-0 flex-1">
             <div class="flex flex-wrap items-baseline gap-x-2">
-              <span class="text-lg font-bold" :style="{ color: meta?.color ?? '#d4d4d4' }" data-testid="label-name">
+              <span class="text-lg font-bold" :style="{ color: meta?.color ?? '#7a5b47' }" data-testid="label-name">
                 {{ meta ? meta.name : pending ? 'Analysing…' : error ? 'Analysis failed' : 'Not analysed' }}
               </span>
               <span class="text-base font-semibold text-neutral-100">

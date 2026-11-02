@@ -224,7 +224,7 @@ export function allowsText(f: F<'allows'>, ctx: ExplainContext): string {
   if (f.keepsThreat && !direct.length && threat && targets.every((t) => t.square === threat.move.slice(2, 4))) {
     if (threat.mateIn === 1) return `Doesn't deal with ${opp}'s threat of checkmate with ${threat.san}`;
     if (threat.mateIn) return `Doesn't deal with ${opp}'s mating attack (starting with ${threat.san})`;
-    const parried = f.threatParried && (f.gain ?? 0) >= 1 ? ` — in the engine line ${colorName(ctx.mover)} avoids that but loses ${points(f.gain!).replace(/^\+/, '')}` : '';
+    const parried = f.threatParried && (f.gain ?? 0) >= 1 ? ` — with best play ${colorName(ctx.mover)} avoids that but loses ${points(f.gain!).replace(/^\+/, '')}` : '';
     return `Doesn't deal with ${opp}'s threat ${threat.san}, ${threatPoint(threat, 'ing', opp)}${parried}`;
   }
   const cost = (f.gain ?? 0) >= 1 ? points(f.gain!).replace(/^\+/, '') : '';
@@ -233,19 +233,19 @@ export function allowsText(f: F<'allows'>, ctx: ExplainContext): string {
   // a quiet reply whose line costs material (M5b): the reply isn't the tactic itself — say where the loss is told
   // (M5c: with the opponent's first forcing move of the line, when there is one)
   if (!direct.length && !then.length && !check && f.mateIn === undefined && cost) {
-    if (f.follow) return `After ${r}, ${opp} goes on with ${f.follow}: in the engine line this costs ${colorName(ctx.mover)} ${cost} (see the short term)`;
-    return `After ${r}, the engine line costs ${colorName(ctx.mover)} ${cost} of material (see the short term)`;
+    if (f.follow) return `After ${r}, ${opp} goes on with ${f.follow}: with best play this costs ${colorName(ctx.mover)} ${cost}`;
+    return `After ${r}, ${colorName(ctx.mover)} loses ${cost} of material with best play`;
   }
   let s = `${verb} ${r}${direct.length ? '' : check}`;
   if (direct.length) s += `, ${joinList(direct.slice(0, 2))}${check ? ', with check' : ''}`;
   if (then.length) s += `: then ${joinList(then.slice(0, 2))}`;
   if (f.mateIn !== undefined) s += ` — it starts a forced mate in ${f.mateIn} for ${opp}`;
   // (M5c) the reply's threat isn't carried out: the mover avoids it, but the line still costs material
-  else if (f.threatParried && cost && threat && threatOnForked) s += ` — in the engine line this costs ${colorName(ctx.mover)} ${cost}`;
-  else if (f.threatParried && cost && threat) s += ` — in the engine line ${colorName(ctx.mover)} avoids that but loses ${cost}`;
-  else if (!direct.length && !then.length && cost) s += ` — in the engine line this costs ${colorName(ctx.mover)} ${cost}`;
+  else if (f.threatParried && cost && threat && threatOnForked) s += ` — with best play this costs ${colorName(ctx.mover)} ${cost}`;
+  else if (f.threatParried && cost && threat) s += ` — with best play ${colorName(ctx.mover)} avoids that but loses ${cost}`;
+  else if (!direct.length && !then.length && cost) s += ` — with best play this costs ${colorName(ctx.mover)} ${cost}`;
   // (M5c) a pawn fork the pawn could be taken from: the line's cost shows it works
-  else if (tactic?.type === 'fork' && tactic.byLine && cost) s += ` — in the engine line this costs ${colorName(ctx.mover)} ${cost}`;
+  else if (tactic?.type === 'fork' && tactic.byLine && cost) s += ` — with best play this costs ${colorName(ctx.mover)} ${cost}`;
   else if (f.perpetual) s += `, and ${opp} can then force a draw by perpetual check`;
   return s;
 }
@@ -269,7 +269,7 @@ function immediateFactText(f: Fact, ctx: ExplainContext): string | null {
       return `Develops the ${f.piece.role} to ${f.piece.square}`;
     case 'attack':
       // (round 8) an attacker the target could take: say so (the engine line doesn't take it — checked in analyzeMove)
-      if (f.offered) return `Attacks ${owned(f.target)} with ${an(f.attacker.role)} — the ${f.attacker.role} could be taken, but the engine line doesn't take it`;
+      if (f.offered) return `Attacks ${owned(f.target)} with ${an(f.attacker.role)} — the ${f.attacker.role} could be taken, but the best reply doesn't take it`;
       // (M5c) a battery: the moved piece supports its own piece in front
       if (f.through) return `Lines up behind ${the(f.through)}: together they attack ${owned(f.target)}, and ${colorName(ctx.mover)} now threatens to win it`;
       if (f.reason === 'outnumbered') return `Attacks ${owned(f.target)} once more — with this extra attacker ${colorName(ctx.mover)} now threatens to win it`;
@@ -284,7 +284,7 @@ function immediateFactText(f: Fact, ctx: ExplainContext): string | null {
       }
       if (withKing) return `Fork with check: ${the(f.attacker)} attacks ${targetsPhrase(f.targets)} at once`;
       // (M5c) a pawn fork the pawn can be taken from (kept only because the engine line wins material after it)
-      if (f.byLine) return `Pawn fork: ${the(f.attacker)} attacks ${targetsPhrase(f.targets)} at once, and the engine line wins material after it`;
+      if (f.byLine) return `Pawn fork: ${the(f.attacker)} attacks ${targetsPhrase(f.targets)} at once, and wins material with best play`;
       return `Fork: ${the(f.attacker)} attacks ${targetsPhrase(f.targets)} at once`;
     }
     case 'trapped':
@@ -452,7 +452,7 @@ function renderImmediate(facts: readonly Fact[], ctx: ExplainContext, line?: F<'
   // (M5b) not "an even trade" when the line goes on to win material (…Bxc4 also uncovering an attack on d3)
   const evenButWins = fs.find((f): f is F<'capture'> => f.type === 'capture' && f.outcome === 'even-trade');
   if (evenButWins && line?.result === 'wins-material' && realGain > 0 && !merged.has(evenButWins)) {
-    merged.set(evenButWins, `Takes ${owned(evenButWins.captured)}${fs.some((f) => f.type === 'check' && !f.double && !f.discovered) ? ', with check' : ''} — an even trade, and then the engine line wins material`);
+    merged.set(evenButWins, `Takes ${owned(evenButWins.captured)}${fs.some((f) => f.type === 'check' && !f.double && !f.discovered) ? ', with check' : ''} — an even trade, and then it wins material with best play`);
     mergedTone.set(evenButWins, 'good');
   }
 
@@ -503,7 +503,7 @@ function renderImmediate(facts: readonly Fact[], ctx: ExplainContext, line?: F<'
       // (a tactic fact already names this target: the threat adds nothing)
       if (cap && fs.some((x) => (x.type === 'discovered-attack' && x.target.square === target) || (x.type === 'skewer' && x.front.square === target))) continue;
       if (cap && reply && quietStep && reply.uci.slice(0, 2) === target && !(line.result === 'wins-material' && line.materialDelta >= f.gain)) {
-        text = `Attacks ${owned(cap.captured)} — in the engine line it steps away (${reply.san})`;
+        text = `Attacks ${owned(cap.captured)} — the best reply steps away (${reply.san})`;
         tone = 'neutral';
       }
     }
@@ -526,10 +526,10 @@ function renderImmediate(facts: readonly Fact[], ctx: ExplainContext, line?: F<'
       const taken = line.steps.some((s, i) => i > 0 && s.color !== ctx.mover && s.uci.slice(2, 4) === dest);
       const role = line.steps[0] ? sanRole(line.steps[0].san) : 'piece';
       if (!taken) {
-        text = `Takes ${owned(f.captured)} and leaves the ${role} where it can be taken, but in the engine line ${colorName(other(ctx.mover))} doesn't take it`;
+        text = `Takes ${owned(f.captured)} and leaves the ${role} where it can be taken, but ${colorName(other(ctx.mover))}'s best reply doesn't take it`;
         tone = 'neutral';
       } else if ((line.result === 'trade' || line.result === 'wins-material') && line.materialDelta >= 0) {
-        text = `Takes ${owned(f.captured)} as a sacrifice (${points(f.net)}) — the engine line wins the material back`;
+        text = `Takes ${owned(f.captured)} as a sacrifice (${points(f.net)}) — it wins the material back with best play`;
         tone = 'good';
       }
     }
@@ -811,7 +811,7 @@ export function lineStory(line: F<'line'>, ctx: ExplainContext): { text: string;
   const story = line.steps.some((s) => s.forced || s.facts.length > 0);
   if (!story && !line.draw && (line.result === 'quiet' || line.result === 'trade' || line.result === 'unclear')) {
     // (M5b) not "no forcing follow-up" when the engine line goes on with a check or capture right after
-    if (line.nextForcing) return { text: `${line.steps.map((s) => s.san).join(' → ')}; the engine line then goes on with ${line.nextForcing}.` };
+    if (line.nextForcing) return { text: `${line.steps.map((s) => s.san).join(' → ')}; best play then goes on with ${line.nextForcing}.` };
     return { text: 'No forcing follow-up.' };
   }
   const parts: StoryPart[] = [];
@@ -953,13 +953,13 @@ function longFactText(f: Fact, ctx: ExplainContext, all: AllFacts): string | nul
     case 'positional-gain': {
       const pawns = (f.cp / 100).toFixed(1);
       const line = all.short.find((x): x is F<'line'> => x.type === 'line');
-      if (line && line.materialDelta < 0) return `${me} gives up material, but the engine sees about ${pawns} pawns' worth of compensation in the position.`;
-      return `The engine rates ${me}'s position about ${pawns} pawns better than the material count suggests.`;
+      if (line && line.materialDelta < 0) return `${me} gives up material, but gets about ${pawns} pawns' worth of compensation in the position.`;
+      return `${me}'s position is worth about ${pawns} pawns more than the material count suggests.`;
     }
     case 'castling-lost':
       return f.at === 'line-end' ? `After these moves, ${colorName(f.color)}'s king can no longer castle.` : `${colorName(f.color)} can no longer castle.`;
     case 'deep-payoff':
-      return 'The payoff is far away: a quick engine look rates this move lower — only a deep search sees why it works.';
+      return 'The payoff is far away: at first glance this move looks worse — only a deep look shows why it works.';
     case 'necessary':
       return f.onlyMove ? 'It was the only legal move.' : 'The only good move here — every other move is much worse.';
     case 'nothing-notable':
@@ -990,20 +990,20 @@ const NOTHING = {
 function missesText(f: F<'misses'>, ctx: ExplainContext, long: readonly Fact[], short: readonly Fact[] = []): string {
   const reasons = missesReasons(f, ctx.mover);
   // (M5c) the reason is small next to the drop: say honestly that the engine sees more
-  if (reasons.length) return `Misses ${f.san}, which ${reasons[0]}${reasons[1] ? ` and ${reasons[1]}` : ''}${f.partial ? ' — but the engine sees more than this' : ''}.`;
+  if (reasons.length) return `Misses ${f.san}, which ${reasons[0]}${reasons[1] ? ` and ${reasons[1]}` : ''}${f.partial ? ' — but there is more to it than that' : ''}.`;
   // (round 6) the move's own engine line loses material: say that, not "no tactical problem"
   const line = short.find((x): x is F<'line'> => x.type === 'line');
   if (line?.result === 'loses-material') {
     // (M5c) …and the honest hedge when that loss is small next to the eval drop
-    const more = !!ctx.hedge && ctx.label !== 'inaccuracy' && ctx.hedge.dropPawns >= PARTIAL_MIN_DROP && -line.materialDelta < ctx.hedge.dropPawns / 2 ? ` — the engine sees more than this: it rates the move about ${(Math.round(ctx.hedge.dropPawns * 2) / 2).toFixed(1)} pawns worse` : '';
-    return `Nothing is lost right away, but the engine line costs ${colorName(ctx.mover)} ${points(line.materialDelta).replace(MINUS, '')} (see the short term); the engine prefers ${f.san}${more}.`;
+    const more = !!ctx.hedge && ctx.label !== 'inaccuracy' && ctx.hedge.dropPawns >= PARTIAL_MIN_DROP && -line.materialDelta < ctx.hedge.dropPawns / 2 ? ` — and there is more to it: overall the move is about ${(Math.round(ctx.hedge.dropPawns * 2) / 2).toFixed(1)} pawns worse` : '';
+    return `Nothing is lost right away, but ${colorName(ctx.mover)} loses ${points(line.materialDelta).replace(MINUS, '')} with best play; ${f.san} was better${more}.`;
   }
   const drawback = long.some((x) => x.type === 'positional' && (x.side === 'opponent' ? x.delta > 0 : x.delta < 0) && !x.at && x.feature !== 'mobility');
   // (round 9) no "no tactical problem" claim when the move's own line is tactical (checks, captures) or unclear
   const tactical = !!line && (line.result === 'unclear' || line.steps.some((s) => s.facts.length > 0));
-  if (tactical) return `The engine prefers ${f.san}; the difference is hard to put into words — see the engine line below.`;
-  if (drawback) return `No tactical problem right away — the drawback is long-term (see below); the engine prefers ${f.san}.`;
-  return `No tactical problem right away — the engine prefers ${f.san} for long-term reasons that are hard to put into words.`;
+  if (tactical) return `${f.san} was better — the difference is hard to put into words.`;
+  if (drawback) return `No tactical problem right away, but there is a long-term drawback; ${f.san} was better.`;
+  return `No tactical problem right away — ${f.san} was better, for long-term reasons that are hard to put into words.`;
 }
 
 /** (M5c) Size (pawns) of the worst verified negative fact of a move (mates and perpetuals: Infinity). */
@@ -1035,7 +1035,7 @@ export function renderExplanation(all: AllFacts, ctx: ExplainContext): Explanati
         // (M5c) the negative facts told are small next to the eval drop: say so, with the engine's own numbers
         const big = (ctx.label === 'mistake' || ctx.label === 'blunder' || ctx.label === 'miss') && ctx.hedge.dropPawns >= PARTIAL_MIN_DROP && negativeSize(all.immediate) < ctx.hedge.dropPawns / 2;
         if (big) {
-          const h: ToneLine = { text: `The engine sees more than this: it rates the move about ${(Math.round(ctx.hedge.dropPawns * 2) / 2).toFixed(1)} pawns worse than ${ctx.hedge.bestSan}.`, tone: 'bad' };
+          const h: ToneLine = { text: `There is more to it than this: overall the move is about ${(Math.round(ctx.hedge.dropPawns * 2) / 2).toFixed(1)} pawns worse than ${ctx.hedge.bestSan}.`, tone: 'bad' };
           // (UI round) right after the other bad sentences; the last other sentence makes room
           const lines = immediateLines.length >= MAX_SENTENCES ? immediateLines.slice(0, MAX_SENTENCES - 1) : immediateLines;
           const at = lines.filter((l) => l.tone === 'bad').length;
@@ -1305,7 +1305,7 @@ export function betterReasonFacts(better: readonly Fact[], played: readonly Fact
       add(`leads to winning ${start < 0 && line.materialDelta <= -start ? 'back ' : ''}${piecesPhrase(line.won)}`, line.materialDelta, [line]);
     }
     else if (line.result === 'wins-material' && line.won?.length && line.won.length <= 2 && (line.lost?.length ?? 0) <= 2) add(`leads to winning ${piecesPhrase(line.won)} for ${piecesPhrase(line.lost!)} (${points(line.materialDelta)})`, line.materialDelta, [line]);
-    else if (line.result === 'wins-material') add(`comes out ahead in material in the engine line (${points(line.materialDelta)})`, line.materialDelta, [line]);
+    else if (line.result === 'wins-material') add(`comes out ahead in material with best play (${points(line.materialDelta)})`, line.materialDelta, [line]);
   }
   const seen = new Set<string>();
   const pool = (tactical.length ? tactical : quiet).filter((r) => !seen.has(r.phrase) && !!seen.add(r.phrase));
@@ -1382,7 +1382,7 @@ export function labelText(a: LabelTextInput, settings: AnalysisSettings): string
   const isBestMove = a.uci === a.bestUci;
   const m = a.labelReason.material;
   const materialDecides = m?.label !== undefined && m.label === a.label && a.labelReason.winChance !== a.label;
-  const why = a.better?.length ? ` ${a.bestSan} ${a.better[0]}${a.better[1] ? `, and it ${a.better[1]}` : ''}${a.betterPartial ? ' — but the engine sees more than this' : ''}.` : '';
+  const why = a.better?.length ? ` ${a.bestSan} ${a.better[0]}${a.better[1] ? `, and it ${a.better[1]}` : ''}${a.betterPartial ? ' — but there is more to it than that' : ''}.` : '';
   switch (a.label) {
     case 'forced':
       return `${name} — the only legal move.`;
@@ -1392,7 +1392,7 @@ export function labelText(a: LabelTextInput, settings: AnalysisSettings): string
     }
     case 'best':
       if (a.checkmate) return `${name} — checkmate!`;
-      return isBestMove ? `${name} — the engine's top choice.` : `${name} — as good as the engine's top move (${a.bestSan}).`;
+      return isBestMove ? `${name} — the best move.` : `${name} — as good as the best move (${a.bestSan}).`;
     case 'great':
       return `${name} — the only good move here: the next best loses ${Math.round(a.labelReason.great?.secondBestLoss ?? 0)}% winning chances.`;
     case 'excellent':
@@ -1417,7 +1417,7 @@ export function labelText(a: LabelTextInput, settings: AnalysisSettings): string
       // the hung piece is named only from the move's own verified 'hangs' fact (a piece standing on that square
       // after the move, confirmed by the engine line), with that fact's number; otherwise the line's net loss
       const vh = a.verifiedHang;
-      const lossText = vh ? `${vh.already ? "does not save" : "leaves"} ${the(vh.piece)}${vh.already ? ", which is still hanging" : " hanging"} (${points(-vh.loss)})` : m ? `loses material: the engine line ends ${Math.abs(m.loss)} ${Math.abs(m.loss) === 1 ? "point" : "points"} worse than after ${a.bestSan}` : '';
+      const lossText = vh ? `${vh.already ? "does not save" : "leaves"} ${the(vh.piece)}${vh.already ? ", which is still hanging" : " hanging"} (${points(-vh.loss)})` : m ? `loses material: with best play it ends ${Math.abs(m.loss)} ${Math.abs(m.loss) === 1 ? "point" : "points"} worse than after ${a.bestSan}` : '';
       // (M5b) the engine sees a forced mate against the mover after this move (longer than the mate rule's 3): that
       // is the reason, not the material count
       const after = a.evalAfter.mate !== undefined ? (a.color === 'white' ? a.evalAfter.mate : -a.evalAfter.mate) : undefined;
@@ -1426,7 +1426,7 @@ export function labelText(a: LabelTextInput, settings: AnalysisSettings): string
       }
       if (materialDecides && m) {
         const still = a.winAfter >= settings.suggest.winningMin
-          ? ` ${me} is still winning (engine eval ${formatEval(a.evalBefore)} → ${formatEval(a.evalAfter)}), but this is the habit to fix.`
+          ? ` ${me} is still winning (eval ${formatEval(a.evalBefore)} → ${formatEval(a.evalAfter)}), but this is the habit to fix.`
           : ` ${chances}.`;
         return `${name} — ${a.san ? `${a.san} ` : ''}${lossText}.${still}${why}`;
       }
@@ -1446,7 +1446,7 @@ export function verdictText(label: Label, playedIsBest: boolean): string | null 
     case 'great':
       return 'Great find — the only good move here.';
     case 'best':
-      return playedIsBest ? 'This was the best move.' : "As good as the engine's top move.";
+      return playedIsBest ? 'This was the best move.' : "As good as the best move.";
     default:
       return null;
   }
@@ -1455,6 +1455,6 @@ export function verdictText(label: Label, playedIsBest: boolean): string | null 
 // --- Suggestion captions (UI / report) -----------------------------------------------------------------------
 
 export const SUGGESTION_TEXT = {
-  deepOnly: 'deep engine move — hard to explain',
-  lossVsBest: (winLoss: number): string => (winLoss < 0.5 ? "as good as the engine's top move" : `${MINUS}${winLoss.toFixed(1)}% winning chances vs the engine's top`),
+  deepOnly: 'a deep move — hard to explain',
+  lossVsBest: (winLoss: number): string => (winLoss < 0.5 ? "as good as the best move" : `${MINUS}${winLoss.toFixed(1)}% winning chances vs the best move`),
 } as const;

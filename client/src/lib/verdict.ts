@@ -37,18 +37,18 @@ export function moveVerdict(a: MoveAnalysis, ctx: ReasonContext): Verdict {
 
 /**
  * The points under the verdict: the other Immediate sentences (a bad move's bad ones first — the server orders them)
- * and the short line's result when it helps or hurts. At most `max`.
+ * and the short line's result when it helps or hurts (`line: false`: never). At most `max`.
  */
-export function keyPoints(a: MoveAnalysis, v: Verdict, max = 3): ToneLine[] {
+export function keyPoints(a: MoveAnalysis, v: Verdict, max = 3, opts: { line?: boolean } = {}): ToneLine[] {
   const ex = a.played.explanation;
   const imm = levelLines(ex?.immediate).filter((_, i) => i !== v.usedIndex);
-  const result = storyResult(storyParts(ex?.short));
+  const result = opts.line === false ? null : storyResult(storyParts(ex?.short));
   const out: ToneLine[] = [];
   const room = result && result.tone !== 'neutral' ? max - 1 : max;
   // skip neutral filler when there are toned sentences
   const toned = imm.filter((l) => l.tone !== 'neutral');
   out.push(...(toned.length ? toned : imm).slice(0, room));
-  if (result && result.tone !== 'neutral') out.push({ text: `In the engine line: ${lowerFirst(result.text)}.`, tone: result.tone });
+  if (result && result.tone !== 'neutral') out.push({ text: `With best play: ${lowerFirst(result.text)}.`, tone: result.tone });
   // a bad move: what hurts first (the line's cost too)
   if (BAD.has(a.label)) return out.map((l, i) => ({ l, i })).sort((x, y) => BAD_MOVE_TONE_ORDER[x.l.tone] - BAD_MOVE_TONE_ORDER[y.l.tone] || x.i - y.i).map((x) => x.l);
   return out;
@@ -80,13 +80,13 @@ export function betterMove(x: MoveAnalysis | null): { candidate: Candidate; kind
   return null;
 }
 
-/** A candidate's own points: its good Immediate sentences, then its line's result when it helps. */
-export function candidatePoints(c: Candidate, max = 3): ToneLine[] {
+/** A candidate's own points: its good Immediate sentences, then its line's result when it helps (`line: false`: never). */
+export function candidatePoints(c: Candidate, max = 3, opts: { line?: boolean } = {}): ToneLine[] {
   const ex = c.explanation;
   const imm = levelLines(ex?.immediate);
-  const result = storyResult(storyParts(ex?.short));
+  const result = opts.line === false ? null : storyResult(storyParts(ex?.short));
   const good = imm.filter((l) => l.tone === 'good');
   const out: ToneLine[] = (good.length ? good : imm.filter((l) => l.tone !== 'bad')).slice(0, result?.tone === 'good' ? max - 1 : max);
-  if (result?.tone === 'good') out.push({ text: `In the engine line: ${lowerFirst(result.text)}.`, tone: 'good' });
+  if (result?.tone === 'good') out.push({ text: `With best play: ${lowerFirst(result.text)}.`, tone: 'good' });
   return out;
 }

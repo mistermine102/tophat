@@ -28,12 +28,20 @@ Next time you only need `npm start` — keep that terminal window open while you
 `Ctrl+C` there or close the window. Running `npm start` again while it is already running just opens the browser.
 (If you forget `npm run setup:engine`, `npm start` downloads Stockfish itself.)
 
-## Get a PGN from chess.com
+## Open a game from chess.com
+
+**By username (easiest):** in Chess Coach click **Open game** or the **Chess Coach** logo (it opens by itself the first
+time), type your chess.com username under **Your games on chess.com**, click **Show recent games** and click a game.
+The box remembers the name, so next time the list appears by itself. Hover over a game to see it play through on a
+small board. The list shows your 30 newest finished games (standard chess; variants like Chess960 are skipped), with
+the result from your side, the opponent, time control and date. This needs an internet connection (it reads
+chess.com's public game archive; no login or password).
+
+**Or paste a PGN:**
 
 1. Open the finished game on chess.com (Profile → Games, or the game review page).
 2. Click **Share** (the arrow icon under the board) → **PGN** tab → **Copy PGN**.
-3. In Chess Coach click **Open PGN** (it opens by itself the first time), paste with `Ctrl+V`, click **Analyse game**.
-   The first time, it also asks for your chess.com username (see below).
+3. In Chess Coach click **Open game** (it opens by itself the first time), paste with `Ctrl+V`, click **Analyse game**.
 
 No game at hand? The first window has a **Try a sample** button with a short beginner game.
 
@@ -42,8 +50,13 @@ one is used.
 
 ## Using it
 
-- **Your username:** enter your chess.com username once (in the first window, or later in **Settings**). Then the
-  board is turned to your side and "You" / "Opponent" are right. (Without it, White is "You".)
+- **Your side:** the side at the bottom of the board is "You". A game from your chess.com list opens on your side;
+  a pasted game opens on the side whose player name matches the name in the chess.com box (else White). Wrong side?
+  Flip the board (the ⇅ button or `F`) — "You" / "Opponent" switch with it, and the game remembers it. The players
+  are shown above and below the board (name, rating, the pieces they have taken so far with +N for the side ahead in material, Won / Lost / Draw).
+- **Mates on the board:** whenever the engine sees a forced mate, the king that gets mated is tagged "mate in N"
+  (green if the side that just moved is mating, red if it is being mated); a mate that was let go is tagged
+  "missed mate in N".
 - **Step through the game:** the arrow buttons under the board, or the keyboard: `←` `→` one move, `Home` / `End`
   start and end, `F` flips the board. You can also click a move in the move list or a point on the eval graph
   (the graph shows who was winning; dots mark mistakes).
@@ -55,12 +68,15 @@ one is used.
 - **Play a suggestion:** **Play it** next to "Try this" or "Engine's top" plays that move on the board. Hovering a
   move of the engine's line shows it on the board; clicking it plays the line up to there.
 - Hover over a square name in an explanation (like "f7") to see that square highlighted on the board.
-- **Try a different screen layout (prototypes):** the **Layout** switch in the header (or `?ui=a`, `?ui=b`, `?ui=c`
-  in the address) shows three experimental screens: **A** board-first (the verdict next to the moved piece),
-  **B** coach + replay ("Show me why" plays the consequences on the board), **C** good vs bad. In all three the
-  move's label sits on the board, and every sentence is marked ✓ (good for the side that moved) or ✗ (bad).
-  **Classic** is the normal screen.
-- Recently opened games are listed in the **Open PGN** window. Reopening one is instant.
+- **On the board:** the move's label sits on the moved piece, and what the move does is drawn on the board — green /
+  red squares tagged "hanging", "forked", "pinned" … and thin arrows for who attacks what (green = good for the side
+  that moved, red = bad). Every hanging piece has its square lightly tinted, on every move: red if it is yours,
+  green if it is the opponent's (hanging = attacked and can be won: nothing defends it, a cheaper piece attacks it,
+  or more attackers than defenders). Under the board: the eval graph. Next to it: the verdict with up to two ✓ / ✗
+  points (the better move is the arrow on the board), and the moves right below (side lines you tried aren't listed).
+- **Labels:** Best (★) is only the engine's top move; a different move that scores just as well is Excellent.
+- **Older screens:** `?ui=classic`, `?ui=b` or `?ui=c` in the address still shows the earlier layouts.
+- Recently opened games are listed in the **Open game** window (click **Open game** or the logo). Reopening one is instant.
 
 ## What the labels mean
 
@@ -130,8 +146,7 @@ same game again is instant.
 - **"Engine offline" / "Stockfish is not installed"** — run `npm run setup:engine` and start again. To use a
   Stockfish you already have, set `STOCKFISH_PATH` to the full path of `stockfish.exe`.
 - **Analysis failed for a move** — click **Try again** in the panel. If it keeps failing, restart with `npm start`.
-- **Clear the saved analyses** — stop Chess Coach and delete the `data` folder (it only holds the cache and your
-  username). Games are analysed again the next time you open them.
+- **Clear the saved analyses** — stop Chess Coach and delete the `data` folder (it only holds the cache). Games are analysed again the next time you open them.
 - **The PC gets loud or slow during analysis** — that's Stockfish using the CPU. Use fewer engine processes, e.g.
   `$env:ENGINE_PROCESSES=2` (PowerShell) before `npm start`; analysis then takes longer.
 - **`npm` is not recognised** — Node.js is not installed (or the terminal was open before installing it; open a new

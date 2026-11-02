@@ -11,7 +11,7 @@ export async function createApiClient(mock = isMockMode()): Promise<ApiClient> {
   if (!mock) return new RealApiClient();
   // Loaded on demand so the fixture data isn't part of the normal startup path.
   const { MockApiClient } = await import('./mock');
-  return new MockApiClient({ storage: typeof localStorage === 'undefined' ? null : localStorage });
+  return new MockApiClient();
 }
 
 export type { ApiClient } from './types';

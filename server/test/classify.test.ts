@@ -52,8 +52,8 @@ describe('test positions', () => {
 
 describe('labelFromWinLoss (SPEC bands)', () => {
   const cases: [number, Label][] = [
-    [0, 'best'],
-    [0.5, 'best'],
+    [0, 'excellent'], // Best is only the engine's #1 move (classifyMove), never a win-chance band
+    [0.5, 'excellent'],
     [0.51, 'excellent'],
     [2, 'excellent'],
     [2.01, 'good'],
@@ -111,7 +111,8 @@ describe('helpers', () => {
 
 describe('classifyMove: win-chance labels', () => {
   const bounds: [number, Label][] = [
-    [0.499, 'best'],
+    [0, 'excellent'], // scores as well as #1 but isn't #1
+    [0.499, 'excellent'],
     [0.501, 'excellent'],
     [1.999, 'excellent'],
     [2.001, 'good'],
@@ -143,9 +144,9 @@ describe('classifyMove: win-chance labels', () => {
     expect(r).toMatchObject({ label: 'best', winLoss: 0 });
   });
 
-  it('a played move scored higher than the best move is Best (winLoss clamped at 0)', () => {
+  it('a played move scored higher than the best move is Excellent, not Best (winLoss clamped at 0)', () => {
     const r = byLoss(60, -3);
-    expect(r).toMatchObject({ label: 'best', winLoss: 0 });
+    expect(r).toMatchObject({ label: 'excellent', winLoss: 0 });
   });
 
   it('already lost: losses are compressed by the clamp', () => {
@@ -156,9 +157,9 @@ describe('classifyMove: win-chance labels', () => {
 });
 
 describe('classifyMove: mate scores', () => {
-  it('had mate, still mates (slower) -> Best, not a mistake', () => {
+  it('had mate, still mates (slower) -> Excellent, not a mistake', () => {
     const r = classifyMove(mkInput({ best: line('d2d4', { mate: 2 }), played: line('e2e4', { mate: 9 }) }), S);
-    expect(r).toMatchObject({ label: 'best', winLoss: 0 });
+    expect(r).toMatchObject({ label: 'excellent', winLoss: 0 });
   });
   it('had a long mate and lost it -> classified by the remaining win%', () => {
     expect(classifyMove(mkInput({ best: line('d2d4', { mate: 5 }), played: line('e2e4', { cp: 900 }) }), S).label).toBe('excellent');
@@ -183,30 +184,30 @@ describe('classifyMove: mate scores', () => {
     const r = classifyMove(mkInput({ best: line('d2d4', { cp: 50 }), played: line('e2e4', { mate: -3 }) }), S);
     expect(r.label).toBe('blunder');
   });
-  it('getting mated a little faster when mated anyway is Best (no allowed-mate: not "much" longer)', () => {
+  it('getting mated a little faster when mated anyway is Excellent (no allowed-mate: not "much" longer)', () => {
     const r = classifyMove(mkInput({ best: line('d2d4', { mate: -4 }), played: line('e2e4', { mate: -2 }) }), S);
-    expect(r).toMatchObject({ label: 'best', winLoss: 0 });
+    expect(r).toMatchObject({ label: 'excellent', winLoss: 0 });
     expect(r.labelReason.allowedMate).toBeUndefined();
     // a long forced mate against the mover is "allowed" by any move
-    expect(classifyMove(mkInput({ best: line('d2d4', { mate: -8 }), played: line('e2e4', { mate: -6 }) }), S).label).toBe('best');
+    expect(classifyMove(mkInput({ best: line('d2d4', { mate: -8 }), played: line('e2e4', { mate: -6 }) }), S).label).toBe('excellent');
   });
   it('allowed mate: a mate in <= 3 the best move avoids (or delays by >= 3 moves) -> Blunder even at ~0 %', () => {
     // already totally lost by win% (-10 vs mated: both ~2.5 %), but the move walks into mate in 2
     const r = classifyMove(mkInput({ best: line('d2d4', { cp: -1010 }), played: line('e2e4', { mate: -2 }) }), S);
-    expect(r).toMatchObject({ label: 'blunder', labelReason: { winChance: 'best', allowedMate: { matedIn: 2 } } });
+    expect(r).toMatchObject({ label: 'blunder', labelReason: { winChance: 'excellent', allowedMate: { matedIn: 2 } } });
     expect(r.winLoss).toBeLessThan(0.5);
     // the best move is mated too, but much later
     const l = classifyMove(mkInput({ best: line('d2d4', { mate: -8 }), played: line('e2e4', { mate: -2 }) }), S);
     expect(l).toMatchObject({ label: 'blunder', labelReason: { allowedMate: { matedIn: 2, bestMatedIn: 8 } } });
     // mate in 4 is outside allowedMaxMoves (3): win% decides
-    expect(classifyMove(mkInput({ best: line('d2d4', { cp: -1010 }), played: line('e2e4', { mate: -4 }) }), S).label).toBe('best');
+    expect(classifyMove(mkInput({ best: line('d2d4', { cp: -1010 }), played: line('e2e4', { mate: -4 }) }), S).label).toBe('excellent');
     // the engine's own #1 move is never "allowing" (every move is at least as bad)
     const own = classifyMove(mkInput({ best: line('e2e4', { mate: -1 }), played: line('e2e4', { mate: -1 }), playedIsBest: true }), S);
     expect(own.label).toBe('best');
     // a single legal move stays Forced
     expect(classifyMove(mkInput({ legalMoveCount: 1, best: line('d2d4', { cp: -1010 }), played: line('e2e4', { mate: -1 }) }), S).label).toBe('forced');
     const s2 = withSettings((x) => (x.mate.allowedMaxMoves = 1));
-    expect(classifyMove(mkInput({ best: line('d2d4', { cp: -1010 }), played: line('e2e4', { mate: -2 }) }), s2).label).toBe('best');
+    expect(classifyMove(mkInput({ best: line('d2d4', { cp: -1010 }), played: line('e2e4', { mate: -2 }) }), s2).label).toBe('excellent');
   });
   it('a move that delivers checkmate is Best, whatever the engine data says', () => {
     const fen = '6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1';
@@ -301,7 +302,7 @@ describe('classifyMove: Great', () => {
     expect(great(97.5, 69.99).label).toBe('great'); // 2nd best throws away the win
   });
   it('requires the played move to be Best and a 2nd line', () => {
-    expect(great(60, 30, { playedIsBest: false, played: line('g1f3', scoreForWin(60)) }).label).toBe('best'); // equal to #1 but not #1
+    expect(great(60, 30, { playedIsBest: false, played: line('g1f3', scoreForWin(60)) }).label).toBe('excellent'); // equal to #1 but not #1
     expect(great(60, 30, { second: null }).label).toBe('best');
   });
   it('requires >= minLegalMoves legal moves (setting)', () => {

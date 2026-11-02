@@ -124,6 +124,9 @@ describe('move list rows', () => {
       r.kind === 'row' ? `${r.number}:${r.white?.san ?? '…'}/${r.black?.san ?? ''}` : `var:${r.starts.map((s) => s.san).join(',')}`,
     );
     expect(shape).toEqual(['1:e4/e5', '2:Nf3/Nc6', '3:Bb5/', 'var:Bc4', '3:…/a6', 'var:Nf6', '4:O-O/Nf6']);
+    // main line only: no variation blocks, and the rows don't split
+    const main = buildMoveRows(t, { sideLines: false }).map((r) => (r.kind === 'row' ? `${r.number}:${r.white?.san}/${r.black?.san}` : 'var'));
+    expect(main).toEqual(['1:e4/e5', '2:Nf3/Nc6', '3:Bb5/a6', '4:O-O/Nf6']);
   });
 
   it('lays out the 72-ply fixture game in 36 rows', () => {

@@ -26,14 +26,17 @@ rephrase them (and must never do chess analysis itself).
 
 - User pastes a **PGN** (chess.com: *Share → PGN*). Multiple-game PGNs: take the first game. Comments, clock
   annotations (`{[%clk ...]}`), NAGs, variations in the input are tolerated and ignored.
+- Or **by chess.com username**: the Open dialog lists the user's newest finished games (public API, no login);
+  clicking one imports its PGN on the user's side. The box remembers the last name looked up (browser storage).
 - Board shows the game; **arrows / buttons / keyboard (←, →, Home, End)** step through it; clicking a move in the
   move list or a point on the eval graph jumps there.
 - **Exploration:** in any position the user can drag pieces to try other moves. This creates a side line branching
   from that position. Side-line moves are analysed on demand with the same pipeline. "Back to game" returns to the
   main line position the side line branched from.
-- **Orientation:** user stores their chess.com username once (settings). The tool reads `[White]`/`[Black]` from the
-  PGN and orients the board to the user's side; "You" in the summary = that side. A flip button exists. If the
-  username matches neither side, White is "You" and orientation defaults to White.
+- **Orientation / "You":** the side at the bottom of the board is "You" (summary, labels' wording). A game from the
+  chess.com list opens on the user's side; a pasted game on the side whose `[White]`/`[Black]` name matches the
+  remembered chess.com name, else White. Flipping the board switches "You"; the choice is remembered per game.
+  No username setting.
 
 ## Move labels (every move, both sides)
 
@@ -48,7 +51,7 @@ Labels (thresholds are settings; defaults approximate chess.com's expected-point
 |---|---|
 | **Forced** | The played move was the only legal move. |
 | **Book** | Position after the move is in the opening book (Lichess `chess-openings`, CC0) and every earlier move in the game was also book. |
-| **Best** | Played move is the engine's #1 move, or `winLoss ≤ 0.5`. |
+| **Best** | Played move is the engine's #1 move (only that; a move that scores as well is Excellent). |
 | **Great !** | Played move is Best **and** the engine's 2nd-best move would be a Mistake or worse (`winLoss(2nd) ≥ mistake threshold`) **and** the position wasn't already totally decided in a way that makes the choice irrelevant (mover's win% after best move between 10 and 70 — M3: was 97, see below — or the 2nd best throws away a win, i.e. drops below 70). Requires ≥2 legal moves. |
 | **Excellent** | `winLoss ≤ 2` |
 | **Good** | `winLoss ≤ 5` |
@@ -144,7 +147,7 @@ For Best/Great moves the tool confirms ("Good — this was the move") and shows 
 - Move list with label symbols/colours; side lines shown indented under the move they branch from.
 - Explanation panel for the current move: label (with reason), eval change, three levels, Try this, Engine's top.
 - Game summary: accuracy % and label counts per side ("You" / "Opponent").
-- Settings: chess.com username. Paste-PGN dialog.
+- Open dialog: chess.com games by username, paste a PGN, recently opened. No settings dialog.
 - Analysis streams in: board opens immediately; labels appear as moves finish; progress indicator.
 
 ## Analysis flow
@@ -159,7 +162,7 @@ For Best/Great moves the tool confirms ("Good — this was the move") and shows 
 
 ## Out of v1
 
-chess.com import by username, Brilliant, AI rephrasing, level slider, browser-only (WASM) engine, multi-user.
+Brilliant, AI rephrasing, level slider, browser-only (WASM) engine, multi-user.
 
 ## Verification (definition of done)
 

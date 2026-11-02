@@ -83,7 +83,7 @@ describe('the threat behind a reply (weakness 4)', () => {
     const a = refutationFact({ fenBefore: fen, uci: 'e4c6', pv: p, line: nl.line, replyThreat })!;
     expect(a.threatParried).toBe(true);
     const t = renderExplanation({ immediate: [a], short: [], long: [] }, { mover: 'white', label: 'blunder' }).immediate.text;
-    expect(t[0]).toBe("Allows Nd4: then Black threatens Nxc6, winning a queen (+9 points for Black) — in the engine line White avoids that but loses 3 points.");
+    expect(t[0]).toBe("Allows Nd4: then Black threatens Nxc6, winning a queen (+9 points for Black) — with best play White avoids that but loses 3 points.");
   });
   it('a threat that is simply stepped away from, with a loss elsewhere later, is not the reason', () => {
     const fen = 'r4rk1/p1p2pp1/1p6/2p1Pn2/2P1QPb1/6P1/P2R3P/R5K1 w - - 3 26';
@@ -101,7 +101,7 @@ describe('the threat behind a reply (weakness 4)', () => {
     const a = refutationFact({ fenBefore: fen, uci: 'b2b3', pv: p, line: nl.line, replyThreat: null, bestLineDelta: 0 })!;
     expect(a.follow).toBe('Nf3+');
     const t = renderExplanation({ immediate: [a], short: [], long: [] }, { mover: 'white', label: 'blunder' }).immediate.text;
-    expect(t[0]).toBe('After O-O, Black goes on with Nf3+: in the engine line this costs White 2 points (see the short term).');
+    expect(t[0]).toBe('After O-O, Black goes on with Nf3+: with best play this costs White 2 points.');
   });
 });
 
@@ -123,7 +123,7 @@ describe('reasons ranked by verified magnitude, with the honest hedge (weakness 
     const mate: Fact = { type: 'line', steps: [], materialDelta: 0, result: 'mate', mateIn: 7 };
     expect(reasonsArePartial(betterReasonFacts([mate], [], 'white'), 900)).toBe(false);
     const text = renderExplanation({ immediate: [{ type: 'misses', san: 'O-O', uci: 'e1g1', facts: [castle], partial: true }], short: [], long: [] }, { mover: 'white', label: 'mistake' }).immediate.text;
-    expect(text).toEqual(['Misses O-O, which castles kingside — but the engine sees more than this.']);
+    expect(text).toEqual(['Misses O-O, which castles kingside — but there is more to it than that.']);
   });
   it('a defence the played move also manages is a minor difference', () => {
     const saves: Fact = { type: 'escape', piece: { role: 'queen', square: 'd3', color: 'black' }, from: 'd8' };
@@ -145,7 +145,7 @@ describe('pawn forks, batteries, perpetual checks (weakness 6)', () => {
     expect(of(verifyWithLine(immediateFacts(fen, 'e4e5'), fen, wins), 'fork')).toHaveLength(1);
     const loses = pv('e4e5 d6e5 b1c3 c5e3 f2e3 e5e3');
     expect(of(verifyWithLine(immediateFacts(fen, 'e4e5'), fen, loses), 'fork')).toHaveLength(0);
-    expect(renderExplanation({ immediate: [fork], short: [], long: [] }, { mover: 'white' }).immediate.text[0]).toBe("Pawn fork: the pawn on e5 attacks Black's queen on d6 and knight on f6 at once, and the engine line wins material after it.");
+    expect(renderExplanation({ immediate: [fork], short: [], long: [] }, { mover: 'white' }).immediate.text[0]).toBe("Pawn fork: the pawn on e5 attacks Black's queen on d6 and knight on f6 at once, and wins material with best play.");
   });
   it('a battery: the moved rook lines up behind its own rook against a piece that can now be won', () => {
     // YMOxEowk 25.Rgg8! behind the rook on d8 against the bishop on c8 (defended once by the rook on a8)

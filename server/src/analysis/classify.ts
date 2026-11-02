@@ -152,13 +152,12 @@ function pvFor(line: EngineMoveLine, fen: string): string[] {
 
 /**
  * SPEC win-chance bands (thresholds `settings.labels`, all inclusive upper bounds):
- * Best `winLoss <= bestMaxLoss` (0.5), Excellent `<= excellentMaxLoss` (2), Good `<= goodMaxLoss` (5),
- * Inaccuracy `<= inaccuracyMaxLoss` (10), Mistake `<= mistakeMaxLoss` (20), Blunder above.
- * (The "engine #1 is always Best" part of the Best rule is applied in `classifyMove`.)
+ * Excellent `winLoss <= excellentMaxLoss` (2), Good `<= goodMaxLoss` (5), Inaccuracy `<= inaccuracyMaxLoss` (10),
+ * Mistake `<= mistakeMaxLoss` (20), Blunder above. Best is only the engine's #1 move (and a checkmate), set in
+ * `classifyMove` — a move that merely scores as well is Excellent.
  */
 export function labelFromWinLoss(winLoss: number, settings: AnalysisSettings): Label {
   const t = settings.labels;
-  if (winLoss <= t.bestMaxLoss) return 'best';
   if (winLoss <= t.excellentMaxLoss) return 'excellent';
   if (winLoss <= t.goodMaxLoss) return 'good';
   if (winLoss <= t.inaccuracyMaxLoss) return 'inaccuracy';

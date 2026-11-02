@@ -5,12 +5,12 @@ import * as shared from '@chess-coach/shared';
 
 describe('settings', () => {
   it('has the spec defaults', () => {
-    expect(ANALYSIS_VERSION).toBe(5);
+    expect(ANALYSIS_VERSION).toBe(6);
     const s = DEFAULT_SETTINGS;
-    expect([s.labels.bestMaxLoss, s.labels.excellentMaxLoss, s.labels.goodMaxLoss, s.labels.inaccuracyMaxLoss, s.labels.mistakeMaxLoss]).toEqual([0.5, 2, 5, 10, 20]);
+    expect([s.labels.excellentMaxLoss, s.labels.goodMaxLoss, s.labels.inaccuracyMaxLoss, s.labels.mistakeMaxLoss]).toEqual([2, 5, 10, 20]);
     expect(s.material).toMatchObject({ blunderMinLoss: 3, blunderMinEvalDropCp: 250, mistakeMinLoss: 2, mistakeMinEvalDropCp: 150 });
     expect(s.suggest).toMatchObject({ winningMin: 70, drawishMin: 30, candidates: 5 });
-    expect(s.budget.deep).toEqual({ depth: 16, multipv: 5, maxMs: 5000 });
+    expect(s.budget.deep).toEqual({ depth: 14, multipv: 5, maxMs: 5000 });
     expect(s.budget.shallow).toEqual({ depth: 8, multipv: 5, maxMs: 500 });
     expect(s.budget.threat).toEqual({ depth: 12, multipv: 1, maxMs: 500 });
     expect(s.budget.forcedness).toEqual({ depth: 12, multipv: 2, maxMs: 500 });
@@ -30,7 +30,7 @@ describe('settings', () => {
     s.budget.deep.depth = 19;
     expect(settingsHash(s)).not.toBe(h);
     const t = structuredClone(DEFAULT_SETTINGS);
-    t.labels.bestMaxLoss = 0.6;
+    t.labels.excellentMaxLoss = 2.1;
     expect(settingsHash(t)).not.toBe(h);
   });
 

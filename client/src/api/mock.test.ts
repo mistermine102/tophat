@@ -118,19 +118,10 @@ describe('MockApiClient', () => {
     expect(s.summary()).toBe(1);
   });
 
-  it('persists settings and orients new games by username', async () => {
-    const store = new Map<string, string>();
-    const storage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v) };
-    const api = new MockApiClient({ storage, createDelayMs: 0 });
-    const put = api.putSettings({ username: '  BishopBlunder99 ' });
-    await vi.advanceTimersByTimeAsync(60);
-    expect(await put).toEqual({ username: 'BishopBlunder99' });
-    const again = new MockApiClient({ storage });
-    const get = again.getSettings();
-    await vi.advanceTimersByTimeAsync(1);
-    expect((await get).username).toBe('BishopBlunder99');
+  it("guesses the fixture player's side (black), like the server", async () => {
+    const api = new MockApiClient({ createDelayMs: 0 });
     const g = api.createGame(FIXTURE_PGN);
     await vi.advanceTimersByTimeAsync(1);
-    expect((await g).you).toBe('white');
+    expect((await g).you).toBe('black');
   });
 });

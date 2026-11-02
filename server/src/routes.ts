@@ -1,6 +1,7 @@
 // REST + SSE routes under /api (ARCHITECTURE.md "HTTP API").
 import { type ErrorRequestHandler, type Request, type Response, Router } from 'express';
 import type { AppContext } from './app';
+import { ChessComError, DEFAULT_LIMIT, fetchChessComGames, validUsername } from './chesscom';
 import { BadRequestError, type GameEvent, type GameManager, PgnImportError } from './games';
 
 /** SSE heartbeat interval (comment line) so proxies and browsers keep the stream open. */
@@ -78,6 +79,14 @@ export function apiRouter(ctx: AppContext, games: GameManager): Router {
     res.json(await games.analyse(req.body));
   });
 
+  r.get('/chesscom/:username/games', async (req, res) => {
+    const username = String(req.params.username).trim();
+    if (!validUsername(username)) throw new BadRequestError('a chess.com username has only letters, digits, "_" and "-"');
+    const limit = req.query.limit === undefined ? DEFAULT_LIMIT : Number(req.query.limit);
+    if (!Number.isInteger(limit) || limit < 1) throw new BadRequestError('limit must be a positive integer');
+    res.json(await fetchChessComGames(username, { limit, ...(ctx.fetchImpl ? { fetchImpl: ctx.fetchImpl } : {}) }));
+  });
+
   r.get('/settings', (_req, res) => {
     res.json(games.getSettings());
   });
@@ -112,6 +121,7 @@ export function apiRouter(ctx: AppContext, games: GameManager): Router {
   const onError: ErrorRequestHandler = (err, _req, res, _next) => {
     if (res.headersSent) return;
     if (err instanceof PgnImportError || err instanceof BadRequestError) res.status(400).json({ error: err.message });
+    else if (err instanceof ChessComError) res.status(err.status).json({ error: err.message });
     else if ((err as { type?: string }).type === 'entity.parse.failed') res.status(400).json({ error: 'invalid JSON body' });
     else {
       console.error('[api]', err);

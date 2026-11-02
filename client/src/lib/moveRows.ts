@@ -7,7 +7,9 @@ export type MoveRowItem =
   | { kind: 'row'; key: string; number: number; white: TreeNode | null; black: TreeNode | null }
   | { kind: 'variations'; key: string; starts: TreeNode[] };
 
-export function buildMoveRows(tree: MoveTree): MoveRowItem[] {
+/** `sideLines: false`: main line only (the tried-out lines stay in the tree, just not listed). */
+export function buildMoveRows(tree: MoveTree, opts: { sideLines?: boolean } = {}): MoveRowItem[] {
+  const sideLines = opts.sideLines ?? true;
   const items: MoveRowItem[] = [];
   let row: Extract<MoveRowItem, { kind: 'row' }> | null = null;
   const flush = () => {
@@ -26,7 +28,7 @@ export function buildMoveRows(tree: MoveTree): MoveRowItem[] {
       if (!row) row = { kind: 'row', key: `r${p}`, number: n, white: null, black: node };
       else row.black = node;
     }
-    const vars = tree.variations(parent);
+    const vars = sideLines ? tree.variations(parent) : [];
     if (vars.length) {
       flush();
       items.push({ kind: 'variations', key: `v${p}`, starts: vars });

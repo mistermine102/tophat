@@ -1,19 +1,18 @@
 <script setup lang="ts">
-// Header (players, progress, layout switch, dialogs) + the screen layout picked with `?ui=` (lib/uiMode.ts):
-// classic (default), A board-first, B coach + replay, C good vs bad. All layouts share the session store.
+// Header (Tophat logo = home, players, progress, Open game) + the screen: layout A (board-first); the older layouts only by
+// URL (`?ui=classic|b|c`, lib/uiMode.ts). All layouts share the session store.
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import PgnDialog from './components/PgnDialog.vue';
-import SettingsDialog from './components/SettingsDialog.vue';
+import TophatMark from './components/TophatMark.vue';
 import BoardFirstLayout from './layouts/BoardFirstLayout.vue';
 import ClassicLayout from './layouts/ClassicLayout.vue';
 import CoachLayout from './layouts/CoachLayout.vue';
 import GoodBadLayout from './layouts/GoodBadLayout.vue';
-import { setUiMode, uiMode, UI_MODES } from './lib/uiMode';
+import { uiMode } from './lib/uiMode';
 import { useSession } from './stores/session';
 
 const session = useSession();
 const showPgn = ref(false);
-const showSettings = ref(false);
 const booting = ref(true);
 const game = computed(() => session.state.game);
 const progress = computed(() => session.progress.value);
@@ -34,7 +33,7 @@ const players = computed(() => {
 });
 
 onMounted(async () => {
-  await Promise.all([session.loadSettings(), session.checkHealth()]);
+  await session.checkHealth();
   const id = new URLSearchParams(location.search).get('game');
   if (id && (await session.openGame(id))) {
     booting.value = false;
@@ -47,7 +46,7 @@ onMounted(async () => {
 function onKey(e: KeyboardEvent) {
   const t = e.target as HTMLElement | null;
   if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
-  if (showPgn.value || showSettings.value || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (showPgn.value || e.ctrlKey || e.metaKey || e.altKey) return;
   const actions: Record<string, () => void> = {
     ArrowLeft: () => session.prev(),
     ArrowRight: () => session.next(),
@@ -71,73 +70,51 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="flex h-full min-h-[600px] flex-col text-neutral-100">
-    <header class="flex h-12 shrink-0 items-center gap-4 border-b border-white/5 bg-neutral-900/80 px-4">
+    <header class="flex h-14 shrink-0 items-center gap-4 px-5 pt-1">
       <div class="flex items-center gap-2">
-        <span class="flex h-7 w-7 items-center justify-center rounded-md bg-amber-500 text-lg leading-none text-neutral-950">♞</span>
-        <span class="text-[15px] font-bold tracking-tight">Chess Coach</span>
-        <span
-          v-if="session.api.mode === 'mock'"
-          class="rounded bg-sky-500/15 px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-sky-300"
-          title="Mock mode: fixture data, no server"
+        <button
+          class="-ml-1 flex items-center gap-2 rounded-lg px-1 py-0.5 hover:bg-white/5"
+          title="Home: your chess.com games, paste a game, recently opened"
+          data-testid="home"
+          @click="showPgn = true"
         >
+          <TophatMark class="h-8 w-8" />
+          <span class="th-display text-[26px] font-bold leading-none tracking-[-0.01em]">Tophat</span>
+        </button>
+        <span v-if="session.api.mode === 'mock'" class="th-badge th-badge-info" title="Mock mode: fixture data, no server">
           Mock
         </span>
       </div>
-      <div v-if="players" class="min-w-0 truncate text-sm text-neutral-300" data-testid="players">
-        <span class="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-neutral-100 ring-1 ring-black/40 align-middle"></span>{{ players.white }}
+      <!-- layout A shows the players above / below the board instead -->
+      <div v-if="players && uiMode !== 'a'" class="min-w-0 truncate text-sm text-neutral-300" data-testid="players">
+        <span class="mr-1 inline-block h-2.5 w-2.5 rounded-full th-side-white align-middle"></span>{{ players.white }}
         <span class="mx-1.5 text-neutral-500">vs</span>
-        <span class="mr-1 inline-block h-2.5 w-2.5 rounded-full bg-neutral-900 ring-1 ring-white/40 align-middle"></span>{{ players.black }}
+        <span class="mr-1 inline-block h-2.5 w-2.5 rounded-full th-side-black align-middle"></span>{{ players.black }}
         <span class="ml-2 font-semibold text-neutral-200">{{ players.result }}</span>
       </div>
       <div class="ml-auto flex items-center gap-2">
-        <div class="mr-1 flex items-center rounded-md bg-neutral-800 p-0.5 ring-1 ring-white/5" role="group" aria-label="Screen layout" data-testid="ui-switch">
-          <span class="px-1.5 text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Layout</span>
-          <button
-            v-for="m in UI_MODES"
-            :key="m.id"
-            class="h-7 rounded px-2 text-xs font-medium transition"
-            :class="uiMode === m.id ? 'bg-amber-500 text-neutral-950' : 'text-neutral-300 hover:bg-white/10'"
-            :title="`${m.name}: ${m.hint}`"
-            :aria-pressed="uiMode === m.id"
-            :data-testid="`ui-${m.id}`"
-            @click="setUiMode(m.id)"
-          >
-            {{ m.short }}
-          </button>
-        </div>
+        <!-- analysis progress: quiet text while it runs; once complete only screen readers (and tests) see it -->
         <span
           v-if="game"
-          class="inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-xs"
-          :class="analysing ? 'bg-amber-500/10 text-amber-300' : progress.failed ? 'bg-rose-500/10 text-rose-200' : 'bg-emerald-500/10 text-emerald-300'"
+          class="inline-flex items-center gap-2 text-[13px] text-neutral-400"
+          :class="{ 'sr-only': !analysing && !progress.failed }"
+          role="status"
           data-testid="progress"
           :title="analysing ? 'The engine checks every move of the game. Moves that are done can be viewed already; the move you are looking at is analysed first.' : undefined"
         >
-          <span v-if="analysing" class="h-3 w-3 animate-spin rounded-full border-2 border-amber-400 border-t-transparent"></span>
-          <span v-else-if="!progress.failed">✓</span>
-          <template v-if="analysing">Analysed {{ progress.done }}/{{ progress.total }}<span v-if="timeLeft" class="text-amber-300/70" data-testid="time-left"> · {{ timeLeft }}</span></template>
+          <template v-if="analysing">
+            <span class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-amber-500 border-t-transparent"></span>
+            Analysed {{ progress.done }}/{{ progress.total }}<span v-if="timeLeft" class="text-neutral-500" data-testid="time-left"> · {{ timeLeft }}</span>
+          </template>
           <template v-else-if="progress.failed">Analysed {{ progress.done }}/{{ progress.total }}</template>
           <template v-else>Analysis complete</template>
-          <span v-if="progress.failed" class="text-rose-300" data-testid="failed-count">· {{ progress.failed }} failed</span>
+          <span v-if="progress.failed" class="th-badge th-badge-bad" data-testid="failed-count">{{ progress.failed }} failed</span>
         </span>
-        <span
-          v-if="health && !health.ok"
-          class="inline-flex items-center gap-1.5 rounded-full bg-rose-500/10 px-2.5 py-1 text-xs text-rose-300"
-          :title="health.error"
-          data-testid="engine-down"
-        >
-          <span class="h-2 w-2 rounded-full bg-rose-400"></span>Engine offline
-        </span>
-        <span v-if="session.state.connectionError" class="text-xs text-rose-300" :title="session.state.connectionError">Connection lost</span>
-        <button class="hdr-btn" data-testid="open-pgn" @click="showPgn = true">
-          <svg viewBox="0 0 20 20" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4v12M4 10h12" /></svg>
-          Open PGN
-        </button>
-        <button class="hdr-btn" data-testid="open-settings" title="Settings" @click="showSettings = true">
-          <svg viewBox="0 0 20 20" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="10" cy="10" r="2.6" />
-            <path d="M10 2.5v2M10 15.5v2M17.5 10h-2M4.5 10h-2M15.3 4.7l-1.4 1.4M6.1 13.9l-1.4 1.4M15.3 15.3l-1.4-1.4M6.1 6.1L4.7 4.7" />
-          </svg>
-          Settings
+        <span v-if="health && !health.ok" class="th-badge th-badge-bad" :title="health.error" data-testid="engine-down">Engine offline</span>
+        <span v-if="session.state.connectionError" class="th-badge th-badge-bad" :title="session.state.connectionError">Connection lost</span>
+        <button class="th-btn th-btn-primary" data-testid="open-pgn" @click="showPgn = true">
+          <svg viewBox="0 0 20 20" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4v12M4 10h12" /></svg>
+          Open game
         </button>
       </div>
     </header>
@@ -155,23 +132,16 @@ onBeforeUnmount(() => {
         <p class="text-sm text-neutral-400">Loading…</p>
       </template>
       <template v-else>
-        <div class="text-5xl text-neutral-700">♞</div>
+        <TophatMark class="h-14 w-14 opacity-40" />
         <p class="text-neutral-300">No game open.</p>
         <p v-if="session.state.loadError" class="max-w-md text-sm text-rose-300">{{ session.state.loadError }}</p>
-        <button class="mt-1 h-9 rounded-md bg-amber-500 px-4 text-sm font-semibold text-neutral-950 hover:bg-amber-400" @click="showPgn = true">
-          Paste a PGN
+        <button class="th-btn th-btn-primary mt-1" @click="showPgn = true">
+          Open a game
         </button>
       </template>
     </main>
 
     <PgnDialog v-if="showPgn" :closable="!!game" @close="showPgn = false" />
-    <SettingsDialog v-if="showSettings" @close="showSettings = false" />
   </div>
 </template>
 
-<style scoped>
-@reference "./style.css";
-.hdr-btn {
-  @apply inline-flex h-8 items-center gap-1.5 rounded-md bg-neutral-800 px-2.5 text-sm text-neutral-200 ring-1 ring-white/5 hover:bg-neutral-700;
-}
-</style>

@@ -263,7 +263,7 @@ describe('6. confirmations per label', () => {
     expect(verdictText('book', true)).toBe('Opening theory.');
     expect(verdictText('forced', true)).toBe('The only legal move.');
     expect(verdictText('best', true)).toBe('This was the best move.');
-    expect(verdictText('best', false)).toBe("As good as the engine's top move.");
+    expect(verdictText('best', false)).toBe("As good as the best move.");
     expect(verdictText('great', true)).toBe('Great find — the only good move here.');
     expect(verdictText('mistake', false)).toBeNull();
   });

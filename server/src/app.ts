@@ -21,6 +21,8 @@ export interface AppContext {
   engineError?: string;
   /** Game/analysis state. Default: a GameManager over an in-memory database (tests). */
   games?: GameManager;
+  /** fetch used for chess.com import (tests pass a fake; default: global fetch). */
+  fetchImpl?: typeof fetch;
   /** Mount the fault-injection routes under /api/test (default: env CHESS_COACH_TEST_HOOKS=1). */
   testHooks?: boolean;
 }

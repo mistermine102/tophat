@@ -27,8 +27,8 @@ describe('tones helpers', () => {
     expect(lowerFirst('Nxe4 wins')).toBe('Nxe4 wins');
     expect(lowerFirst('Defends the pawn')).toBe('defends the pawn');
   });
-  it('parseUiMode: classic by default', () => {
-    expect([parseUiMode(''), parseUiMode('?ui=a'), parseUiMode('?ui=C'), parseUiMode('?ui=x')]).toEqual(['classic', 'a', 'c', 'classic']);
+  it('parseUiMode: layout A by default', () => {
+    expect([parseUiMode(''), parseUiMode('?ui=classic'), parseUiMode('?ui=C'), parseUiMode('?ui=x')]).toEqual(['a', 'classic', 'c', 'a']);
   });
 });
 
@@ -45,6 +45,8 @@ describe('verdict', () => {
     expect(v.name).toBe('Blunder');
     expect(v.sentence).toBe('allows d4, forking White’s knights on c3 and e3.');
     expect(keyPoints(a, v).map((l) => l.tone)).toEqual(['bad', 'good', 'good']);
-    expect(keyPoints(a, v)[0]!.text).toMatch(/^In the engine line: White gives a knight/);
+    expect(keyPoints(a, v)[0]!.text).toMatch(/^With best play: White gives a knight/);
+    // without the line (layout A): only the plain sentences
+    expect(keyPoints(a, v, 3, { line: false }).some((l) => l.text.startsWith('With best play'))).toBe(false);
   });
 });

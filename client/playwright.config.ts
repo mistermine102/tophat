@@ -53,6 +53,8 @@ export default defineConfig({
               ENGINE_THREADS: process.env.ENGINE_THREADS ?? '2',
               ENGINE_HASH_MB: process.env.ENGINE_HASH_MB ?? '128',
               CHESS_COACH_TEST_HOOKS: '1',
+              // no real chess.com from tests (the Open dialog lists a remembered name's games by itself)
+              CHESSCOM_API: 'http://127.0.0.1:9',
               LOG_ANALYSIS: '1',
             },
           },

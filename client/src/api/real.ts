@@ -1,5 +1,5 @@
 // Real data layer: the server's HTTP API + SSE stream (ARCHITECTURE.md "HTTP API").
-import type { GameInfo, GameSummary, MoveAnalysis, Settings } from '@chess-coach/shared';
+import type { ChessComGames, GameInfo, GameSummary, MoveAnalysis } from '@chess-coach/shared';
 import { ApiError, type AnalyseRequest, type ApiClient, type GameSnapshot, type Health, type StreamHandlers, type Unsubscribe } from './types';
 
 type FetchLike = typeof fetch;
@@ -96,12 +96,9 @@ export class RealApiClient implements ApiClient {
     return this.request<MoveAnalysis>('POST', '/analyse', req);
   }
 
-  getSettings(): Promise<Settings> {
-    return this.request<Settings>('GET', '/settings');
-  }
-
-  putSettings(settings: Settings): Promise<Settings> {
-    return this.request<Settings>('PUT', '/settings', settings);
+  chessComGames(username: string, limit?: number): Promise<ChessComGames> {
+    const q = limit === undefined ? '' : `?limit=${limit}`;
+    return this.request<ChessComGames>('GET', `/chesscom/${encodeURIComponent(username)}/games${q}`);
   }
 
   async health(): Promise<Health> {

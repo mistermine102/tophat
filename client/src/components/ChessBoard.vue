@@ -22,6 +22,8 @@ const props = defineProps<{
   movable: boolean;
   /** Squares to highlight (e.g. hovered square names in an explanation). */
   highlight?: string[];
+  /** Tinted squares (layout A's consequence marks): green / red for the side that moved. */
+  marks?: readonly { square: string; tone: 'good' | 'bad' }[];
 }>();
 
 const emit = defineEmits<{ move: [orig: string, dest: string] }>();
@@ -39,7 +41,18 @@ const BRUSHES = {
   good: { key: 'cc-good', color: '#22c55e', opacity: 0.85, lineWidth: 11 },
   bad: { key: 'cc-bad', color: '#ef4444', opacity: 0.85, lineWidth: 11 },
   neutral: { key: 'cc-neutral', color: '#a1a1aa', opacity: 0.7, lineWidth: 10 },
+  // consequence arrows (who attacks what), thinner than the move suggestions
+  goodThin: { key: 'cc-good-thin', color: '#22c55e', opacity: 0.75, lineWidth: 6 },
+  badThin: { key: 'cc-bad-thin', color: '#ef4444', opacity: 0.8, lineWidth: 6 },
 };
+
+/** The move's mark tints, then hovered square names on top. */
+function customHighlights(): Map<Key, string> {
+  const m = new Map<Key, string>();
+  for (const x of props.marks ?? []) m.set(x.square as Key, `cc-mark-${x.tone}`);
+  for (const sq of props.highlight ?? []) m.set(sq as Key, 'cc-hl');
+  return m;
+}
 
 function config(): Config {
   return {
@@ -55,7 +68,7 @@ function config(): Config {
       showDests: true,
     },
     drawable: { autoShapes: props.shapes },
-    highlight: { lastMove: true, check: true, custom: new Map((props.highlight ?? []).map((sq) => [sq as Key, 'cc-hl'])) },
+    highlight: { lastMove: true, check: true, custom: customHighlights() },
   };
 }
 
@@ -86,7 +99,7 @@ onMounted(() => {
 });
 
 watch(
-  () => [props.fen, props.orientation, props.turnColor, props.dests, props.lastMove, props.check, props.movable, props.shapes, props.highlight],
+  () => [props.fen, props.orientation, props.turnColor, props.dests, props.lastMove, props.check, props.movable, props.shapes, props.highlight, props.marks],
   () => {
     if (!cg) return;
     const c = config();
@@ -116,6 +129,14 @@ defineExpose({ sync });
 .cc-board square.cc-hl {
   background: rgba(245, 158, 11, 0.45);
   box-shadow: inset 0 0 0 3px rgba(245, 158, 11, 0.95);
+}
+.cc-board square.cc-mark-good {
+  background: rgba(34, 197, 94, 0.32);
+  box-shadow: inset 0 0 0 3px rgba(34, 197, 94, 0.9);
+}
+.cc-board square.cc-mark-bad {
+  background: rgba(239, 68, 68, 0.35);
+  box-shadow: inset 0 0 0 3px rgba(239, 68, 68, 0.95);
 }
 .cc-board coords {
   font-size: 11px;

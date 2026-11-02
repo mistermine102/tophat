@@ -27,7 +27,7 @@ describe('label reasons', () => {
     const m = a.labelReason.material!;
     // the line loses more than the hung piece (e.g. a pawn left hanging, then a promotion): told as the line comparison
     const bigger: MoveAnalysis = { ...a, labelReason: { ...a.labelReason, material: { ...m, loss: 8, hung: { ...m.hung!, role: 'pawn' }, hungLoss: 1 } } };
-    expect(labelReasonText(bigger, { moverIsYou: false })).toMatch(/^Black lost material: the engine line ends 8 points worse than after Rxf2. Black is still winning/);
+    expect(labelReasonText(bigger, { moverIsYou: false })).toMatch(/^Black lost material: with best play it ends 8 points worse than after Rxf2. Black is still winning/);
     // a capture whose capturing piece is lost: "took a pawn with the queen, but the queen can be taken back"
     const capture: MoveAnalysis = {
       ...a,
