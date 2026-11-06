@@ -31,38 +31,38 @@ describe('immediate level', () => {
   it('hanging the queen', () => {
     expect(imm('r5k1/ppp2pp1/7p/8/8/2N2N2/PPPQ1PPP/4R1K1 w - - 0 1', 'd2g5')).toMatchInlineSnapshot(`
       [
-        "Leaves the queen on g5 hanging: Black can win it (−8 points).",
+        "Leaves the queen on g5 hanging: Black can win it.",
       ]
     `);
   });
   it('free capture; capture with check is one sentence', () => {
     expect(imm('4k3/8/8/3n4/8/8/8/3RK3 w - - 0 1', 'd1d5')).toMatchInlineSnapshot(`
       [
-        "Wins Black's knight on d5 (+3 points).",
+        "Wins Black's knight on d5.",
       ]
     `);
     expect(imm('4k3/8/8/8/8/8/8/R2qK3 w - - 0 1', 'a1d1')).toMatchInlineSnapshot(`
       [
-        "Wins Black's queen on d1 (+9 points).",
+        "Wins Black's queen on d1.",
       ]
     `);
   });
   it('losing capture and even trade', () => {
     expect(imm('4k3/8/4p3/3n4/8/8/8/3RK3 w - - 0 1', 'd1d5')).toMatchInlineSnapshot(`
       [
-        "Takes Black's knight on d5, but loses material when the pieces are traded off (−2 points).",
+        "Takes Black's knight on d5, but loses material in the trade.",
       ]
     `);
     expect(imm('4k3/8/4p3/3n4/8/4N3/8/4K3 w - - 0 1', 'e3d5')).toMatchInlineSnapshot(`
       [
-        "Takes Black's knight on d5 — an even trade.",
+        "Takes Black's knight on d5, an even trade.",
       ]
     `);
   });
   it('pin, skewer, discovered check', () => {
     expect(imm('4k3/8/2n5/8/8/8/8/4KB2 w - - 0 1', 'f1b5')).toMatchInlineSnapshot(`
       [
-        "Pins Black's knight on c6 to the king — it is not allowed to move.",
+        "Pins Black's knight on c6 to the king, so it can't move.",
         "Develops the bishop to b5.",
       ]
     `);
@@ -80,7 +80,7 @@ describe('immediate level', () => {
   it('checkmate says only that; promotion; castling; development (Black to move: colour names flip)', () => {
     expect(imm('6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1', 'a1a8')).toMatchInlineSnapshot(`
       [
-        "Checkmate — White wins.",
+        "Checkmate, White wins.",
       ]
     `);
     expect(imm('4k3/P7/8/8/8/8/8/4K3 w - - 0 1', 'a7a8q')).toMatchInlineSnapshot(`
@@ -115,7 +115,7 @@ describe('immediate level', () => {
     ];
     expect(renderExplanation({ immediate: threats, short: [], long: [] }, W).immediate.text).toMatchInlineSnapshot(`
       [
-        "Threatens Nc7+, forking Black's king on e8 and rook on a8 (+5 points).",
+        "Threatens Nc7+, forking Black's king on e8 and rook on a8.",
         "Threatens checkmate with Qxh7#.",
       ]
     `);
@@ -205,7 +205,7 @@ describe('sacrifices and defended threats', () => {
     const mate: Fact = { type: 'line', steps: [], materialDelta: -4, result: 'mate', mateIn: 2 };
     expect(renderExplanation({ immediate: facts, short: [mate], long: [] }, W).immediate.text).toMatchInlineSnapshot(`
       [
-        "Sacrifices the queen on b8 (−9 points) — it starts a forced mate in 2.",
+        "Sacrifices the queen on b8: it starts a forced mate in 2.",
         "Gives check.",
       ]
     `);
@@ -215,7 +215,7 @@ describe('sacrifices and defended threats', () => {
     const cap: Fact = { type: 'capture', captured: { role: 'pawn', square: 'b5', color: 'black' }, outcome: 'loses-material', net: -1 };
     expect(renderExplanation({ immediate: [cap], short: [win], long: [] }, W).immediate.text).toMatchInlineSnapshot(`
       [
-        "Takes Black's pawn on b5 as a sacrifice (−1 point) — the follow-up wins it back with interest.",
+        "Takes Black's pawn on b5 as a sacrifice: the follow-up wins it back with interest.",
       ]
     `);
   });
@@ -231,8 +231,8 @@ describe('sacrifices and defended threats', () => {
       [
         "Stops White's threat of checkmate with Qxf7#.",
         "Stops White's mating attack (it would start with Bxf7+).",
-        "Stops Black's threat Nc2+, which would fork White's king on e1 and rook on a1 (+5 points for Black).",
-        "Stops White's threat Qxb7, which would win material (+6 points for White).",
+        "Stops Black's threat Nc2+, which would fork White's king on e1 and rook on a1.",
+        "Stops White's threat Qxb7, which would win a lot of material.",
       ]
     `);
   });

@@ -1,4 +1,4 @@
-// The viewed move for the prototype layouts: its analysis state, verdict, key points, the better move, eval change,
+// The viewed move for the prototype layouts: its analysis state, verdict, the better move, eval change,
 // and helpers to preview / play a candidate's line. Presentation-free (shared by layouts A, B and C).
 import type { Candidate } from '@chess-coach/shared';
 import { computed } from 'vue';
@@ -8,7 +8,7 @@ import { formatPositionEval } from './format';
 import { LABELS } from './labels';
 import { pvSteps } from './pv';
 import { isMateLabel, isMaterialLabel, labelReasonText, sideName } from './reason';
-import { betterMove, keyPoints, moveVerdict } from './verdict';
+import { betterMove, moveVerdict } from './verdict';
 
 export function useMove(session: Session) {
   const node = computed(() => session.current.value);
@@ -23,7 +23,7 @@ export function useMove(session: Session) {
   // sentences name the side ("White gave away …"), never "you": the viewer may be neither player
   const ctx = computed(() => ({ moverIsYou: false, prevMove: prevMove.value }));
   const verdict = computed(() => (a.value ? moveVerdict(a.value, ctx.value) : null));
-  const points = computed(() => (a.value && verdict.value ? keyPoints(a.value, verdict.value) : []));
+
   const better = computed(() => betterMove(a.value));
   const meta = computed(() => (a.value ? LABELS[a.value.label] : null));
   const moveName = computed(() => (node.value?.fenBefore ? `${moveNumberLabel(node.value.fenBefore)} ${node.value.san}` : ''));
@@ -74,5 +74,5 @@ export function useMove(session: Session) {
     session.playLine(from, c.pvUci, count);
   }
 
-  return { node, a, pending, error, moverIsYou, verdict, points, better, meta, moveName, moverName, evalChange, reason, ruleNote, retry, previewCandidate, playCandidate };
+  return { node, a, pending, error, moverIsYou, verdict, better, meta, moveName, moverName, evalChange, reason, ruleNote, retry, previewCandidate, playCandidate };
 }

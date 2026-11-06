@@ -39,16 +39,16 @@ describe('suggestions do not repeat the played move (weakness 2)', () => {
   });
   it('shared Immediate sentences are folded into one "Like X, it also …" sentence after the own ones', () => {
     // FroOipnY 10.Ba4?! vs the pick Bxd7
-    const played = ex(["Stops Black's threat axb5, which would win a bishop (+3 points for Black)."]);
-    const pick = ex(["Takes Black's knight on d7 — an even trade.", "Stops Black's threat axb5, which would win a bishop (+3 points for Black)."]);
+    const played = ex(["Stops Black's threat axb5, which would win a bishop."]);
+    const pick = ex(["Takes Black's knight on d7, an even trade.", "Stops Black's threat axb5, which would win a bishop."]);
     expect(contrastWithPlayed(pick, played, 'Ba4').immediate.text).toEqual([
-      "Takes Black's knight on d7 — an even trade.",
-      "Like Ba4, it also stops Black's threat axb5, which would win a bishop (+3 points for Black).",
+      "Takes Black's knight on d7, an even trade.",
+      "Like Ba4, it also stops Black's threat axb5, which would win a bishop.",
     ]);
   });
   it('all shared: "Like X, it …"; nothing special: says so; long-term sentences are marked', () => {
-    const played = ex(["Takes back: captures White's queen on d8."], ["After these moves, White's king is more exposed (fewer pawns in front of it)."]);
-    const pick = ex(["Takes back: captures White's queen on d8."], ["After these moves, White's king is more exposed (fewer pawns in front of it)."]);
+    const played = ex(["Takes back White's queen on d8."], ["After these moves, White's king is more exposed (fewer pawns in front of it)."]);
+    const pick = ex(["Takes back White's queen on d8."], ["After these moves, White's king is more exposed (fewer pawns in front of it)."]);
     const c = contrastWithPlayed(pick, played, 'Raxd8');
     expect(c.immediate.text).toEqual(["Like Raxd8, it takes back White's queen on d8."]);
     expect(c.long.text).toEqual(["After these moves, White's king is more exposed (fewer pawns in front of it) — as after Raxd8."]);
@@ -83,7 +83,7 @@ describe('the threat behind a reply (weakness 4)', () => {
     const a = refutationFact({ fenBefore: fen, uci: 'e4c6', pv: p, line: nl.line, replyThreat })!;
     expect(a.threatParried).toBe(true);
     const t = renderExplanation({ immediate: [a], short: [], long: [] }, { mover: 'white', label: 'blunder' }).immediate.text;
-    expect(t[0]).toBe("Allows Nd4: then Black threatens Nxc6, winning a queen (+9 points for Black) — with best play White avoids that but loses 3 points.");
+    expect(t[0]).toBe("Allows Nd4: then Black threatens Nxc6, winning a queen; White can avoid that but still loses material.");
   });
   it('a threat that is simply stepped away from, with a loss elsewhere later, is not the reason', () => {
     const fen = 'r4rk1/p1p2pp1/1p6/2p1Pn2/2P1QPb1/6P1/P2R3P/R5K1 w - - 3 26';
@@ -101,7 +101,7 @@ describe('the threat behind a reply (weakness 4)', () => {
     const a = refutationFact({ fenBefore: fen, uci: 'b2b3', pv: p, line: nl.line, replyThreat: null, bestLineDelta: 0 })!;
     expect(a.follow).toBe('Nf3+');
     const t = renderExplanation({ immediate: [a], short: [], long: [] }, { mover: 'white', label: 'blunder' }).immediate.text;
-    expect(t[0]).toBe('After O-O, Black goes on with Nf3+: with best play this costs White 2 points.');
+    expect(t[0]).toBe('After O-O and Nf3+, White loses material.');
   });
 });
 
@@ -112,9 +112,9 @@ describe('reasons ranked by verified magnitude, with the honest hedge (weakness 
   const threat: Fact = { type: 'threat', move: 'e4e2', san: 'Rxe2', gain: 5, facts: [] };
   it('the two biggest reasons are told (in fact order), not the first two', () => {
     const r = betterReasonFacts([pawn, win, threat], [], 'black');
-    expect(r.map((x) => x.phrase)).toEqual(["wins White's knight on e4", 'threatens Rxe2, winning material (+5 points)']);
+    expect(r.map((x) => x.phrase)).toEqual(["wins White's knight on e4", 'threatens Rxe2, winning a lot of material']);
   });
-  it('quiet reasons only without a tactical one; a small reason for a big drop gets the hedge', () => {
+  it('quiet reasons only without a tactical one; a small reason for a big drop is still told plainly (no hedge)', () => {
     const r = betterReasonFacts([castle], [], 'white');
     expect(r.map((x) => x.phrase)).toEqual(['castles kingside']);
     expect(reasonsArePartial(r, 3.5)).toBe(true);
@@ -123,7 +123,10 @@ describe('reasons ranked by verified magnitude, with the honest hedge (weakness 
     const mate: Fact = { type: 'line', steps: [], materialDelta: 0, result: 'mate', mateIn: 7 };
     expect(reasonsArePartial(betterReasonFacts([mate], [], 'white'), 900)).toBe(false);
     const text = renderExplanation({ immediate: [{ type: 'misses', san: 'O-O', uci: 'e1g1', facts: [castle], partial: true }], short: [], long: [] }, { mover: 'white', label: 'mistake' }).immediate.text;
-    expect(text).toEqual(['Misses O-O, which castles kingside — but there is more to it than that.']);
+    expect(text).toEqual(['Misses O-O, which castles kingside.']);
+    // (round 10) one reason only: the biggest
+    const two = renderExplanation({ immediate: [{ type: 'misses', san: 'Rxe4', uci: 'e8e4', facts: [win, threat] }], short: [], long: [] }, { mover: 'black', label: 'mistake' }).immediate.text;
+    expect(two).toEqual(["Misses Rxe4, which wins White's knight on e4."]);
   });
   it('a defence the played move also manages is a minor difference', () => {
     const saves: Fact = { type: 'escape', piece: { role: 'queen', square: 'd3', color: 'black' }, from: 'd8' };
@@ -145,7 +148,7 @@ describe('pawn forks, batteries, perpetual checks (weakness 6)', () => {
     expect(of(verifyWithLine(immediateFacts(fen, 'e4e5'), fen, wins), 'fork')).toHaveLength(1);
     const loses = pv('e4e5 d6e5 b1c3 c5e3 f2e3 e5e3');
     expect(of(verifyWithLine(immediateFacts(fen, 'e4e5'), fen, loses), 'fork')).toHaveLength(0);
-    expect(renderExplanation({ immediate: [fork], short: [], long: [] }, { mover: 'white' }).immediate.text[0]).toBe("Pawn fork: the pawn on e5 attacks Black's queen on d6 and knight on f6 at once, and wins material with best play.");
+    expect(renderExplanation({ immediate: [fork], short: [], long: [] }, { mover: 'white' }).immediate.text[0]).toBe("Pawn fork: the pawn on e5 attacks Black's queen on d6 and knight on f6 at once, and wins material a few moves later.");
   });
   it('a battery: the moved rook lines up behind its own rook against a piece that can now be won', () => {
     // YMOxEowk 25.Rgg8! behind the rook on d8 against the bishop on c8 (defended once by the rook on a8)

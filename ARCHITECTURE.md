@@ -437,8 +437,8 @@ Additions made in M5b (explanation quality round 2; all additive — the client 
   impossible or loses material on its square; not in decided positions), `misses-mate` (missed-mate rule: the best
   line's moves, verified to end in checkmate), `allows.mateLine` / `allows-mate.line` (an allowed mate ≤ 3 told with
   its moves: "Allows a forced mate in 2: Qb8+ Nxb8 Rd8#."), `misses` (a bad move whose Immediate level says nothing
-  else: the best move + the verified facts behind `betterReasonFacts`; no facts → "the engine prefers X for long-term
-  reasons that are hard to put into words").
+  else: the best move + the verified facts behind `betterReasonFacts`, told as its one biggest reason; no facts →
+  just "X was better." / "X was much better." (round 10: no "hard to put into words" filler)).
 - `betterReasons` also gives quiet reasons when no tactical one exists: develops, castles, prevents, traps, attacks a
   pinned piece, and the best move's own long-term facts (passed pawn, rook on an open file, king safety, …).
 - `allows`: the reply's own threat is kept only when it mates or the line carries it out; `allows.keepsThreat` = that

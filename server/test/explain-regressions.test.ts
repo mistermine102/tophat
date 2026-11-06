@@ -98,7 +98,7 @@ describe('2. bad moves are explained by what they allow', () => {
     const allows = refutationFact({ fenBefore: fen, uci: 'd2g5', pv: p, line })!;
     expect(allows.facts.some((f) => f.type === 'capture')).toBe(true);
     const text = renderExplanation({ immediate: [allows, ...immediateFacts(fen, 'd2g5')], short: [line], long: [] }, { mover: 'white', label: 'blunder' }).immediate.text;
-    expect(text).toEqual(['Leaves the queen on g5 hanging: Black takes it with hxg5 (−8 points).']);
+    expect(text).toEqual(['Leaves the queen on g5 hanging: Black takes it with hxg5.']);
   });
 
   it('no "for free" / "threatens … winning" when the own line loses material: 1.e4 e5 2.Nf3 Nc6 3.Bc4 Nd4 4.Nxe5? Qg5', () => {
@@ -243,7 +243,7 @@ describe('review round 3', () => {
   });
 
   it('no "for free" (SEE also wins defended pawns); a queen attacked by a rook is not "undefended"', () => {
-    expect(renderExplanation({ immediate: immediateFacts(legalFen('4k3/8/8/3n4/8/8/8/3RK3 w - - 0 1'), 'd1d5'), short: [], long: [] }, W).immediate.text[0]).toBe("Wins Black's knight on d5 (+3 points).");
+    expect(renderExplanation({ immediate: immediateFacts(legalFen('4k3/8/8/3n4/8/8/8/3RK3 w - - 0 1'), 'd1d5'), short: [], long: [] }, W).immediate.text[0]).toBe("Wins Black's knight on d5.");
     const att: Fact = { type: 'attack', attacker: { role: 'rook', square: 'f8', color: 'black' }, target: { role: 'queen', square: 'f7', color: 'white' }, reason: 'undefended' };
     expect(renderExplanation({ immediate: [att], short: [], long: [] }, B).immediate.text[0]).toBe("Attacks White's queen on f7 with a rook.");
   });

@@ -18,7 +18,7 @@ import { isCheckmate, sideToMove } from '../lib/chess';
 import { useReplay } from '../lib/replay';
 import { levelLines, storyParts, TONE_META } from '../lib/tones';
 import { useMove } from '../lib/useMove';
-import { BAD, candidatePoints } from '../lib/verdict';
+import { BAD, candidateSentence } from '../lib/verdict';
 import { useSession } from '../stores/session';
 
 const session = useSession();
@@ -42,7 +42,11 @@ const rightNow = computed(() => levelLines(m.a.value?.played.explanation?.immedi
 const longTerm = computed(() => levelLines(m.a.value?.played.explanation?.long));
 const better = m.better;
 const betterStory = computed(() => storyParts(better.value?.candidate.explanation?.short));
-const betterPoints = computed(() => (better.value ? candidatePoints(better.value.candidate, 3) : []));
+// (round 10) one sentence for the better move
+const betterPoints = computed(() => {
+  const s = better.value ? candidateSentence(better.value.candidate) : null;
+  return s ? [s] : [];
+});
 const accent = computed(() => m.meta.value?.color ?? '#737373');
 const canWhy = computed(() => !!m.a.value && (m.a.value.played.pvUci.length > 1 || story.value.length > 0));
 
@@ -172,7 +176,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey, true));
             <LabelGlyph :label="m.a.value.label" size="lg" />
             <p class="min-w-0 pt-0.5 text-[17px] leading-snug text-neutral-50">
               <b :style="{ color: accent }" data-testid="label-name">{{ m.verdict.value.name }}</b>
-              <span class="text-neutral-500"> — </span>{{ m.verdict.value.sentence }}
+              <template v-if="m.verdict.value.sentence"><span class="text-neutral-500"> — </span>{{ m.verdict.value.sentence }}</template>
             </p>
           </div>
           <div v-else-if="m.error.value" class="mt-2 text-sm text-rose-300" data-testid="ply-error">

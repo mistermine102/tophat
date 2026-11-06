@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // Prototype C "Good vs bad" (`?ui=c`): one coloured chip with the label, move and eval change; the verdict; then the
 // explanation sorted into "What goes wrong ✗" and "What it does ✓" (bad moves: what goes wrong first); a "Better: …"
-// card with its own ✓ points and a Play button; a move list with labelled badges.
+// card with its one ✓ sentence and a Play button; a move list with labelled badges.
 import { computed } from 'vue';
 import BoardView from '../components/BoardView.vue';
 import EvalBar from '../components/EvalBar.vue';
@@ -17,7 +17,7 @@ import { isCheckmate, sideToMove } from '../lib/chess';
 import { pvSteps } from '../lib/pv';
 import { levelLines, lowerFirst, storyParts, storyResult, TONE_META, type ToneLine } from '../lib/tones';
 import { useMove } from '../lib/useMove';
-import { BAD, candidatePoints } from '../lib/verdict';
+import { BAD, candidateSentence } from '../lib/verdict';
 import { useSession } from '../stores/session';
 
 const session = useSession();
@@ -57,7 +57,11 @@ const badFirst = computed(() => !!m.a.value && BAD.has(m.a.value.label));
 const mover = computed(() => (m.moverIsYou.value ? 'you' : m.moverName.value));
 
 const better = m.better;
-const betterPoints = computed(() => (better.value ? candidatePoints(better.value.candidate, 3) : []));
+// (round 10) one sentence for the better move
+const betterPoints = computed(() => {
+  const s = better.value ? candidateSentence(better.value.candidate) : null;
+  return s ? [s] : [];
+});
 const betterSteps = computed(() => (better.value && m.a.value ? pvSteps(m.a.value.fenBefore, better.value.candidate.pvUci, 8) : []));
 const accent = computed(() => m.meta.value?.color ?? '#737373');
 </script>
@@ -134,7 +138,7 @@ const accent = computed(() => m.meta.value?.color ?? '#737373');
             aria-hidden="true"
             >{{ TONE_META[m.verdict.value.tone].icon }}</span
           >
-          <span>{{ m.verdict.value.sentence.charAt(0).toUpperCase() + m.verdict.value.sentence.slice(1) }}</span>
+          <span>{{ m.verdict.value.sentence ? m.verdict.value.sentence.charAt(0).toUpperCase() + m.verdict.value.sentence.slice(1) : `${m.verdict.value.name}.` }}</span>
         </p>
         <div v-else-if="m.error.value" class="text-sm text-rose-300" data-testid="ply-error">
           <p>The analysis of this move failed: {{ m.error.value }}</p>

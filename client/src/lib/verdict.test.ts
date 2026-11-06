@@ -2,7 +2,8 @@ import type { Level, MoveAnalysis } from '@chess-coach/shared';
 import { describe, expect, it } from 'vitest';
 import { levelLines, lowerFirst, storyParts } from './tones';
 import { parseUiMode } from './uiMode';
-import { keyPoints, moveVerdict } from './verdict';
+import type { Candidate } from '@chess-coach/shared';
+import { candidateSentence, moveVerdict } from './verdict';
 
 const level = (text: string[], tones?: Level['tones'], extra: Partial<Level> = {}): Level => ({ facts: [{ type: 'check' }], text, ...(tones ? { tones } : {}), ...extra });
 
@@ -35,7 +36,7 @@ describe('tones helpers', () => {
 describe('verdict', () => {
   const analysis = (label: MoveAnalysis['label'], immediate: Level, short: Level): MoveAnalysis =>
     ({ label, san: 'Nc3', uci: 'b1c3', color: 'white', winLoss: 30, labelReason: { winChance: label }, best: { san: 'e5', uci: 'e4e5' }, played: { explanation: { immediate, short, long: level([]) } } }) as unknown as MoveAnalysis;
-  it('a bad move: the first bad sentence, then what hurts first', () => {
+  it('a bad move: the first bad sentence', () => {
     const a = analysis(
       'blunder',
       level(['Allows d4, forking White’s knights on c3 and e3.', 'Attacks Black’s pawn on b5, which is undefended.', 'Develops the knight to c3.'], ['bad', 'good', 'good']),
@@ -44,9 +45,22 @@ describe('verdict', () => {
     const v = moveVerdict(a, { moverIsYou: true });
     expect(v.name).toBe('Blunder');
     expect(v.sentence).toBe('allows d4, forking White’s knights on c3 and e3.');
-    expect(keyPoints(a, v).map((l) => l.tone)).toEqual(['bad', 'good', 'good']);
-    expect(keyPoints(a, v)[0]!.text).toMatch(/^With best play: White gives a knight/);
-    // without the line (layout A): only the plain sentences
-    expect(keyPoints(a, v, 3, { line: false }).some((l) => l.text.startsWith('With best play'))).toBe(false);
+    expect(v.usedIndex).toBe(0);
+  });
+  it('no fitting sentence: a short plain fallback, or the label alone', () => {
+    const none = level([]);
+    const v = (label: MoveAnalysis['label']) => moveVerdict(analysis(label, none, none), { moverIsYou: false }).sentence;
+    expect(v('inaccuracy')).toBe('e5 was better.');
+    expect(v('mistake')).toBe('e5 was much better.');
+    expect(v('good')).toBe('e5 was a bit better.');
+    expect(v('excellent')).toBe('almost as good as e5.');
+    const best = { ...analysis('best', none, none), best: { san: 'Nc3', uci: 'b1c3' } } as MoveAnalysis;
+    expect(moveVerdict(best, { moverIsYou: false }).sentence).toBe('');
+  });
+  it('the better move: one sentence, its own good one first, never filler', () => {
+    const cand = (text: string[], tones: Level['tones']) => ({ explanation: { immediate: level(text, tones), short: level([]), long: level([]) } }) as unknown as Candidate;
+    expect(candidateSentence(cand(['Like c5, it develops the knight.', 'Wins Black’s pawn on e5.'], ['neutral', 'good']))).toEqual({ text: 'Wins Black’s pawn on e5.', tone: 'good' });
+    expect(candidateSentence(cand(['Nothing special happens right away (as with c5).'], ['neutral']))).toBeNull();
+    expect(candidateSentence(cand(['Leaves the knight on c2 hanging: Black can win it.'], ['bad']))).toBeNull();
   });
 });

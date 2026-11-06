@@ -1,11 +1,11 @@
-// One-sentence verdict for a move ("Blunder — allows d4, forking White's knights on c3 and e3.") and the few key
-// points under it, built from the server's toned sentences (explain.ts is still the only source of chess prose;
-// this only picks and joins sentences). Shared by the prototype layouts.
+// One-sentence verdict for a move ("Blunder — allows d4, forking White's knights on c3 and e3.") and the one
+// sentence for the better move, picked from the server's toned sentences (explain.ts is still the only source of
+// chess prose; this only picks). (Round 10) One sentence each, nothing under it: when no sentence says something
+// concrete, a short plain fallback ("Nc6 was better.") or the label alone.
 import type { Candidate, MoveAnalysis, Tone } from '@chess-coach/shared';
-import { BAD_MOVE_TONE_ORDER } from '@chess-coach/shared';
 import { CONFIRMED, LABELS } from './labels';
 import { labelReasonText, type ReasonContext } from './reason';
-import { levelLines, lowerFirst, storyParts, storyResult, type ToneLine } from './tones';
+import { levelLines, lowerFirst, type ToneLine } from './tones';
 
 export const BAD = new Set(['inaccuracy', 'mistake', 'miss', 'blunder']);
 /** The verdict stands on its own: no pointer to a level the layout may show elsewhere. */
@@ -14,12 +14,50 @@ const SEE_SHORT = / (see the short term)/;
 export interface Verdict {
   /** Label name ("Blunder"). */
   name: string;
-  /** The reason, starting lower-case, ending with a full stop ("allows d4, forking …."). */
+  /** The reason, starting lower-case, ending with a full stop ("allows d4, forking …."); '' = the label alone. */
   sentence: string;
   /** Tone of the verdict for the mover. */
   tone: Tone;
-  /** Index of the Immediate sentence used for the verdict (left out of the key points), or null. */
+  /** Index of the Immediate sentence used for the verdict, or null (a fallback). */
   usedIndex: number | null;
+}
+
+const mateIn = (n: number) => (n === 1 ? 'mate in one' : `a forced mate in ${n}`);
+
+/**
+ * The verdict when no Immediate sentence fits: short and plain, no percentages or point counts ("Nc6 was better.",
+ * "almost as good as Bd6."); '' when the label says it all (a Best move with nothing to tell).
+ */
+export function plainReason(a: MoveAnalysis, ctx: ReasonContext): string {
+  const r = a.labelReason;
+  const best = a.best.uci !== a.uci ? a.best.san : null;
+  if (r.allowedMate && a.label === 'blunder') return `allows ${mateIn(r.allowedMate.matedIn)}.`;
+  if (r.missedMate && (a.label === 'miss' || a.label === 'blunder')) return `misses ${mateIn(r.missedMate.mateIn)} with ${a.best.san}.`;
+  // (as labelReasonText: the piece is named only when losing it is the whole story)
+  const m = r.material;
+  const hung = m?.hung && m.hung.color === a.color && a.label === m.label && (m.hungLoss ?? m.loss) >= m.loss ? m.hung : null;
+  switch (a.label) {
+    case 'book':
+    case 'forced':
+      return lowerFirst(labelReasonText(a, ctx));
+    case 'best':
+      return /#$/.test(a.san) ? 'checkmate!' : '';
+    case 'great':
+      return 'the only good move here.';
+    case 'excellent':
+      return best ? `almost as good as ${best}.` : '';
+    case 'good':
+      return best ? `${best} was a bit better.` : '';
+    case 'inaccuracy':
+      return best ? `${best} was better.` : '';
+    case 'miss':
+      return best ? `${best} would have punished ${ctx.prevMove ?? 'the last move'}.` : '';
+    case 'mistake':
+    case 'blunder':
+      if (hung) return `leaves the ${hung.role} on ${hung.square} hanging.`;
+      return best ? `${best} was much better.` : '';
+  }
+  return '';
 }
 
 export function moveVerdict(a: MoveAnalysis, ctx: ReasonContext): Verdict {
@@ -27,31 +65,11 @@ export function moveVerdict(a: MoveAnalysis, ctx: ReasonContext): Verdict {
   const imm = levelLines(a.played.explanation?.immediate);
   const bad = BAD.has(a.label);
   const tone: Tone = bad ? 'bad' : a.label === 'good' ? 'neutral' : 'good';
-  const reason = () => labelReasonText(a, ctx);
-  if (a.label === 'book' || a.label === 'forced') return { name: meta.name, sentence: lowerFirst(reason()), tone: 'neutral', usedIndex: null };
+  if (a.label === 'book' || a.label === 'forced') return { name: meta.name, sentence: plainReason(a, ctx), tone: 'neutral', usedIndex: null };
   const want: Tone = bad ? 'bad' : 'good';
   const i = imm.findIndex((l) => l.tone === want);
   if (i >= 0) return { name: meta.name, sentence: lowerFirst(imm[i]!.text.replace(SEE_SHORT, '')), tone, usedIndex: i };
-  return { name: meta.name, sentence: lowerFirst(reason()), tone, usedIndex: null };
-}
-
-/**
- * The points under the verdict: the other Immediate sentences (a bad move's bad ones first — the server orders them)
- * and the short line's result when it helps or hurts (`line: false`: never). At most `max`.
- */
-export function keyPoints(a: MoveAnalysis, v: Verdict, max = 3, opts: { line?: boolean } = {}): ToneLine[] {
-  const ex = a.played.explanation;
-  const imm = levelLines(ex?.immediate).filter((_, i) => i !== v.usedIndex);
-  const result = opts.line === false ? null : storyResult(storyParts(ex?.short));
-  const out: ToneLine[] = [];
-  const room = result && result.tone !== 'neutral' ? max - 1 : max;
-  // skip neutral filler when there are toned sentences
-  const toned = imm.filter((l) => l.tone !== 'neutral');
-  out.push(...(toned.length ? toned : imm).slice(0, room));
-  if (result && result.tone !== 'neutral') out.push({ text: `With best play: ${lowerFirst(result.text)}.`, tone: result.tone });
-  // a bad move: what hurts first (the line's cost too)
-  if (BAD.has(a.label)) return out.map((l, i) => ({ l, i })).sort((x, y) => BAD_MOVE_TONE_ORDER[x.l.tone] - BAD_MOVE_TONE_ORDER[y.l.tone] || x.i - y.i).map((x) => x.l);
-  return out;
+  return { name: meta.name, sentence: plainReason(a, ctx), tone, usedIndex: null };
 }
 
 export interface Suggestions {
@@ -80,13 +98,11 @@ export function betterMove(x: MoveAnalysis | null): { candidate: Candidate; kind
   return null;
 }
 
-/** A candidate's own points: its good Immediate sentences, then its line's result when it helps (`line: false`: never). */
-export function candidatePoints(c: Candidate, max = 3, opts: { line?: boolean } = {}): ToneLine[] {
-  const ex = c.explanation;
-  const imm = levelLines(ex?.immediate);
-  const result = opts.line === false ? null : storyResult(storyParts(ex?.short));
-  const good = imm.filter((l) => l.tone === 'good');
-  const out: ToneLine[] = (good.length ? good : imm.filter((l) => l.tone !== 'bad')).slice(0, result?.tone === 'good' ? max - 1 : max);
-  if (result?.tone === 'good') out.push({ text: `With best play: ${lowerFirst(result.text)}.`, tone: 'good' });
-  return out;
+/** "Nothing special happens right away (as with c5)." says nothing about the candidate. */
+const FILLER = /^Nothing special happens/;
+
+/** The better move's one sentence: its first good Immediate sentence, else its first neutral one; null = none. */
+export function candidateSentence(c: Candidate): ToneLine | null {
+  const imm = levelLines(c.explanation?.immediate).filter((l) => !FILLER.test(l.text));
+  return imm.find((l) => l.tone === 'good') ?? imm.find((l) => l.tone === 'neutral') ?? null;
 }

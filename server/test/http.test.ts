@@ -152,7 +152,7 @@ describe.skipIf(!engineAvailable())('HTTP API (Stockfish)', () => {
       expect(events.filter((e) => e.event === 'error')).toEqual([]);
       const last = analyses.find((a) => a.ply === 14)!.analysis;
       expect(last.label).toBe('best');
-      expect(last.played.explanation!.immediate.text).toContain('Checkmate — Black wins.');
+      expect(last.played.explanation!.immediate.text).toContain('Checkmate, Black wins.');
       const blunder = analyses.find((a) => a.ply === 9)!.analysis; // 5.Nxf7??
       expect(['mistake', 'blunder', 'miss']).toContain(blunder.label);
 

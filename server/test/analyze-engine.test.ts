@@ -103,7 +103,7 @@ describe.skipIf(!engineAvailable())('analyzeMove on real positions (Stockfish)',
       const a = await run({ fenBefore: fen, uci: 'g1f1' });
       const msg = dump(a);
       expect(a.best.uci, msg).toBe('a1a8');
-      expect(a.best.explanation!.immediate.text, msg).toContain('Checkmate — White wins.');
+      expect(a.best.explanation!.immediate.text, msg).toContain('Checkmate, White wins.');
       expect(a.pick?.uci, msg).toBe('a1a8');
       expect(a.pickIsBest, msg).toBe(true);
       expect(['best', 'great'], msg).not.toContain(a.label);
@@ -120,7 +120,7 @@ describe.skipIf(!engineAvailable())('analyzeMove on real positions (Stockfish)',
       const msg = dump(a);
       expect(a.label, msg).toBe('best');
       expect(a.labelText, msg).toMatch(/checkmate/);
-      expect(a.played.explanation!.immediate.text, msg).toEqual(['Checkmate — White wins.']);
+      expect(a.played.explanation!.immediate.text, msg).toEqual(['Checkmate, White wins.']);
       expect(a.arrows.some((x) => x.kind === 'threat'), msg).toBe(false);
       expect(a.winAfter, msg).toBeGreaterThan(97); // mate = +1000 cp in the Lichess formula
       expect(a.accuracy, msg).toBe(100);

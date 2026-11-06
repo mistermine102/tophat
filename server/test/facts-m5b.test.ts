@@ -40,7 +40,7 @@ describe('castling-lost', () => {
     // 1.e4 e5 2.Qh5 Nc6 3.Bc4 d6?? 4.Qxf7+ is mate; use 3...Ke7-like: a check the king must answer
     const fen = legalFen('rnbqkbnr/pppp1Bpp/8/4p3/4P3/8/PPPP1PPP/RNBQK1NR b KQkq - 0 3');
     const f = immediateFacts(fen, 'e8e7');
-    expect(text(f, B)).toContain('Steps out of check with the king — Black can no longer castle.');
+    expect(text(f, B)).toContain('Steps out of check with the king, so Black can no longer castle.');
     expect(text(f, B).join(' ')).not.toContain('gives up the right');
   });
 
@@ -67,7 +67,7 @@ describe('attack-pinned', () => {
       absolute: true,
     }]);
     expect(of(f, 'attack')).toHaveLength(0); // covered
-    expect(text(f)).toEqual(["Attacks Black's knight on e5 once more — it can't step away (it is pinned to the king), so White now threatens to win it."]);
+    expect(text(f)).toEqual(["Attacks Black's knight on e5 once more: it can't step away (it is pinned to the king), so White now threatens to win it."]);
   });
 
   it('not when the piece could already be won, nor for a new pin', () => {
@@ -105,7 +105,7 @@ describe('desperado', () => {
     const f = immediateFacts(legalFen('r5k1/B1p5/1p6/8/8/8/8/6K1 w - - 0 1'), 'a7b6');
     const cap = of(f, 'capture')[0]!;
     expect(cap).toMatchObject({ outcome: 'loses-material', net: -2, desperado: true });
-    expect(text(f)[0]).toBe("Takes Black's pawn on b6 as a desperado: the capturing piece was attacked and had no safe square, so it takes something before it is lost (−2 points after the exchange).");
+    expect(text(f)[0]).toBe("Takes Black's pawn on b6 as a desperado: the capturing piece was attacked and had no safe square, so it takes something before it is lost.");
   });
 
   it('a plain losing capture is no desperado', () => {
@@ -139,7 +139,7 @@ describe('checking forks shown by the line', () => {
     const fk = of(facts2, 'fork')[0]!;
     expect(fk.followUp).toEqual({ reply: 'Kg7', capture: 'Nxd7', kingMustMove: true });
     expect(text(facts2)).toHaveLength(1); // the check is implied by the fork
-    expect(text(facts2)[0]).toBe("Fork with check: the knight on f6 attacks Black's king and queen on d7 — the king must move, then Nxd7 takes the queen.");
+    expect(text(facts2)[0]).toBe("Fork with check: the knight on f6 attacks Black's king and queen on d7; the king must move, then Nxd7 takes the queen.");
   });
 
   it('the story says "forks" for such a step', () => {
@@ -155,7 +155,7 @@ describe('prevents (prophylaxis)', () => {
   it("the opponent's best idea now loses material on its square", () => {
     const f = preventsFact({ fenBefore: FEN, uci: 'a2a3', nullSearch, score: { cp: -10 } });
     expect(f).toEqual({ type: 'prevents', move: 'c6b4', san: 'Nb4', square: 'b4', reason: 'covered', by: { role: 'pawn', square: 'a3', color: 'white' } });
-    expect(text([f!])).toEqual(["Prevents …Nb4, Black's best idea here (what Black would play if White passed): the pawn on a3 now covers b4."]);
+    expect(text([f!])).toEqual(["Prevents Black's idea …Nb4: the pawn on a3 now covers b4."]);
   });
 
   it('not when the idea is worth little, still works, or the position is decided', () => {
@@ -198,21 +198,23 @@ describe('positional / quiet mistakes', () => {
   const render = (imm: Fact[], long: Fact[] = []) => renderExplanation({ immediate: imm, short: [], long }, { mover: 'white', label: 'inaccuracy' }).immediate.text;
 
   it("a bad move with nothing else to say names what the engine's move does instead", () => {
-    expect(render([{ type: 'misses', san: 'Rfe1', uci: 'f1e1', facts: [threat] }])).toEqual(["Misses Rfe1, which threatens Nf6+, uncovering an attack on Black's rook on e8 (+2 points)."]);
+    expect(render([{ type: 'misses', san: 'Rfe1', uci: 'f1e1', facts: [threat] }])).toEqual(["Misses Rfe1, which threatens Nf6+, uncovering an attack on Black's rook on e8."]);
   });
 
-  it('no reason found: honest fallback; a long-term drawback is pointed to', () => {
-    expect(render([{ type: 'misses', san: 'g3', uci: 'g2g3', facts: [] }])).toEqual(['No tactical problem right away — g3 was better, for long-term reasons that are hard to put into words.']);
+  it('no reason found: just the better move (round 10: no "hard to put into words" filler)', () => {
+    expect(render([{ type: 'misses', san: 'g3', uci: 'g2g3', facts: [] }])).toEqual(['g3 was better.']);
     const exposed: Fact = { type: 'positional', feature: 'king-safety', delta: -1, side: 'own', detail: 'shield 3->2', squares: ['g1'] };
-    expect(render([{ type: 'misses', san: 'g3', uci: 'g2g3', facts: [] }], [exposed])[0]).toMatch(/a long-term drawback/);
+    expect(render([{ type: 'misses', san: 'g3', uci: 'g2g3', facts: [] }], [exposed])).toEqual(['g3 was better.']);
+    const mistake = renderExplanation({ immediate: [{ type: 'misses', san: 'g3', uci: 'g2g3', facts: [] }], short: [], long: [] }, { mover: 'white', label: 'mistake' }).immediate.text;
+    expect(mistake).toEqual(['g3 was much better.']);
   });
 
   it('the misses sentence leads a bad move that only does good things; not when a negative fact explains it', () => {
-    expect(render([{ type: 'check' }, { type: 'misses', san: 'Rfe1', uci: 'f1e1', facts: [threat] }])).toEqual(["Misses Rfe1, which threatens Nf6+, uncovering an attack on Black's rook on e8 (+2 points).", 'Gives check.']);
+    expect(render([{ type: 'check' }, { type: 'misses', san: 'Rfe1', uci: 'f1e1', facts: [threat] }])).toEqual(["Misses Rfe1, which threatens Nf6+, uncovering an attack on Black's rook on e8.", 'Gives check.']);
     const hang: Fact = { type: 'hangs', piece: { role: 'knight', square: 'c3', color: 'white' }, loss: 3 };
-    expect(render([hang, { type: 'misses', san: 'Rfe1', uci: 'f1e1', facts: [threat] }])).toEqual(['Leaves the knight on c3 hanging: Black can win it (−3 points).']);
+    expect(render([hang, { type: 'misses', san: 'Rfe1', uci: 'f1e1', facts: [threat] }])).toEqual(['Leaves the knight on c3 hanging: Black can win it.']);
     // (M5c) without a verified reason the honest fallback still leads (a Mistake is not a list of merits)
-    expect(render([{ type: 'check' }, { type: 'misses', san: 'g3', uci: 'g2g3', facts: [] }])).toEqual(['No tactical problem right away — g3 was better, for long-term reasons that are hard to put into words.', 'Gives check.']);
+    expect(render([{ type: 'check' }, { type: 'misses', san: 'g3', uci: 'g2g3', facts: [] }])).toEqual(['g3 was better.', 'Gives check.']);
     const good = renderExplanation({ immediate: [{ type: 'misses', san: 'g3', uci: 'g2g3', facts: [] }], short: [], long: [] }, { mover: 'white', label: 'good' }).immediate.text;
     expect(good).toEqual(['Nothing special happens right away.']);
   });
@@ -222,7 +224,7 @@ describe('positional / quiet mistakes', () => {
     const castle: Fact = { type: 'castle', side: 'king' };
     expect(betterReasons([develop], [], 'white')).toEqual(['develops the knight']);
     expect(betterReasons([castle, develop], [{ type: 'develop', piece: { role: 'bishop', square: 'c4', color: 'white' } }], 'white')).toEqual(['castles kingside']);
-    expect(betterReasons([develop, threat], [], 'white')).toEqual(["threatens Nf6+, uncovering an attack on Black's rook on e8 (+2 points)"]);
+    expect(betterReasons([develop, threat], [], 'white')).toEqual(["threatens Nf6+, uncovering an attack on Black's rook on e8"]);
     const passed: Fact = { type: 'positional', feature: 'passed-pawn', delta: 1, side: 'own', squares: ['d5'] };
     expect(betterReasons([passed], [], 'white')).toEqual(['creates a passed pawn on d5']);
     expect(betterReasons([passed], [passed], 'white')).toEqual([]);
@@ -233,7 +235,7 @@ describe('positional / quiet mistakes', () => {
     const line: Extract<Fact, { type: 'line' }> = { type: 'line', steps: [], materialDelta: -3, result: 'loses-material' };
     const allows = refutationFact({ fenBefore: fen, uci: 'e1f1', pv: pv('e1f1 a7a6'), line, bestLineDelta: 0 });
     expect(allows).toMatchObject({ type: 'allows', reply: { san: 'a6' }, gain: 3 });
-    expect(renderExplanation({ immediate: [allows!], short: [], long: [] }, { mover: 'white', label: 'mistake' }).immediate.text).toEqual(['After a6, White loses 3 points of material with best play.']);
+    expect(renderExplanation({ immediate: [allows!], short: [], long: [] }, { mover: 'white', label: 'mistake' }).immediate.text).toEqual(['After a6, White soon loses material.']);
     // the best line loses as much: not this move's fault
     expect(refutationFact({ fenBefore: fen, uci: 'e1f1', pv: pv('e1f1 a7a6'), line, bestLineDelta: -2 })).toBeNull();
   });
@@ -261,7 +263,7 @@ describe('round 5 regressions', () => {
     const nf = legalFen('4k3/8/8/8/8/2N5/1q6/R3K2R b KQ - 0 1');
     const t = threatFromSearch(nf, { lines: [{ multipv: 1, move: 'b2a1', score: { cp: 500 }, depth: 12, pv: ['b2a1', 'e1e2'] }] })!;
     expect(t.gain).toBe(5);
-    expect(text([t], B)).toEqual(['Threatens Qxa1+, winning a rook (+5 points).']);
+    expect(text([t], B)).toEqual(['Threatens Qxa1+, winning a rook.']);
   });
 
   it('a fork threat is worth what the second target nets after recaptures (round 6: Nc3 vs Qe4 + defended Rb1)', () => {
@@ -290,10 +292,10 @@ describe('round 5 regressions', () => {
   });
 
   it('wording: under-protected pieces, threats that were already there, half-open files, mates the label names', () => {
-    expect(text([{ type: 'hangs', piece: { role: 'knight', square: 'e5', color: 'white' }, loss: 1 }])).toEqual(['Leaves the knight on e5 under-protected: Black wins material by taking on e5 (−1 point).']);
+    expect(text([{ type: 'hangs', piece: { role: 'knight', square: 'e5', color: 'white' }, loss: 1 }])).toEqual(['Leaves the knight on e5 under-protected: Black wins material by taking on e5.']);
     const threat: Fact = { type: 'threat', move: 'h7a7', san: 'Rxa7', gain: 1, facts: [{ type: 'capture', captured: { role: 'pawn', square: 'a7', color: 'black' }, outcome: 'wins-material', net: 1 }] };
     const allows: Fact = { type: 'allows', reply: { san: 'Kh2', uci: 'g1h2' }, facts: [threat], targets: [{ role: 'pawn', square: 'a7', color: 'black' }], gain: 1, already: true, keepsThreat: true };
-    expect(text([allows], { mover: 'black', label: 'miss' })).toEqual(["Doesn't deal with White's threat Rxa7, winning a pawn (+1 point for White)."]);
+    expect(text([allows], { mover: 'black', label: 'miss' })).toEqual(["Doesn't deal with White's threat Rxa7, winning a pawn."]);
     expect(betterReasons([{ type: 'positional', feature: 'open-file-rook', delta: 1, side: 'own', detail: '0->1', squares: ['e8'] }], [], 'black')).toEqual(['gives the rook on e8 a file without its own pawns']);
     const lt = labelText({
       label: 'blunder', color: 'white', uci: 'f5e6', san: 'fxe6', bestSan: 'Rf8', bestUci: 'f1f8',
@@ -334,7 +336,7 @@ describe('round 6 regressions', () => {
     expect(betterReasons([cap], [cap], 'black')).toEqual([]);
     const lost: Extract<Fact, { type: 'line' }> = { type: 'line', steps: [], materialDelta: -2, result: 'loses-material' };
     const t = renderExplanation({ immediate: [{ type: 'misses', san: 'Rae8', uci: 'a8e8', facts: [] }], short: [lost], long: [] }, { mover: 'black', label: 'mistake' }).immediate.text;
-    expect(t).toEqual(['Nothing is lost right away, but Black loses 2 points with best play; Rae8 was better.']);
+    expect(t).toEqual(['Nothing is lost right away, but Black soon loses material; Rae8 was much better.']);
   });
 });
 
@@ -360,7 +362,7 @@ describe('round 9 regressions', () => {
     const fen = legalFen('4r1k1/p1p2p1p/1p3p2/8/3Nb3/6P1/PP3PBP/R5K1 w - - 1 18');
     const kept = verifyWithLine(f, fen, pv('a1e1 e4c6 e1c1'));
     expect(of(kept, 'pin')).toHaveLength(0);
-    expect(text(kept)[0]).toBe("Attacks Black's bishop on e4 once more — with this extra attacker White now threatens to win it.");
+    expect(text(kept)[0]).toBe("Attacks Black's bishop on e4 once more, and now White threatens to win it.");
   });
 
   it('the recapture a material result already counts is shown (YMOxEowk 6.Nd2 … Bxe5 dxe5, Nxe5)', () => {

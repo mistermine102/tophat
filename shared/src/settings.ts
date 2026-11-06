@@ -3,7 +3,7 @@
 // Win-chance values are percentages (0..100) from the mover's point of view; cp values are centipawns.
 
 /** Bump whenever analysis output semantics change. Part of the cache key, so bumping invalidates the cache. */
-export const ANALYSIS_VERSION = 7; // 7: no "engine" wording or pointers to other panels in the explanations ("with best play", "Nxf5 was better"); 6: Best = only the engine's top move (no 0.5% band; those moves are Excellent); 5 (UI round): Level.tones / Level.story, bad-first order for bad moves, balance wording; 2 (M3): mate rules, Great exclusions + window, truthful hung piece, verify near thresholds; 3 (M5b): new explanation facts; 4 (M5c): explanation round 3 (pawn forks, batteries, perpetuals, payoff horizon, contrasted suggestions)
+export const ANALYSIS_VERSION = 8; // 8: plain one-sentence wording (no point counts or "hard to put into words" filler, material in words, at most one dash); 7: no "engine" wording or pointers to other panels in the explanations ("with best play", "Nxf5 was better"); 6: Best = only the engine's top move (no 0.5% band; those moves are Excellent); 5 (UI round): Level.tones / Level.story, bad-first order for bad moves, balance wording; 2 (M3): mate rules, Great exclusions + window, truthful hung piece, verify near thresholds; 3 (M5b): new explanation facts; 4 (M5c): explanation round 3 (pawn forks, batteries, perpetuals, payoff horizon, contrasted suggestions)
 
 export interface LabelThresholds {
   /** Excellent: winLoss <= this (Best is only the engine's top move, classify.ts). */
