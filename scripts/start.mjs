@@ -72,7 +72,8 @@ const server = spawn(`npx vite preview --port ${port} --strictPort`, { cwd: clie
 let opened = noOpen;
 server.stdout.setEncoding('utf8');
 server.stdout.on('data', (chunk) => {
-  if (!opened && /localhost:\d+/.test(chunk)) {
+  // Vite colours its output: strip the escape codes before looking for its "Local: http://localhost:…" line
+  if (!opened && /localhost:\d+/.test(chunk.replace(/\x1b\[[0-9;]*m/g, ''))) {
     opened = true;
     console.log(`[start] Chess Coach is running — open ${url} (keep this window open; Ctrl+C stops it)`);
     openBrowser(url);
