@@ -65,7 +65,8 @@ describe('fixture game', () => {
 
   it('covers every label, material-rule blunders (one still winning), pick≠best and deepOnly', () => {
     const labels = new Set<Label>(all.map((a) => a.label));
-    for (const l of LABEL_ORDER) expect(labels.has(l), l).toBe(true);
+    // (B2) the fixture game has no sound sacrifice, so no Brilliant move
+    for (const l of LABEL_ORDER) if (l !== 'brilliant') expect(labels.has(l), l).toBe(true);
     const materialBlunders = all.filter((a) => a.label === 'blunder' && a.labelReason.material?.label === 'blunder');
     expect(materialBlunders.length).toBeGreaterThanOrEqual(2);
     const stillWinning = materialBlunders.find((a) => a.winAfter > 80);

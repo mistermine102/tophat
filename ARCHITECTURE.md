@@ -258,7 +258,7 @@ includes the initial position's eval; `null` = unknown), plus `standardDeviation
 ```ts
 export type Color = 'white' | 'black';
 export type Label =
-  | 'forced' | 'book' | 'best' | 'great' | 'excellent' | 'good'
+  | 'forced' | 'book' | 'brilliant' | 'best' | 'great' | 'excellent' | 'good'
   | 'inaccuracy' | 'mistake' | 'miss' | 'blunder';
 export interface Score { cp?: number; mate?: number }   // exactly one set; mate>0 = side to move mates
 
@@ -285,7 +285,7 @@ export type Fact =
   | { type: 'hangs'; piece: PieceRef; loss: number; already?: boolean }  // negative: leaves material en prise; already = was en prise before the move and still is
   | { type: 'allows-mate'; inMoves: number; line?: string[] }        // negative; line (M5b): the mating sequence from the opponent's reply (SAN, ends in checkmate on the board)
   | { type: 'misses-mate'; mateIn: number; best: string; line: string[] }  // negative (M5b): the mover had a forced mate (the best move's line, SAN from the best move, ends in checkmate) and the move doesn't mate
-  | { type: 'misses'; san: string; uci: string; facts: Fact[] }       // M5b, bad moves whose Immediate level says nothing else: the engine's best move and its verified facts this move doesn't share (empty facts = no reason in words was found)
+  | { type: 'misses'; san: string; uci: string; facts: Fact[]; partial?: boolean; free?: PieceRef; alsoStops?: string }       // free / alsoStops (B1): the move wins this piece for free / also stops this threat (SAN). M5b, bad moves whose Immediate level says nothing else: the engine's best move and its verified facts this move doesn't share (empty facts = no reason in words was found)
   | { type: 'castling-lost'; color: Color; sides: ('king' | 'queen')[]; at?: 'line-end' }  // M5b: `color` loses its last castling rights (king or rook moved; at 'line-end': its king was driven out during the short line)
   | { type: 'attack-pinned'; attacker: PieceRef; pinned: PieceRef; pinner: PieceRef; behind: PieceRef; absolute: boolean }  // M5b: the move adds an attacker to an enemy piece that was already pinned, and the piece can now be won
   | { type: 'trapped'; piece: PieceRef; attacker: PieceRef }       // M5b: an enemy piece is attacked, can be won, and every square it can move to loses it too (confirmed by the engine line winning it)
@@ -326,6 +326,8 @@ export interface LostPiece extends PieceRef { ply: number }     // M3
 export interface MaterialCheck { playedLine: number; bestLine: number; loss: number; evalDropCp: number; label?: Label; hung?: PieceRef; hungLoss?: number; hungAlready?: boolean; lostInLine?: LostPiece[] }
 export interface AllowedMate { matedIn: number; bestMatedIn?: number }   // M3
 export interface MissedMate { mateIn: number }                          // M3
+export interface MissedMaterial { gain: number; piece: PieceRef; free?: boolean }   // B1
+export interface BrilliantSacrifice { sacrifice: number; piece: PieceRef }        // B2
 
 export interface MoveAnalysis {
   version: number;
@@ -337,7 +339,7 @@ export interface MoveAnalysis {
   winLoss: number;
   accuracy: number;                    // per-move accuracy %
   label: Label;
-  labelReason: { winChance: Label; material?: MaterialCheck; miss?: boolean; great?: { secondBestLoss: number }; book?: { eco: string; name: string }; allowedMate?: AllowedMate; missedMate?: MissedMate };
+  labelReason: { winChance: Label; material?: MaterialCheck; miss?: boolean; great?: { secondBestLoss: number }; book?: { eco: string; name: string }; allowedMate?: AllowedMate; missedMate?: MissedMate; missedMaterial?: MissedMaterial; brilliant?: BrilliantSacrifice };
   played: Candidate;                   // the played move as a candidate, with explanation
   best: Candidate;
   pick: Candidate | null;              // explainable pick; null if none
@@ -390,6 +392,19 @@ Additions made in the explanation-quality pass (M5 prep; additive):
 - Settings: `explain.shortLineMinPlies` 4 → 2 (a story stops at its payoff; see below).
 - Analysis budget: one extra threat search (budget.threat) per bad played move, at the null-move position after
   the opponent's PV reply (for the `allows` fact); forcedness searches only run for replies under pressure.
+
+Additions made in Session B (labels; additive, `ANALYSIS_VERSION` 9):
+- `labelReason.missedMaterial?: MissedMaterial` = `{ gain, piece, free? }`: the best move captures `piece` with a
+  static exchange >= `settings.miss.freeMaterialMinGain` (3), its line keeps >= 3 points more than both the
+  material baseline and the played line (quiet point, as the material rule), and the eval drops >= 200 cp → at
+  least **Miss**, whatever the win% (7.O-O at +10 instead of 7.Nxh4 winning the queen). `free`: the capture loses
+  nothing back. The played move's 'misses' fact then carries `free` and `alsoStops`.
+- Label `brilliant` (`!!`, ranked above Great) with `labelReason.brilliant?: BrilliantSacrifice` = `{ sacrifice,
+  piece }`: a best or near-best (≤ `brilliant.maxWinLoss` 2 win%) move whose line ends ≥ `brilliant.minSacrifice`
+  (2) points down vs the baseline and vs the alternative move's line, with a non-pawn piece en prise right after the
+  move, and win% after ≥ `brilliant.minWinAfter` (50). Not when the alternative also keeps ≥
+  `brilliant.maxWinOther` (90) win%, take-backs, check evasions with ≤ 3 moves, the continuation of a combination.
+  `verdictText` "Brilliant — a sound sacrifice.". Settings: new `brilliant: BrilliantRule`.
 
 Additions made in M3 (label quality; all additive, `ANALYSIS_VERSION` 2):
 - `labelReason.allowedMate?: AllowedMate` = `{ matedIn, bestMatedIn? }`: the played move allows a forced mate in

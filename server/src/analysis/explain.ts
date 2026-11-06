@@ -1004,6 +1004,9 @@ function missesText(f: F<'misses'>, ctx: ExplainContext, long: readonly Fact[], 
   const better = ctx.label === 'inaccuracy' ? 'was better' : 'was much better';
   // (round 10) one reason, the biggest (a second one mostly repeats it: "attacks the bishop and wins it and threatens
   // Rxe7+, winning a bishop"), and no hedge when it is small next to the drop (`f.partial`): the label says how bad it is
+  // (B1) missed free material: "Misses Nxh4, which wins Black's queen on h4 for free (and also stops Qxf2#)."
+  const also = f.alsoStops ? ` (and also stops ${f.alsoStops})` : '';
+  if (f.free) return `Misses ${f.san}, which ${reasons.length ? reasons[0] : `wins ${colorName(f.free.color)}'s ${f.free.role} on ${f.free.square}`} for free${also}.`;
   if (reasons.length) return `Misses ${f.san}, which ${reasons[0]}.`;
   // (round 6) the move's own engine line loses material: say that, not "no tactical problem"
   const line = short.find((x): x is F<'line'> => x.type === 'line');
@@ -1350,6 +1353,7 @@ function missesReasons(f: F<'misses'>, mover: Color): string[] {
 export const LABEL_NAMES: Readonly<Record<Label, string>> = {
   forced: 'Forced',
   book: 'Book',
+  brilliant: 'Brilliant !!',
   best: 'Best',
   great: 'Great !',
   excellent: 'Excellent',
@@ -1400,6 +1404,10 @@ export function labelText(a: LabelTextInput, settings: AnalysisSettings): string
     case 'best':
       if (a.checkmate) return `${name} — checkmate!`;
       return isBestMove ? `${name} — the best move.` : `${name} — as good as the best move (${a.bestSan}).`;
+    case 'brilliant': {
+      const s = a.labelReason.brilliant;
+      return s ? `${name} — a sound sacrifice: ${a.san ?? 'the move'} gives up ${the(s.piece)}, and ${me} stays ${a.winAfter >= settings.suggest.winningMin ? 'winning' : 'fine'}.` : `${name} — a sound sacrifice.`;
+    }
     case 'great':
       return `${name} — the only good move here: the next best loses ${Math.round(a.labelReason.great?.secondBestLoss ?? 0)}% winning chances.`;
     case 'excellent':
@@ -1410,6 +1418,12 @@ export function labelText(a: LabelTextInput, settings: AnalysisSettings): string
       return `${name} — ${a.bestSan} was better (${loss}).${why}`;
     case 'miss':
       if (a.labelReason.missedMate) return `${name} — ${a.bestSan} was ${mateIn(a.labelReason.missedMate.mateIn)}, and this move doesn't force mate (${loss}).`;
+      if (a.labelReason.missedMaterial) {
+        const p = a.labelReason.missedMaterial.piece;
+        return a.labelReason.missedMaterial.free
+          ? `${name} — ${a.bestSan} wins the ${p.role} on ${p.square} for free, and this move doesn't.`
+          : `${name} — ${a.bestSan} wins material (it takes the ${p.role} on ${p.square}), and this move doesn't.`;
+      }
       return `${name} — ${opp}'s last move was a mistake, and ${a.bestSan} would have punished it (${loss}).${why}`;
     case 'mistake':
     case 'blunder': {
@@ -1450,6 +1464,8 @@ export function verdictText(label: Label, playedIsBest: boolean): string | null 
       return 'Opening theory.';
     case 'forced':
       return 'The only legal move.';
+    case 'brilliant':
+      return 'Brilliant — a sound sacrifice.';
     case 'great':
       return 'Great find — the only good move here.';
     case 'best':

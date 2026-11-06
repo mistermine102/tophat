@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Compact game summary for the prototype layouts: per side accuracy and the error counts (?! ? ✕ ??) plus great
+// Compact game summary for the prototype layouts: per side accuracy and the error counts (?! ? ✕ ??) plus brilliant and great
 // moves, one row per player (name + colour dot; the side at the bottom of the board first).
 import type { Color, Label } from '@chess-coach/shared';
 import { computed } from 'vue';
@@ -27,7 +27,7 @@ const rows = computed(() => {
     };
   });
 });
-const SHOWN: Label[] = ['great', 'inaccuracy', 'mistake', 'miss', 'blunder'];
+const SHOWN: Label[] = ['brilliant', 'great', 'inaccuracy', 'mistake', 'miss', 'blunder'];
 const complete = computed(() => progress.value.total > 0 && progress.value.done >= progress.value.total);
 </script>
 

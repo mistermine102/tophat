@@ -29,7 +29,7 @@ const header = computed(() => {
 const keyMoments = computed(() =>
   (game.value?.moves ?? [])
     .map((m) => ({ m, a: session.state.analyses[m.ply] }))
-    .filter((e) => e.a && (LABELS[e.a.label].severity >= 3 || e.a.label === 'great'))
+    .filter((e) => e.a && (LABELS[e.a.label].severity >= 3 || e.a.label === 'great' || e.a.label === 'brilliant'))
     .map((e) => ({
       ply: e.m.ply,
       label: e.a!.label,

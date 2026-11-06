@@ -15,8 +15,8 @@ const opp = computed<Color>(() => (you.value === 'white' ? 'black' : 'white'));
 const name = (c: Color) => session.state.game?.headers[c === 'white' ? 'White' : 'Black'] ?? (c === 'white' ? 'White' : 'Black');
 const side = (c: Color) => (c === 'white' ? summary.value?.white : summary.value?.black);
 const count = (c: Color, l: Label) => side(c)?.counts[l] ?? 0;
-// Two columns of five labels: good moves left, problems right.
-const groups: Label[][] = [LABEL_ORDER.slice(0, 5), LABEL_ORDER.slice(5)];
+// Two columns: good moves left (book … excellent), problems right (good … blunder).
+const groups: Label[][] = [LABEL_ORDER.slice(0, 6), LABEL_ORDER.slice(6)];
 const acc = (c: Color) => {
   const v = side(c)?.accuracy;
   return v === null || v === undefined ? '—' : v.toFixed(1);

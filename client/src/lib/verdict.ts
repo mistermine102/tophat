@@ -44,6 +44,8 @@ export function plainReason(a: MoveAnalysis, ctx: ReasonContext): string {
       return /#$/.test(a.san) ? 'checkmate!' : '';
     case 'great':
       return 'the only good move here.';
+    case 'brilliant':
+      return r.brilliant ? `a sound sacrifice of the ${r.brilliant.piece.role}.` : 'a sound sacrifice.';
     case 'excellent':
       return best ? `almost as good as ${best}.` : '';
     case 'good':
@@ -51,6 +53,7 @@ export function plainReason(a: MoveAnalysis, ctx: ReasonContext): string {
     case 'inaccuracy':
       return best ? `${best} was better.` : '';
     case 'miss':
+      if (r.missedMaterial && best) return r.missedMaterial.free ? `misses ${best}, which wins the ${r.missedMaterial.piece.role} for free.` : `misses ${best}, which wins material.`;
       return best ? `${best} would have punished ${ctx.prevMove ?? 'the last move'}.` : '';
     case 'mistake':
     case 'blunder':

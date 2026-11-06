@@ -10,7 +10,7 @@ import { type Judgement, type LichessScore, lichessJudgement } from './lichessPg
 
 type J = Judgement | 'none';
 const JS: J[] = ['none', 'inaccuracy', 'mistake', 'blunder'];
-const LABELS: Label[] = ['book', 'forced', 'best', 'great', 'excellent', 'good', 'inaccuracy', 'mistake', 'miss', 'blunder'];
+const LABELS: Label[] = ['book', 'forced', 'brilliant', 'best', 'great', 'excellent', 'good', 'inaccuracy', 'mistake', 'miss', 'blunder'];
 const THRESHOLDS: Record<ProfileName, number[]> = { default: [0.5, 2, 5, 10, 20], lichess: [0.5, 2, 5, 10, 15] };
 
 interface Eyeball {

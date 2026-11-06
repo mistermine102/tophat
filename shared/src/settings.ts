@@ -3,7 +3,7 @@
 // Win-chance values are percentages (0..100) from the mover's point of view; cp values are centipawns.
 
 /** Bump whenever analysis output semantics change. Part of the cache key, so bumping invalidates the cache. */
-export const ANALYSIS_VERSION = 8; // 8: plain one-sentence wording (no point counts or "hard to put into words" filler, material in words, at most one dash); 7: no "engine" wording or pointers to other panels in the explanations ("with best play", "Nxf5 was better"); 6: Best = only the engine's top move (no 0.5% band; those moves are Excellent); 5 (UI round): Level.tones / Level.story, bad-first order for bad moves, balance wording; 2 (M3): mate rules, Great exclusions + window, truthful hung piece, verify near thresholds; 3 (M5b): new explanation facts; 4 (M5c): explanation round 3 (pawn forks, batteries, perpetuals, payoff horizon, contrasted suggestions)
+export const ANALYSIS_VERSION = 9; // 9 (B): Miss for missed free material at any eval, Brilliant !! (sound sacrifices); 8: plain one-sentence wording (no point counts or "hard to put into words" filler, material in words, at most one dash); 7: no "engine" wording or pointers to other panels in the explanations ("with best play", "Nxf5 was better"); 6: Best = only the engine's top move (no 0.5% band; those moves are Excellent); 5 (UI round): Level.tones / Level.story, bad-first order for bad moves, balance wording; 2 (M3): mate rules, Great exclusions + window, truthful hung piece, verify near thresholds; 3 (M5b): new explanation facts; 4 (M5c): explanation round 3 (pawn forks, batteries, perpetuals, payoff horizon, contrasted suggestions)
 
 export interface LabelThresholds {
   /** Excellent: winLoss <= this (Best is only the engine's top move, classify.ts). */
@@ -55,6 +55,33 @@ export interface MissRule {
   keepGainFraction: number;
   /** The played move must lose more than this (an inaccuracy's worth). */
   playedMinLoss: number;
+  /**
+   * (B1) Missed free material, regardless of win%: the best move is a capture whose static exchange wins at least
+   * this many pawns (>= a minor piece), its line keeps that much at the quiet point, and the played move's line
+   * ends at least this much lower -> at least Miss (classify.ts `missedMaterial`).
+   */
+  freeMaterialMinGain: number;
+  /** ... and the eval drops by at least this much (cp, unclamped `guardCp`, mover POV): a guard against noise. */
+  freeMaterialMinEvalDropCp: number;
+}
+
+/**
+ * (B2) Brilliant !!: a best or near-best move that sacrifices material (classify.ts `brilliantSacrifice`).
+ * Thresholds in the GreatRule style; see the doc comment there for the exclusions.
+ */
+export interface BrilliantRule {
+  /** The played move loses at most this much win% vs the best move (0 = only the engine's top move). */
+  maxWinLoss: number;
+  /** The played line ends at least this many pawns down at its quiet point (vs the material baseline and vs the alternative's line). */
+  minSacrifice: number;
+  /** Mover's win% after the played move must be at least this (the position stays good). */
+  minWinAfter: number;
+  /** Not Brilliant: the best alternative move keeps at least this win% too (already completely winning anyway). */
+  maxWinOther: number;
+  /** Brilliant requires at least this many legal moves. */
+  minLegalMoves: number;
+  /** Not Brilliant: a check evasion with at most this many legal moves. */
+  maxLegalMovesInCheck: number;
 }
 
 export interface MateRule {
@@ -144,6 +171,7 @@ export interface VerifyBudget {
 export interface AnalysisSettings {
   labels: LabelThresholds;
   great: GreatRule;
+  brilliant: BrilliantRule;
   material: MaterialRule;
   miss: MissRule;
   mate: MateRule;
@@ -168,6 +196,14 @@ export const DEFAULT_SETTINGS: AnalysisSettings = {
     maxLegalMovesInCheck: 3,
     freeCaptureMinGain: 1,
   },
+  brilliant: {
+    maxWinLoss: 2,
+    minSacrifice: 2,
+    minWinAfter: 50,
+    maxWinOther: 90,
+    minLegalMoves: 2,
+    maxLegalMovesInCheck: 3,
+  },
   material: {
     blunderMinLoss: 3,
     blunderMinEvalDropCp: 250,
@@ -180,6 +216,8 @@ export const DEFAULT_SETTINGS: AnalysisSettings = {
     opponentMinLoss: 10,
     keepGainFraction: 0.5,
     playedMinLoss: 5,
+    freeMaterialMinGain: 3,
+    freeMaterialMinEvalDropCp: 200,
   },
   mate: {
     allowedMaxMoves: 3,

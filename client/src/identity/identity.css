@@ -88,6 +88,7 @@ button {
 [data-l='book'] { --lc: var(--l-book); }
 [data-l='forced'] { --lc: var(--l-forced); }
 [data-l='great'] { --lc: var(--l-great); }
+[data-l='brilliant'] { --lc: var(--l-brilliant, #119c8f); }
 [data-l='best'] { --lc: var(--l-best); }
 [data-l='excellent'] { --lc: var(--l-excellent); }
 [data-l='good'] { --lc: var(--l-good); }

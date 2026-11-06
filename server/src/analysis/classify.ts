@@ -1,5 +1,5 @@
-// Move classification: every label rule of SPEC.md "Move labels", incl. the material rule, Miss, Great, Forced
-// and Book. Pure functions: no engine calls; all thresholds come from `AnalysisSettings` (shared/src/settings.ts).
+// Move classification: every label rule of SPEC.md "Move labels", incl. the material rule, Miss (+ missed free material), Great, Brilliant,
+// Forced and Book. Pure functions: no engine calls; all thresholds come from `AnalysisSettings` (shared/src/settings.ts).
 //
 // Conventions
 //  - Every `Score` in the inputs is from the MOVER's POV, i.e. exactly what the engine reports for `fenBefore`
@@ -8,7 +8,7 @@
 //    to +-1000, mate for the mover = +1000 cp, mated = -1000 cp.
 //  - Each rule is documented once, at the function that implements it.
 
-import type { AllowedMate, Color, Label, LostPiece, MaterialCheck, MissedMate, MoveAnalysis, PieceRef, Score } from '@chess-coach/shared';
+import type { AllowedMate, BrilliantSacrifice, Color, Label, LostPiece, MaterialCheck, MissedMate, MissedMaterial, MoveAnalysis, PieceRef, Score } from '@chess-coach/shared';
 import { type AnalysisSettings, winPercentFromScore } from '@chess-coach/shared';
 import { normalizeMove } from 'chessops/chess';
 import type { NormalMove } from 'chessops/types';
@@ -98,6 +98,7 @@ export interface ClassifyResult {
 export const LABEL_SEVERITY: Readonly<Record<Label, number>> = Object.freeze({
   forced: 0,
   book: 0,
+  brilliant: 0,
   best: 0,
   great: 0,
   excellent: 1,
@@ -456,6 +457,94 @@ function missApplies(prev: PrevMoveContext | null | undefined, winBest: number, 
 }
 
 /**
+ * (B1) Missed free material — at least **Miss**, whatever the win%. The win-chance label can't see it in won
+ * positions (mistermine102 vs M1_2_3M: 6...Qh4?? 7.O-O "Good" at +10.3 -> +7.3 while 7.Nxh4 wins the queen; the
+ * clamp keeps winLoss < 5) and the material rule caps its reference at the baseline (not taking is no "loss").
+ * Fires when all hold (played move isn't the best move):
+ *  - the best move captures an opponent piece and its static exchange alone wins >= `miss.freeMaterialMinGain`
+ *    (3 = a minor piece) — material that is simply free on the board;
+ *  - its line confirms it: the best line's quiet-point balance (`lineMaterial`, as the material rule) is at least
+ *    that much above both the material baseline (`materialBaseline`: a pending recapture is not a gain) and the
+ *    played line's balance — so taking it isn't poisoned and the played move doesn't win it (or as much) another way;
+ *  - the eval drops by >= `miss.freeMaterialMinEvalDropCp` (200, unclamped `guardCp`);
+ *  - neither line is a forced mate for the mover (mates have their own rules; material is meaningless there).
+ * Deliberate deviation from Lichess (which judges by win% only and calls 7.O-O fine): the habit of not taking a free
+ * piece is what the label should show, also when the game is already won.
+ */
+export function missedMaterial(input: ClassifyInput, settings: AnalysisSettings): MissedMaterial | undefined {
+  const r = settings.miss;
+  const fen = input.fenBefore;
+  if (sameMoveUci(fen, input.played.uci, input.best.uci)) return undefined;
+  const pos = positionFromFen(fen);
+  const move = parseUci(input.best.uci);
+  if (!move || !('from' in move)) return undefined;
+  const target = pos.board.get(move.to);
+  if (!target || target.color === pos.turn) return undefined;
+  let staticGain: number;
+  try {
+    staticGain = seeMove(pos, input.best.uci);
+  } catch {
+    return undefined;
+  }
+  if (staticGain < r.freeMaterialMinGain) return undefined;
+  const opts = { horizonPlies: settings.material.quietHorizonPlies };
+  const best = lineMaterial(fen, pvFor(input.best, fen), opts);
+  const played = lineMaterial(fen, pvFor(input.played, fen), opts);
+  if (moverMates(best, input.best.score) || moverMates(played, input.played.score)) return undefined;
+  const baseline = input.prev?.fenBefore ? materialBaseline(fen, input.prev.fenBefore, best.startBalance) : best.startBalance;
+  const gain = best.balance - Math.max(baseline, played.balance);
+  if (gain < r.freeMaterialMinGain) return undefined;
+  if (guardCp(input.best.score) - guardCp(input.played.score) < r.freeMaterialMinEvalDropCp) return undefined;
+  const piece: PieceRef = { role: target.role, square: input.best.uci.slice(2, 4), color: target.color };
+  return staticGain >= PIECE_VALUES[target.role] ? { gain, piece, free: true } : { gain, piece };
+}
+
+/**
+ * (B2) SPEC-extension "Brilliant !!": a sound sacrifice. The played move is the engine's #1 move or within
+ * `brilliant.maxWinLoss` (2) win% of it, and
+ *  - it genuinely gives up material: its line ends >= `brilliant.minSacrifice` (2, an exchange) pawns down at the
+ *    quiet point (`lineMaterial`) compared with the material baseline (`materialBaseline`) and with the best
+ *    alternative move's line (a piece that is lost whatever you play is no sacrifice), and a mover's piece (not a
+ *    pawn) is en prise right after the move and lost in the line (`findHung`) — and it wasn't en prise before the
+ *    move already (leaving an attacked piece is not offering it);
+ *  - the position stays good: mover's win% after the move >= `brilliant.minWinAfter` (50).
+ * Exclusions (GreatRule style): already completely winning anyway (the best alternative also keeps >=
+ * `brilliant.maxWinOther` = 90 win%), a take-back on the opponent's last square, a check evasion with <=
+ * `brilliant.maxLegalMovesInCheck` legal moves, < `brilliant.minLegalMoves` legal moves. Plain trades are no
+ * sacrifice (the line nets 0). A checkmate on the board is Best (classifyMove). Book moves (gambits) stay Book.
+ * Unlike Great, the continuation of a combination (the opponent's previous move was forced) is NOT excluded: in
+ * Rxd8+ Rxd8 Qe8+!! Rxe8 Rxe8# (benchmark game) the first move is a plain trade and the queen offer is the sacrifice.
+ * Benchmark (60 Lichess games, d14): no Brilliant without this case; classics: Opera 16.Qb8+!!, Deep Blue–Kasparov
+ * 1997 g6 8.Nxe6 — and nothing else in those games.
+ */
+export function brilliantSacrifice(input: ClassifyInput, playedIsBest: boolean, winPlayed: number, winLoss: number, settings: AnalysisSettings): BrilliantSacrifice | undefined {
+  const b = settings.brilliant;
+  const fen = input.fenBefore;
+  if (input.legalMoveCount < b.minLegalMoves) return undefined;
+  if (!playedIsBest && winLoss > b.maxWinLoss) return undefined;
+  if (winPlayed < b.minWinAfter) return undefined;
+  const altLine = playedIsBest ? input.second : input.best;
+  const alt = altLine && !sameMoveUci(fen, altLine.uci, input.played.uci) ? altLine : null;
+  if (alt && winPercentFromScore(alt.score) >= b.maxWinOther) return undefined;
+  if (input.prev?.uci && isTakeBack(fen, input.played.uci, input.prev.uci)) return undefined;
+  const pos = positionFromFen(fen);
+  if (pos.isCheck() && input.legalMoveCount <= b.maxLegalMovesInCheck) return undefined;
+  const opts = { horizonPlies: settings.material.quietHorizonPlies };
+  const played = lineMaterial(fen, pvFor(input.played, fen), opts);
+  let reference = input.prev?.fenBefore ? materialBaseline(fen, input.prev.fenBefore, played.startBalance) : played.startBalance;
+  if (alt) {
+    const a = lineMaterial(fen, pvFor(alt, fen), opts);
+    if (!moverMates(a, alt.score)) reference = Math.min(reference, a.balance);
+  }
+  const sacrifice = reference - played.balance;
+  if (sacrifice < b.minSacrifice) return undefined;
+  const hung = findHung(fen, played.moves, played.mover);
+  if (!hung || hung.role === 'pawn') return undefined;
+  if (wasHangingBefore(fen, input.played.uci, hung.square)) return undefined;
+  return { sacrifice, piece: hung };
+}
+
+/**
  * Mate rules (M3, user requirement — same philosophy as the material rule: honest labels for bad habits even when
  * the position is already decided, where the win% clamp hides everything). Only for a played move that isn't the
  * engine's #1 move and doesn't itself deliver mate; scores are the deep scores, mover POV.
@@ -499,6 +588,9 @@ export function mateRules(input: ClassifyInput, settings: AnalysisSettings): { a
  *     worse of 4. and the material label (`LABEL_SEVERITY`). Then the **mate rules** (`mateRules`, same skip): an
  *     allowed short mate -> at least Blunder (`labelReason.allowedMate`), a missed short mate -> at least Miss
  *     (`labelReason.missedMate`).
+ *     (B1) **Missed free material** (`missedMaterial`, same skip) -> at least Miss (`labelReason.missedMaterial`).
+ *  5b. (B2) **Brilliant** (`brilliantSacrifice`) upgrades a Best / Great / Excellent move that is a sound sacrifice
+ *     (`labelReason.brilliant`).
  *  6. **Book** — SPEC: the position after the move is in the opening book and every earlier move was book
  *     (`book.after`, `book.beforeIsStartOrBook`, `book.earlierMovesAllBook !== false`). Interpretation: the Lichess
  *     list also names traps and their victims' moves (e.g. "Barnes Opening: Fool's Mate" 2.g4?? Qh4#, "Noah's Ark
@@ -559,6 +651,18 @@ export function classifyMove(input: ClassifyInput, settings: AnalysisSettings): 
     if (mate.missedMate) {
       reason.missedMate = mate.missedMate;
       label = worseLabel(label, 'miss');
+    }
+    const free = missedMaterial(input, settings);
+    if (free) {
+      reason.missedMaterial = free;
+      label = worseLabel(label, 'miss');
+    }
+  }
+  if (label === 'best' || label === 'great' || label === 'excellent') {
+    const sac = brilliantSacrifice(input, playedIsBest, winPlayed, winLoss, settings);
+    if (sac) {
+      reason.brilliant = sac;
+      label = 'brilliant';
     }
   }
 
