@@ -468,7 +468,7 @@ export function narrationPlies(fenBefore: string, pv: readonly string[], setting
   };
   const lo = Math.min(Math.max(min, opts.minPlies ?? 0), n);
   let end = first(lo, (k) => (stopOk(k) || claimOk(k)) && agrees(k)) ?? first(lo, stopOk);
-  if (process.env.DBG_NP) console.error('np', JSON.stringify({ lo, n, nAll, end, stops: info.quiet.map((_, k) => (stopOk(k) ? `S${k}` : claimOk(k) ? `C${k}` : '')).filter(Boolean), quiet: info.quiet.map((q, k) => (q ? k : -1)).filter((k) => k >= 0), delta: info.delta, start: info.start, evalPawns }));
+  if ((globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env.DBG_NP) console.error('np', JSON.stringify({ lo, n, nAll, end, stops: info.quiet.map((_, k) => (stopOk(k) ? `S${k}` : claimOk(k) ? `C${k}` : '')).filter(Boolean), quiet: info.quiet.map((q, k) => (q ? k : -1)).filter((k) => k >= 0), delta: info.delta, start: info.start, evalPawns }));
   // (round 7) a stop point whose material is still far from the engine's eval (Kf7: "loses a pawn" at 0 → +4.8)
   // gives way to a later one within the horizon that matches it (the rook lost to the Ne6+ fork)
   if (end !== undefined && evalPawns !== null && Math.abs(evalPawns) < 9) {

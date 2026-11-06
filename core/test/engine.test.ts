@@ -4,7 +4,7 @@ import { Chess } from 'chessops/chess';
 import { parseFen } from 'chessops/fen';
 import { parseUci } from 'chessops/util';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { Engine, EngineCrashedError, EngineError, EngineTimeoutError, SearchAbortedError, engineAvailable, type SearchResult } from '../src/engine/uci';
+import { Engine, EngineCrashedError, EngineError, EngineTimeoutError, SearchAbortedError, engineAvailable, type SearchResult } from '../src/engine/node';
 
 const STARTPOS = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 const MATE_IN_1 = '6k1/5ppp/8/8/8/8/8/R5K1 w - - 0 1'; // Ra8#
@@ -35,14 +35,14 @@ function expectWellFormed(fen: string, r: SearchResult, multipv: number) {
 describe.skipIf(!engineAvailable())('Engine (real Stockfish)', () => {
   let engine: Engine;
   beforeAll(async () => {
-    engine = await Engine.start({ threads: 4, hashMb: 64 });
+    engine = await Engine.start({ threads: Number(process.env.TEST_ENGINE_THREADS ?? 2), hashMb: 64 });
   });
   afterAll(async () => {
     await engine?.quit();
   });
 
   it('identifies itself', () => {
-    expect(engine.name).toBe('Stockfish 19');
+    expect(engine.name).toMatch(/^Stockfish 19/);
     expect(engine.alive).toBe(true);
   });
 
@@ -163,7 +163,7 @@ describe.skipIf(!engineAvailable())('Engine crash + restart', () => {
       const p = engine.search({ fen: MIDDLEGAME, depth: 60, timeoutMs: 30_000 });
       const queued = engine.search({ fen: STARTPOS, depth: 6 });
       await new Promise((r) => setTimeout(r, 300));
-      (engine as unknown as { proc: { kill(): void } }).proc.kill();
+      engine.killInstance();
       await expect(p).rejects.toBeInstanceOf(EngineCrashedError);
       // the already-queued search runs on a fresh process
       const r = await queued;

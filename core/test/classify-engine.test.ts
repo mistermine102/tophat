@@ -9,7 +9,7 @@ import { LABEL_SEVERITY } from '../src/analysis/classify';
 import { parseSquare } from 'chessops/util';
 import { lineMaterial, positionFromFen } from '../src/chess/material';
 import { hangingLoss } from '../src/chess/see';
-import { Engine, engineAvailable } from '../src/engine/uci';
+import { Engine, engineAvailable } from '../src/engine/node';
 import { analyseMove, describe as dump, legalFen, playUci, prevContext } from './helpers/classifyHelpers';
 
 const S = DEFAULT_SETTINGS;
@@ -20,7 +20,7 @@ const horizon = { horizonPlies: S.material.quietHorizonPlies };
 describe.skipIf(!engineAvailable())('classification on real positions (Stockfish)', () => {
   let engine: Engine;
   beforeAll(async () => {
-    engine = await Engine.start({ threads: Number(process.env.TEST_ENGINE_THREADS ?? 4), hashMb: 128 });
+    engine = await Engine.start({ threads: Number(process.env.TEST_ENGINE_THREADS ?? 2), hashMb: 128 });
   });
   afterAll(async () => {
     await engine?.quit();

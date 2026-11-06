@@ -1,4 +1,9 @@
-// Engine: a UCI process wrapper around a single Stockfish process (see ARCHITECTURE.md "Engine").
+// Engine: a UCI wrapper around a single Stockfish instance (see ARCHITECTURE.md "Engine").
+//
+// Environment-neutral: the instance is reached through a `UciSpawn` transport — a Web Worker running Stockfish WASM
+// in the browser (client/src/worker/stockfish.ts), a child process in Node (engine/node.ts: the WASM build run by
+// node, or a native binary). Without `EngineOptions.spawn` the default registered with `setDefaultUciSpawn` is used
+// (importing engine/node.ts registers the Node one).
 //
 // - All commands go through one serialised queue: `search()` is safe to call concurrently; calls run in order.
 // - Every search is preceded by `isready` sync so stale output can never leak into the next search.
@@ -9,17 +14,45 @@
 //   the call rejects with SearchAbortedError (a stopped search's partial result is discarded); later searches run
 //   normally.
 
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
-import { existsSync } from 'node:fs';
-import os from 'node:os';
-import { fileURLToPath } from 'node:url';
 import type { Score } from '@chess-coach/shared';
 import { Chess } from 'chessops/chess';
 import { makeFen, parseFen } from 'chessops/fen';
 import { parseUci } from 'chessops/util';
 
+/** A running engine instance: write one UCI command line, kill it. */
+export interface UciProcess {
+  write(line: string): void;
+  kill(): void;
+}
+
+export interface UciHandlers {
+  /** One output line (without the newline). */
+  onLine(line: string): void;
+  /** The instance is gone (crashed, killed, quit). */
+  onExit(why: string): void;
+  /** Diagnostic output (stderr), kept for error messages. */
+  onStderr?(text: string): void;
+}
+
+/** Start an engine instance. May throw an EngineError (e.g. the engine file is missing). */
+export type UciSpawn = (handlers: UciHandlers) => UciProcess;
+
+/** Makes the transport for an engine file (undefined = the environment's default engine). */
+export type UciSpawnFactory = (path?: string) => { spawn: UciSpawn; path: string };
+
+let defaultSpawn: UciSpawnFactory | null = null;
+
+/** The transport used when `EngineOptions.spawn` is not given (engine/node.ts registers the Node one). */
+export function setDefaultUciSpawn(factory: UciSpawnFactory | null): void {
+  defaultSpawn = factory;
+}
+
 export interface EngineOptions {
+  /** How to start the engine instance (default: the one registered with setDefaultUciSpawn). */
+  spawn?: UciSpawn;
+  /** Engine file, for messages only (the transport knows what to run). */
   path?: string;
+  /** Stockfish Threads (default 1; single-threaded WASM builds ignore it). */
   threads?: number;
   hashMb?: number;
   /** Default per-search timeout when the request has none (ms). Default 120 s (movetime searches: movetime + 10 s). */
@@ -68,17 +101,6 @@ export class EngineCrashedError extends EngineError {
  */
 export class SearchAbortedError extends Error {
   override name = 'SearchAbortedError';
-}
-
-/** `STOCKFISH_PATH` env, else `<repo>/engine/stockfish.exe`. */
-export function defaultEnginePath(): string {
-  const env = process.env.STOCKFISH_PATH;
-  if (env) return env;
-  return fileURLToPath(new URL('../../../engine/stockfish.exe', import.meta.url));
-}
-
-export function engineAvailable(path = defaultEnginePath()): boolean {
-  return existsSync(path);
 }
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -215,10 +237,11 @@ interface Pending {
   onLine?: (line: string) => void;
   resolve: (line: string) => void;
   reject: (err: Error) => void;
-  timer: NodeJS.Timeout;
+  timer: ReturnType<typeof setTimeout>;
 }
 
-const START_TIMEOUT_MS = 15_000;
+// generous: on first use the browser may still be downloading / compiling the ~100 MB WASM engine
+const START_TIMEOUT_MS = 120_000;
 const READY_TIMEOUT_MS = 30_000;
 const STOP_GRACE_MS = 3_000;
 
@@ -230,8 +253,10 @@ export class Engine {
   /** From `id name` (e.g. "Stockfish 19"). */
   name = 'unknown';
 
-  private proc: ChildProcessWithoutNullStreams | null = null;
-  private buf = '';
+  private readonly spawn: UciSpawn | null;
+  private proc: UciProcess | null = null;
+  /** Resolves when the current instance has exited. */
+  private exited: Promise<void> = Promise.resolve();
   private pending: Pending | null = null;
   private tail: Promise<unknown> = Promise.resolve();
   private multipv = 1;
@@ -243,8 +268,10 @@ export class Engine {
   private searching = false;
 
   private constructor(opts: EngineOptions = {}) {
-    this.path = opts.path ?? defaultEnginePath();
-    this.threads = Math.max(1, opts.threads ?? os.availableParallelism() - 2);
+    const dflt = opts.spawn ? null : defaultSpawn?.(opts.path);
+    this.spawn = opts.spawn ?? dflt?.spawn ?? null;
+    this.path = opts.path ?? dflt?.path ?? 'stockfish';
+    this.threads = Math.max(1, opts.threads ?? 1);
     this.hashMb = opts.hashMb ?? 512;
     this.searchTimeoutMs = opts.searchTimeoutMs ?? 120_000;
   }
@@ -292,6 +319,13 @@ export class Engine {
     });
   }
 
+  /** Kill the current instance as if it had crashed (test hook); the next search starts a new one. */
+  killInstance(): boolean {
+    if (!this.proc) return false;
+    this.kill();
+    return true;
+  }
+
   /** Kill the current process (if any) and start a fresh one. */
   restart(): Promise<void> {
     return this.enqueue(async () => {
@@ -305,7 +339,7 @@ export class Engine {
     this.closed = true;
     const proc = this.proc;
     if (!proc) return;
-    const exited = new Promise<void>((resolve) => proc.once('exit', () => resolve()));
+    const exited = this.exited;
     this.send('stop');
     this.send('quit');
     const t = setTimeout(() => proc.kill(), STOP_GRACE_MS);
@@ -328,22 +362,28 @@ export class Engine {
 
   private async boot(): Promise<void> {
     if (this.closed) throw new EngineError('Engine has quit');
-    if (!existsSync(this.path)) {
-      throw new EngineError(`Stockfish binary not found at ${this.path} (run \`npm run setup:engine\` or set STOCKFISH_PATH)`);
-    }
-    const proc = spawn(this.path, [], { stdio: 'pipe', windowsHide: true });
-    this.proc = proc;
-    this.buf = '';
-    this.multipv = 1;
-    proc.stdout.setEncoding('utf8');
-    proc.stdout.on('data', (chunk: string) => this.onData(chunk));
-    proc.stderr.setEncoding('utf8');
-    proc.stderr.on('data', (chunk: string) => {
-      this.lastStderr = (this.lastStderr + chunk).slice(-2000);
+    if (!this.spawn) throw new EngineError('no engine transport (EngineOptions.spawn or setDefaultUciSpawn)');
+    let resolveExit!: () => void;
+    this.exited = new Promise<void>((r) => (resolveExit = r));
+    let proc: UciProcess | null = null;
+    let gone: string | null = null;
+    proc = this.spawn({
+      onLine: (line) => {
+        if (proc && this.proc === proc) this.onLine(line);
+      },
+      onExit: (why) => {
+        if (gone !== null) return;
+        gone = why;
+        resolveExit();
+        if (proc) this.onExit(proc, why);
+      },
+      onStderr: (text) => {
+        this.lastStderr = (this.lastStderr + text).slice(-2000);
+      },
     });
-    proc.stdin.on('error', () => undefined); // EPIPE after a crash; surfaced via 'exit'
-    proc.on('error', (err) => this.onExit(proc, `failed to run engine: ${err.message}`));
-    proc.on('exit', (code, signal) => this.onExit(proc, `engine exited (code ${code}, signal ${signal})`));
+    if (gone !== null) throw new EngineCrashedError(`engine exited right after starting: ${gone}`);
+    this.proc = proc;
+    this.multipv = 1;
 
     try {
       await this.request('uci', (l) => l === 'uciok', START_TIMEOUT_MS, (l) => {
@@ -413,7 +453,7 @@ export class Engine {
 
   private send(cmd: string): void {
     if (!this.proc) throw new EngineCrashedError('Engine is not running');
-    this.proc.stdin.write(cmd + '\n');
+    this.proc.write(cmd);
   }
 
   /** Send `cmd` and resolve with the first output line for which `done(line)` is true. One request at a time. */
@@ -442,17 +482,9 @@ export class Engine {
     });
   }
 
-  private onData(chunk: string): void {
-    this.buf += chunk;
-    let idx: number;
-    while ((idx = this.buf.indexOf('\n')) >= 0) {
-      const line = this.buf.slice(0, idx).replace(/\r$/, '').trim();
-      this.buf = this.buf.slice(idx + 1);
-      if (line) this.onLine(line);
-    }
-  }
-
-  private onLine(line: string): void {
+  private onLine(raw: string): void {
+    const line = raw.trim();
+    if (!line) return;
     const p = this.pending;
     if (!p) return; // unsolicited output (e.g. "info string" at startup): ignore
     p.onLine?.(line);
@@ -463,7 +495,7 @@ export class Engine {
     }
   }
 
-  private onExit(proc: ChildProcessWithoutNullStreams, why: string): void {
+  private onExit(proc: UciProcess, why: string): void {
     if (this.proc !== proc) return; // an old, already replaced process
     this.proc = null;
     const p = this.pending;

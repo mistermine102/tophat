@@ -1,11 +1,10 @@
 // chess.com import by username: the newest finished games from the public API (https://api.chess.com/pub, no key).
 // Monthly archives are read newest first until `limit` standard-chess games are collected (variants are skipped).
+// Called straight from the browser: the API sends `Access-Control-Allow-Origin: *`. Only CORS-safelisted request
+// headers are used (no custom User-Agent: browsers send their own, and a custom header would need a preflight).
 import type { ChessComGame, ChessComGames, ChessComPlayer } from '@chess-coach/shared';
 
-/** chess.com's public API; env CHESSCOM_API overrides it (E2E tests point it at a dead port: no network). */
-const apiBase = () => (process.env.CHESSCOM_API?.trim() || 'https://api.chess.com/pub').replace(/\/$/, '');
-// chess.com asks API clients to identify themselves; requests without a User-Agent can get a Cloudflare challenge.
-const USER_AGENT = 'chess-coach/0.0 (local game analysis app)';
+export const CHESSCOM_API = 'https://api.chess.com/pub';
 /** At most this many monthly archives (2 years) are read per request (players with few games a month). */
 const MAX_ARCHIVES = 24;
 /** The first page of the Open dialog's list; "Show more games" asks for more, up to MAX_LIMIT. */
@@ -38,7 +37,7 @@ type FetchLike = typeof fetch;
 async function getJson(url: string, fetchImpl: FetchLike, username: string): Promise<unknown> {
   let res: Response;
   try {
-    res = await fetchImpl(url, { headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' }, signal: AbortSignal.timeout(15_000) });
+    res = await fetchImpl(url, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(15_000) });
   } catch (e) {
     throw new ChessComError(`Could not reach chess.com (${(e as Error).message}). Check your internet connection.`, 502);
   }
@@ -73,11 +72,11 @@ export function toGame(g: RawGame): ChessComGame | null {
 /** The newest finished games of `username`, newest first. Throws ChessComError. */
 export async function fetchChessComGames(
   username: string,
-  opts: { limit?: number; fetchImpl?: FetchLike } = {},
+  opts: { limit?: number; fetchImpl?: FetchLike; apiBase?: string } = {},
 ): Promise<ChessComGames> {
   const limit = Math.min(Math.max(opts.limit ?? DEFAULT_LIMIT, 1), MAX_LIMIT);
   const fetchImpl = opts.fetchImpl ?? ((...args) => fetch(...args));
-  const API = apiBase();
+  const API = (opts.apiBase?.trim() || CHESSCOM_API).replace(/\/$/, '');
   const user = encodeURIComponent(username.toLowerCase());
   const index = (await getJson(`${API}/player/${user}/games/archives`, fetchImpl, username)) as { archives?: unknown };
   const archives = Array.isArray(index.archives) ? index.archives.filter((a): a is string => typeof a === 'string') : [];

@@ -4,7 +4,7 @@ import { DEFAULT_SETTINGS, type MoveAnalysis } from '@chess-coach/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { analyzeMove, type AnalyzeInput } from '../src/analysis/analyzeMove';
 import { SearchCache } from '../src/analysis/searchCache';
-import { Engine, engineAvailable } from '../src/engine/uci';
+import { Engine, engineAvailable } from '../src/engine/node';
 import { legalFen, playUci } from './helpers/classifyHelpers';
 
 const T = 180_000;
@@ -28,7 +28,7 @@ describe.skipIf(!engineAvailable())('analyzeMove on real positions (Stockfish)',
   const cache = new SearchCache(null);
   const run = (input: AnalyzeInput) => analyzeMove({ searcher: engine, cache, settings: S }, input);
   beforeAll(async () => {
-    engine = await Engine.start({ threads: 4, hashMb: 128 });
+    engine = await Engine.start({ threads: Number(process.env.TEST_ENGINE_THREADS ?? 2), hashMb: 128 });
   });
   afterAll(async () => {
     await engine?.quit();

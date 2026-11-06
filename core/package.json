@@ -4,9 +4,11 @@
   "private": true,
   "type": "module",
   "license": "GPL-3.0-or-later",
+  "description": "The analysis pipeline (engine wrapper, scheduler, facts, labels, explanations). Environment-neutral TypeScript source: runs in the browser's analysis worker and in Node (tests, benchmarks, scripts via src/node.ts).",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "start": "tsx src/index.ts",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run",
     "bench:engine": "tsx scripts/engine-timing.ts"
@@ -14,10 +16,9 @@
   "dependencies": {
     "@chess-coach/shared": "*",
     "chessops": "^0.15.1",
-    "express": "^5.3.0"
+    "stockfish": "19.0.1"
   },
   "devDependencies": {
-    "@types/express": "^5.0.6",
     "@types/node": "^26.6.5",
     "tsx": "^4.23.15",
     "vitest": "^5.0.5"

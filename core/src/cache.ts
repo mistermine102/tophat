@@ -1,4 +1,6 @@
-// SQLite cache (node:sqlite DatabaseSync): move analyses, engine searches, imported games and user settings.
+// SQLite cache (node:sqlite DatabaseSync) for Node scripts and benchmarks: move analyses, engine searches, imported
+// games. Node-only — the app itself uses IndexedDB (client/src/worker/idbStore.ts); both implement store.ts
+// `CacheStore`.
 //
 // File: `data/cache.sqlite` at the repo root (gitignored); override with env `CHESS_COACH_DB` or the constructor
 // argument (`':memory:'` for tests). Tables are simple key -> JSON stores:
@@ -7,11 +9,13 @@
 //   games(id, json)       GameRecord (games.ts)
 //   settings(name, json)  user settings (`Settings`)
 
-import { createHash } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync, type StatementSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
+import type { CacheStore, Table } from './store';
+
+export { sha1 } from './hash';
 
 export const DEFAULT_DB_PATH = fileURLToPath(new URL('../../data/cache.sqlite', import.meta.url));
 
@@ -19,12 +23,9 @@ export function defaultDbPath(): string {
   return process.env.CHESS_COACH_DB || DEFAULT_DB_PATH;
 }
 
-export const sha1 = (s: string): string => createHash('sha1').update(s).digest('hex');
-
-type Table = 'analyses' | 'searches' | 'games' | 'settings';
 const KEY_COLUMN: Record<Table, string> = { analyses: 'key', searches: 'key', games: 'id', settings: 'name' };
 
-export class CacheDb {
+export class CacheDb implements CacheStore {
   readonly path: string;
   private db: DatabaseSync;
   private getStmt = new Map<Table, StatementSync>();

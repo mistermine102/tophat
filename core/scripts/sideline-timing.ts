@@ -3,13 +3,14 @@
 // of that line (the engine's reply / continuation), analysing each like the client's /api/analyse, with a cold
 // cache. Prints the wait per move and where the time went (analyzeMove timings).
 //
-// Usage: npx tsx server/scripts/sideline-timing.ts <file.pgn> [--depth N] [--starts 6] [--plies 3]
+// Usage: npx tsx core/scripts/sideline-timing.ts <file.pgn> [--depth N] [--starts 6] [--plies 3]
 
 import { mkdtempSync, readFileSync } from 'node:fs';
 import os from 'node:os';
 import { join } from 'node:path';
 import { type AnalysisSettings, DEFAULT_SETTINGS, type MoveAnalysis } from '@chess-coach/shared';
 import { SearchCache, type Searcher } from '../src/analysis/searchCache';
+import { defaultThreads } from '../src/node';
 import { CacheDb } from '../src/cache';
 import { createEnginePool } from '../src/engine/pool';
 import { Scheduler } from '../src/engine/scheduler';
@@ -22,7 +23,7 @@ const opt = (name: string): string | undefined => {
 };
 const file = args[0];
 if (!file || file.startsWith('--')) {
-  console.error('usage: npx tsx server/scripts/sideline-timing.ts <file.pgn> [--depth N] [--starts 6] [--plies 3]');
+  console.error('usage: npx tsx core/scripts/sideline-timing.ts <file.pgn> [--depth N] [--starts 6] [--plies 3]');
   process.exit(2);
 }
 const settings: AnalysisSettings = structuredClone(DEFAULT_SETTINGS);
@@ -31,11 +32,11 @@ const starts = Number(opt('starts') ?? 6);
 const plies = Number(opt('plies') ?? 3);
 
 const db = new CacheDb(join(mkdtempSync(join(os.tmpdir(), 'chess-coach-sideline-')), 'cache.sqlite'));
-const pool = await createEnginePool({});
+const pool = await createEnginePool({ threads: defaultThreads() });
 const engines = pool.engines.map((e) => ({ search: (req: Parameters<Searcher['search']>[0]) => e.search(req), abort: () => e.abort() }));
 const games = new GameManager({ db, searchCache: new SearchCache(db), scheduler: new Scheduler<Searcher>(engines, { preempt: true }), settings });
 
-const info = games.importPgn(readFileSync(file, 'utf8'));
+const info = await games.importPgn(readFileSync(file, 'utf8'));
 await games.whenDone(info.id); // the game itself is analysed first (as when you start trying moves)
 
 const rows: { ms: number; t: Record<string, number> }[] = [];

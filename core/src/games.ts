@@ -2,19 +2,22 @@
 //
 // - PGN: chessops parser, first game only; comments / clock annotations / NAGs / variations are ignored (main
 //   line only); SetUp/FEN headers give the start position. Bad PGN (no game, no moves, illegal SAN, bad FEN,
-//   non-standard variant) -> PgnImportError (HTTP 400).
+//   non-standard variant) -> PgnImportError.
 // - Game id = sha1(start FEN + ' ' + UCI moves); the same game imported twice gets the same id. Games are
-//   persisted (cache.ts `games`) so a restart can reload them by id.
-// - you / orientation: settings.username vs the White/Black headers (case-insensitive); neither -> White.
+//   persisted (store `games`) so a reload can reopen them by id.
+// - Environment-neutral (runs in the browser's analysis worker and in Node): the cache is an async `CacheStore`
+//   (IndexedDB in the browser), so the public methods that touch it are async.
+// - you / orientation: `deps.username` vs the White/Black headers (case-insensitive); neither -> White (a first
+//   guess only: the client decides "You" itself).
 // - Analysis of main-line ply N is one Scheduler job (key `move:<analysisKey>`), queued in game order at
 //   BACKGROUND priority; `focus(ply)` bumps ply, ply+1 and ply-1 to FOCUS; side-line moves (`analyse`) run at SIDELINE.
-//   Finished analyses are cached in sqlite under analysisKey (ARCHITECTURE.md "Cache"): re-importing or
+//   Finished analyses are cached in the store under analysisKey (ARCHITECTURE.md "Cache"): re-importing or
 //   reloading a game is instant.
 // - Previous-move context for ply N: ply N-1's move (prev.fenBefore / prev.uci) and, when already analysed, its
 //   result (winLoss, win%, label). Book chain: every earlier ply is a book position move (pure book check);
 //   analyzeMove additionally breaks the chain if ply N-1 wasn't labelled Book.
 
-import type { AnalysisSettings, Color, GameInfo, GameMove, GameSummary, Label, MoveAnalysis, Score, Settings, SideSummary } from '@chess-coach/shared';
+import type { AnalysisSettings, Color, GameInfo, GameMove, GameSummary, Label, MoveAnalysis, Score, SideSummary } from '@chess-coach/shared';
 import { ANALYSIS_VERSION, gameAccuracyFromScores, settingsHash } from '@chess-coach/shared';
 import { makeFen } from 'chessops/fen';
 import { emptyHeaders, parsePgn, parseVariant, startingPosition } from 'chessops/pgn';
@@ -22,7 +25,8 @@ import { makeSan, parseSan } from 'chessops/san';
 import { type AnalyzeInput, type PrevResult, analyzeMove } from './analysis/analyzeMove';
 import { bookInfo } from './analysis/book';
 import type { SearchCache, Searcher } from './analysis/searchCache';
-import { type CacheDb, sha1 } from './cache';
+import { sha1 } from './hash';
+import type { CacheStore } from './store';
 import { normalizeFen, playMove, standardUci } from './chess/notation';
 import { Priority, type Scheduler } from './engine/scheduler';
 import { EngineError } from './engine/uci';
@@ -111,21 +115,20 @@ interface GameState {
 }
 
 export interface GameManagerDeps {
-  db: CacheDb;
+  db: CacheStore;
   searchCache: SearchCache;
   scheduler: Scheduler<Searcher> | null;
   settings: AnalysisSettings;
-}
-
-const DEFAULT_USER_SETTINGS: Settings = { username: null };
-
-/** Analysis progress log (env `LOG_ANALYSIS=1`): finished plies with their run time, focus bumps. */
-function log(msg: string): void {
-  if (process.env.LOG_ANALYSIS === '1') console.log(`[analysis] ${new Date().toISOString().slice(11, 23)} ${msg}`);
+  /** First guess of "You" for GameInfo.you (case-insensitive match of the player names); default none (White). */
+  username?: string | null;
+  /** Progress log (finished plies with their run time, focus bumps); default: none. */
+  log?: (msg: string) => void;
 }
 
 export class GameManager {
   private games = new Map<string, GameState>();
+  /** Games being loaded from the store (concurrent calls share one load). */
+  private loading = new Map<string, Promise<GameState | undefined>>();
   private readonly settingsKey: string;
   private injectedFailures = 0;
 
@@ -133,48 +136,39 @@ export class GameManager {
     this.settingsKey = settingsHash(deps.settings);
   }
 
-  // --- settings ---------------------------------------------------------------------------------------------
-
-  getSettings(): Settings {
-    return { ...DEFAULT_USER_SETTINGS, ...(this.deps.db.get<Settings>('settings', 'user') ?? {}) };
-  }
-
-  putSettings(body: unknown): Settings {
-    if (!body || typeof body !== 'object') throw new BadRequestError('settings must be an object');
-    const u = (body as { username?: unknown }).username;
-    if (u !== null && u !== undefined && typeof u !== 'string') throw new BadRequestError('username must be a string or null');
-    const username = typeof u === 'string' && u.trim() ? u.trim() : null;
-    const s: Settings = { username };
-    this.deps.db.put('settings', 'user', s);
-    return s;
+  private log(msg: string): void {
+    this.deps.log?.(`${new Date().toISOString().slice(11, 23)} ${msg}`);
   }
 
   // --- games ------------------------------------------------------------------------------------------------
 
-  info(id: string): GameInfo | null {
-    const st = this.state(id);
-    if (!st) return null;
-    const you = youFor(st.parsed.headers, this.getSettings().username);
+  async info(id: string): Promise<GameInfo | null> {
+    const st = await this.state(id);
+    return st ? this.infoOf(st) : null;
+  }
+
+  private infoOf(st: GameState): GameInfo {
+    const you = youFor(st.parsed.headers, this.deps.username ?? null);
     return { ...st.parsed, you, orientation: you };
   }
 
   /** Import a PGN (first game). Enqueues every ply not cached yet. Throws PgnImportError. */
-  importPgn(pgn: string): GameInfo {
+  async importPgn(pgn: string): Promise<GameInfo> {
     const parsed = parseGamePgn(pgn);
-    if (!this.games.has(parsed.id)) {
-      this.deps.db.put('games', parsed.id, parsed);
-      this.load(parsed);
+    let st = this.games.get(parsed.id) ?? (await this.loading.get(parsed.id));
+    if (!st) {
+      await this.deps.db.put('games', parsed.id, parsed);
+      st = await this.loadOnce(parsed.id, async () => parsed);
     }
-    return this.info(parsed.id)!;
+    return this.infoOf(st!);
   }
 
-  get(id: string): { game: GameInfo; analyses: Record<number, MoveAnalysis>; summary: GameSummary } | null {
-    const game = this.info(id);
-    if (!game) return null;
-    const st = this.games.get(id)!;
+  async get(id: string): Promise<{ game: GameInfo; analyses: Record<number, MoveAnalysis>; summary: GameSummary } | null> {
+    const st = await this.state(id);
+    if (!st) return null;
     const analyses: Record<number, MoveAnalysis> = {};
     for (const [ply, a] of [...st.analyses].sort((x, y) => x[0] - y[0])) analyses[ply] = a;
-    return { game, analyses, summary: this.summary(id)! };
+    return { game: this.infoOf(st), analyses, summary: summarize(st.parsed, st.analyses) };
   }
 
   /**
@@ -182,8 +176,8 @@ export class GameManager {
    * context — with several engines it runs in parallel instead of after ply's own search). Failed plies among
    * ply / ply+1 are re-queued. Returns false for an unknown game.
    */
-  focus(id: string, ply: number): boolean {
-    const st = this.state(id);
+  async focus(id: string, ply: number): Promise<boolean> {
+    const st = await this.state(id);
     if (!st) return false;
     const sched = this.deps.scheduler;
     const bumped: number[] = [];
@@ -198,44 +192,44 @@ export class GameManager {
         void this.analysePly(st, p, Priority.FOCUS);
       }
     }
-    log(`focus ${id.slice(0, 8)} ply ${ply}: bumped [${bumped.join(', ')}]${retried.length ? ` retried [${retried.join(', ')}]` : ''}`);
+    this.log(`focus ${id.slice(0, 8)} ply ${ply}: bumped [${bumped.join(', ')}]${retried.length ? ` retried [${retried.join(', ')}]` : ''}`);
     return true;
   }
 
-  subscribe(id: string, listener: GameListener): () => void {
-    const st = this.state(id);
+  /** Listen to a game's events; resolves to the unsubscribe function (rejects for an unknown game). */
+  async subscribe(id: string, listener: GameListener): Promise<() => void> {
+    const st = await this.state(id);
     if (!st) throw new Error(`unknown game ${id}`);
     st.listeners.add(listener);
     return () => st.listeners.delete(listener);
   }
 
-  /** Replay of the current state as events (for a new SSE subscriber). */
-  snapshot(id: string): GameEvent[] {
-    const st = this.state(id);
+  /** Replay of the current state as events (for a new subscriber). */
+  async snapshot(id: string): Promise<GameEvent[]> {
+    const st = await this.state(id);
     if (!st) return [];
     const out: GameEvent[] = [];
     for (const [ply, analysis] of [...st.analyses].sort((a, b) => a[0] - b[0])) out.push({ type: 'analysis', ply, analysis });
     for (const [ply, message] of st.errors) out.push({ type: 'error', ply, message });
-    const s = this.summary(id)!;
+    const s = summarize(st.parsed, st.analyses);
     out.push({ type: 'progress', done: s.done, total: s.total }, { type: 'summary', summary: s });
     return out;
   }
 
-  summary(id: string): GameSummary | null {
-    const st = this.state(id);
-    if (!st) return null;
-    return summarize(st.parsed, st.analyses);
+  async summary(id: string): Promise<GameSummary | null> {
+    const st = await this.state(id);
+    return st ? summarize(st.parsed, st.analyses) : null;
   }
 
   /** Resolves when every ply is analysed (or failed). */
-  whenDone(id: string): Promise<void> {
-    const st = this.state(id);
-    if (!st) return Promise.reject(new Error(`unknown game ${id}`));
-    if (st.analyses.size + st.errors.size >= st.parsed.moves.length) return Promise.resolve();
+  async whenDone(id: string): Promise<void> {
+    const st = await this.state(id);
+    if (!st) throw new Error(`unknown game ${id}`);
+    if (st.analyses.size + st.errors.size >= st.parsed.moves.length) return;
     return new Promise((resolve) => st.doneWaiters.push(resolve));
   }
 
-  /** Side-line (or any) single move analysis at SIDELINE priority. */
+  /** Side-line (or any) single move analysis at SIDELINE priority. Throws BadRequestError for bad input. */
   async analyse(body: unknown): Promise<MoveAnalysis> {
     const b = body as { fenBefore?: unknown; uci?: unknown; prev?: { fenBefore?: unknown; uci?: unknown } | null };
     if (!b || typeof b.fenBefore !== 'string' || typeof b.uci !== 'string') throw new BadRequestError('body must be { fenBefore, uci, prev? }');
@@ -265,15 +259,27 @@ export class GameManager {
 
   // --- internals --------------------------------------------------------------------------------------------
 
-  private state(id: string): GameState | undefined {
+  private async state(id: string): Promise<GameState | undefined> {
     const st = this.games.get(id);
     if (st) return st;
-    const parsed = this.deps.db.get<ParsedGame>('games', id);
-    if (!parsed) return undefined;
-    return this.load(parsed);
+    return this.loadOnce(id, async () => this.deps.db.get<ParsedGame>('games', id));
   }
 
-  private load(parsed: ParsedGame): GameState {
+  private loadOnce(id: string, parsed: () => Promise<ParsedGame | undefined>): Promise<GameState | undefined> {
+    const pending = this.loading.get(id);
+    if (pending) return pending;
+    const p = (async () => {
+      const g = await parsed();
+      return g ? this.load(g) : undefined;
+    })();
+    this.loading.set(id, p);
+    void p.finally(() => this.loading.delete(id)).catch(() => undefined);
+    return p;
+  }
+
+  private async load(parsed: ParsedGame): Promise<GameState> {
+    const existing = this.games.get(parsed.id);
+    if (existing) return existing;
     const inputs: AnalyzeInput[] = [];
     let chain = true;
     for (let i = 0; i < parsed.moves.length; i++) {
@@ -283,21 +289,22 @@ export class GameManager {
       const b = bookInfo(m.fenBefore, m.fenAfter);
       chain = chain && b.after !== null && b.beforeIsStartOrBook;
     }
+    const keys = inputs.map((inp) => analysisKey(this.settingsKey, inp));
+    const cached = await Promise.all(keys.map((k) => this.deps.db.get<MoveAnalysis>('analyses', k)));
     const st: GameState = {
       parsed,
       inputs,
-      keys: inputs.map((inp) => analysisKey(this.settingsKey, inp)),
+      keys,
       analyses: new Map(),
       errors: new Map(),
       retrying: new Set(),
       listeners: new Set(),
       doneWaiters: [],
     };
+    cached.forEach((a, i) => {
+      if (a) st.analyses.set(i + 1, a);
+    });
     this.games.set(parsed.id, st);
-    for (let i = 0; i < inputs.length; i++) {
-      const cached = this.deps.db.get<MoveAnalysis>('analyses', st.keys[i]!);
-      if (cached) st.analyses.set(i + 1, cached);
-    }
     for (let i = 0; i < inputs.length; i++) {
       if (st.analyses.has(i + 1)) continue;
       void this.analysePly(st, i + 1);
@@ -311,19 +318,19 @@ export class GameManager {
     try {
       if (!this.deps.scheduler) throw new Error('engine not running');
       let started = 0;
-      const analysis = await this.run(input, priority, () => {
+      const analysis = await this.run(input, priority, async () => {
         started = Date.now();
-        // the previous ply's job stores its result before resolving, so the db has it even if our state lags
-        const prev = st.analyses.get(ply - 1) ?? (ply > 1 ? this.deps.db.get<MoveAnalysis>('analyses', st.keys[ply - 2]!) : undefined);
+        // the previous ply's job stores its result before resolving, so the store has it even if our state lags
+        const prev = st.analyses.get(ply - 1) ?? (ply > 1 ? await this.deps.db.get<MoveAnalysis>('analyses', st.keys[ply - 2]!) : undefined);
         const result: PrevResult | null = prev ? { winLoss: prev.winLoss, winBefore: prev.winBefore, label: prev.label } : null;
         return input.prev ? { ...input, prev: { ...input.prev, result } } : input;
       });
-      if (started) log(`game ${st.parsed.id.slice(0, 8)} ply ${ply} done in ${Date.now() - started} ms`);
+      if (started) this.log(`game ${st.parsed.id.slice(0, 8)} ply ${ply} done in ${Date.now() - started} ms`);
       st.analyses.set(ply, analysis);
       st.errors.delete(ply);
       this.emit(st, { type: 'analysis', ply, analysis });
     } catch (e) {
-      log(`game ${st.parsed.id.slice(0, 8)} ply ${ply} failed: ${(e as Error).message}`);
+      this.log(`game ${st.parsed.id.slice(0, 8)} ply ${ply} failed: ${(e as Error).message}`);
       st.errors.set(ply, (e as Error).message);
       this.emit(st, { type: 'error', ply, message: (e as Error).message });
     } finally {
@@ -340,17 +347,19 @@ export class GameManager {
   }
 
   /** Cached analysis, or a scheduler job (deduplicated by key). `finalInput` is evaluated when the job starts. */
-  private run(input: AnalyzeInput, priority: Priority, finalInput: () => AnalyzeInput = () => input): Promise<MoveAnalysis> {
+  private async run(input: AnalyzeInput, priority: Priority, finalInput: () => Promise<AnalyzeInput> | AnalyzeInput = () => input): Promise<MoveAnalysis> {
     const key = analysisKey(this.settingsKey, input);
-    const cached = this.deps.db.get<MoveAnalysis>('analyses', key);
-    if (cached) return Promise.resolve(cached);
     const sched = this.deps.scheduler;
-    if (!sched) return Promise.reject(new Error('engine not running'));
+    // a job already queued/running for this key: join it (and upgrade its priority) without a store lookup
+    if (sched?.has(`move:${key}`)) return sched.run(`move:${key}`, priority, () => Promise.reject(new Error('unreachable')));
+    const cached = await this.deps.db.get<MoveAnalysis>('analyses', key);
+    if (cached) return cached;
+    if (!sched) throw new Error('engine not running');
     return sched.run(`move:${key}`, priority, async (engine) => {
-      const again = this.deps.db.get<MoveAnalysis>('analyses', key);
+      const again = await this.deps.db.get<MoveAnalysis>('analyses', key);
       if (again) return again;
       const ctx = { searcher: engine, cache: this.deps.searchCache, settings: this.deps.settings };
-      const inp = finalInput();
+      const inp = await finalInput();
       const attempt = () => {
         if (this.injectedFailures > 0) {
           this.injectedFailures--;
@@ -365,7 +374,11 @@ export class GameManager {
         if (!(e instanceof EngineError)) throw e;
         a = await attempt(); // one retry: a crashed engine restarts on the next search
       }
-      this.deps.db.put('analyses', key, a);
+      try {
+        await this.deps.db.put('analyses', key, a);
+      } catch {
+        // best-effort persistence (e.g. storage quota): the result is still delivered
+      }
       return a;
     });
   }

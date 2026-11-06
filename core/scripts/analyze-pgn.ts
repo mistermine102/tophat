@@ -1,6 +1,6 @@
 // Full analysis pipeline on a PGN file (no HTTP), writing a human-readable markdown report.
 //
-// Usage: npx tsx server/scripts/analyze-pgn.ts <file.pgn> [--out report.md] [--json out.json]
+// Usage: npx tsx core/scripts/analyze-pgn.ts <file.pgn> [--out report.md] [--json out.json]
 //          [--db path.sqlite] [--fresh] [--depth N] [--threads N] [--processes N]
 //   --db     cache database (default data/cache.sqlite or env CHESS_COACH_DB)
 //   --fresh  ignore cached move analyses (engine searches stay cached) — use after changing facts/explain code
@@ -15,6 +15,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { type AnalysisSettings, type Candidate, DEFAULT_SETTINGS, type GameInfo, type GameSummary, type MoveAnalysis } from '@chess-coach/shared';
 import { formatEval, LABEL_NAMES, SUGGESTION_TEXT } from '../src/analysis/explain';
 import { SearchCache, type Searcher } from '../src/analysis/searchCache';
+import { defaultThreads } from '../src/node';
 import { CacheDb, defaultDbPath } from '../src/cache';
 import { positionStatus } from '../src/chess/notation';
 import { Scheduler } from '../src/engine/scheduler';
@@ -131,7 +132,7 @@ const flag = (name: string) => args.includes(`--${name}`);
 const VALUE_OPTS = new Set(['--out', '--json', '--db', '--depth', '--threads', '--processes']);
 const file = args.find((a, i) => !a.startsWith('--') && !(i > 0 && VALUE_OPTS.has(args[i - 1]!)));
 if (!file) {
-  console.error('usage: npx tsx server/scripts/analyze-pgn.ts <file.pgn> [--out report.md] [--json out.json] [--db path] [--fresh] [--depth N]');
+  console.error('usage: npx tsx core/scripts/analyze-pgn.ts <file.pgn> [--out report.md] [--json out.json] [--db path] [--fresh] [--depth N]');
   process.exit(2);
 }
 
@@ -142,16 +143,16 @@ const pgn = readFileSync(file, 'utf8');
 const dbPath = opt('db') ?? defaultDbPath();
 const fileDb = new CacheDb(dbPath);
 const gameDb = flag('fresh') ? new CacheDb(':memory:') : fileDb;
-const pool = await createEnginePool({ ...(opt('threads') ? { threads: Number(opt('threads')) } : {}), ...(opt('processes') ? { processes: Number(opt('processes')) } : {}) });
+const pool = await createEnginePool({ threads: opt('threads') ? Number(opt('threads')) : defaultThreads(), ...(opt('processes') ? { processes: Number(opt('processes')) } : {}) });
 const engine = pool.engines[0]!;
 const scheduler = new Scheduler<Searcher>(pool.engines);
 const searchCache = new SearchCache(fileDb);
 const games = new GameManager({ db: gameDb, searchCache, scheduler, settings });
 
 const t0 = performance.now();
-const info = games.importPgn(pgn);
+const info = await games.importPgn(pgn);
 let done = 0;
-games.subscribe(info.id, (e) => {
+await games.subscribe(info.id, (e) => {
   if (e.type === 'analysis') {
     done++;
     const a = e.analysis;
@@ -160,7 +161,7 @@ games.subscribe(info.id, (e) => {
 });
 await games.whenDone(info.id);
 const wallMs = performance.now() - t0;
-const result = games.get(info.id)!;
+const result = (await games.get(info.id))!;
 await pool.quit();
 
 const report = renderReport(info, result.analyses, result.summary, { wallMs, settings, engineName: engine.name, threads: pool.engines.length * pool.threadsPerEngine, stats: searchCache.stats, dbPath });

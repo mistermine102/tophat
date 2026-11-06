@@ -24,7 +24,7 @@ describe('SearchCache', () => {
     a.calls[0]!.resolve(result('e2e4'));
     expect((await p1).cached).toBe(false);
     expect((await p2).result.bestmove).toBe('e2e4');
-    expect(cache.peek(FEN, { depth: 10, multipv: 1 })?.bestmove).toBe('e2e4');
+    expect((await cache.peek(FEN, { depth: 10, multipv: 1 }))?.bestmove).toBe('e2e4');
   });
 
   it('a waiter runs the search itself when the shared one is aborted (its job was preempted)', async () => {
@@ -40,7 +40,7 @@ describe('SearchCache', () => {
     b.calls[0]!.resolve(result('d2d4'));
     expect((await p2).result.bestmove).toBe('d2d4');
     // aborted results are never cached; b's is
-    expect(cache.peek(FEN, { depth: 10, multipv: 1 })?.bestmove).toBe('d2d4');
+    expect((await cache.peek(FEN, { depth: 10, multipv: 1 }))?.bestmove).toBe('d2d4');
   });
 
   it('other errors propagate to waiters and nothing is cached', async () => {
@@ -53,6 +53,6 @@ describe('SearchCache', () => {
     await expect(p1).rejects.toThrow('engine crashed');
     await expect(p2).rejects.toThrow('engine crashed');
     expect(b.calls.length).toBe(0);
-    expect(cache.peek(FEN, { depth: 10, multipv: 1 })).toBeUndefined();
+    expect(await cache.peek(FEN, { depth: 10, multipv: 1 })).toBeUndefined();
   });
 });

@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import { createEnginePool, defaultProcesses, type EnginePool } from '../src/engine/pool';
-import { engineAvailable } from '../src/engine/uci';
+import { engineAvailable } from '../src/engine/node';
 
 describe('defaultProcesses', () => {
   it('splits the threads into 2-thread processes', () => {

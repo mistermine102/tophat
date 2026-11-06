@@ -31,7 +31,8 @@ import { SearchCache, type Searcher } from '../core/src/analysis/searchCache';
 import { bookInfo } from '../core/src/analysis/book';
 import { CacheDb } from '../core/src/cache';
 import { playMove, positionStatus, pvToSan } from '../core/src/chess/notation';
-import { Engine, type SearchResult } from '../core/src/engine/uci';
+import { Engine, type SearchResult } from '../core/src/engine/node';
+import '../core/src/node';
 import { type Judgement, type LichessScore, parseLichessGame } from './lib/lichessPgn';
 
 const here = dirname(fileURLToPath(import.meta.url));

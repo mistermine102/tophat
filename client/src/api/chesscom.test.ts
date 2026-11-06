@@ -1,8 +1,6 @@
 // chess.com import by username (fake chess.com API; no network).
-import type { AddressInfo } from 'node:net';
 import { describe, expect, it } from 'vitest';
-import { createApp } from '../src/app';
-import { fetchChessComGames } from '../src/chesscom';
+import { ChessComError, fetchChessComGames, validUsername } from './chesscom';
 
 const API = 'https://api.chess.com/pub';
 
@@ -27,7 +25,8 @@ function fakeChessCom(months: Record<string, unknown[]>, opts: { status?: number
   const fetchImpl = (async (input: string | URL | Request, init?: RequestInit) => {
     const url = String(input);
     urls.push(url);
-    expect(new Headers(init?.headers).get('User-Agent')).toMatch(/chess-coach/);
+    // browser-friendly: only CORS-safelisted headers (no preflight)
+    expect([...new Headers(init?.headers).keys()]).toEqual(['accept']);
     if (opts.status) return new Response('{}', { status: opts.status });
     if (url === `${API}/player/szymonj/games/archives`) {
       return Response.json({ archives: Object.keys(months).map((m) => `${API}/player/szymonj/games/${m}`) });
@@ -60,36 +59,21 @@ describe('fetchChessComGames', () => {
   });
 });
 
-describe('GET /api/chesscom/:username/games', () => {
-  async function get(fetchImpl: typeof fetch, path: string) {
-    const server = createApp({ engine: null, scheduler: null, fetchImpl }).listen(0);
-    await new Promise<void>((r) => server.once('listening', () => r()));
-    try {
-      const { port } = server.address() as AddressInfo;
-      const res = await fetch(`http://127.0.0.1:${port}${path}`);
-      return { status: res.status, body: (await res.json()) as { error?: string; games?: unknown[] } };
-    } finally {
-      server.close();
-    }
-  }
-
-  it('returns the games', async () => {
-    const { fetchImpl } = fakeChessCom({ '2026/10': [raw(1), raw(2)] });
-    const res = await get(fetchImpl, '/api/chesscom/SzymonJ/games?limit=1');
-    expect(res.status).toBe(200);
-    expect(res.body.games).toHaveLength(1);
-  });
-  it('404 for an unknown player, 502 when chess.com fails, 400 for a bad name or limit', async () => {
-    const unknown = await get(fakeChessCom({}, { status: 404 }).fetchImpl, '/api/chesscom/nobody/games');
-    expect(unknown).toEqual({ status: 404, body: { error: 'chess.com has no player called "nobody".' } });
-    const down = await get(fakeChessCom({}, { status: 500 }).fetchImpl, '/api/chesscom/szymonj/games');
-    expect(down.status).toBe(502);
-    expect(down.body.error).toMatch(/chess\.com answered 500/);
+describe('fetchChessComGames errors', () => {
+  it('unknown player, chess.com failing or unreachable -> ChessComError with a readable message', async () => {
+    await expect(fetchChessComGames('nobody', { fetchImpl: fakeChessCom({}, { status: 404 }).fetchImpl })).rejects.toMatchObject({ status: 404, message: 'chess.com has no player called "nobody".' });
+    await expect(fetchChessComGames('szymonj', { fetchImpl: fakeChessCom({}, { status: 500 }).fetchImpl })).rejects.toMatchObject({ status: 502, message: expect.stringMatching(/chess\.com answered 500/) });
+    await expect(fetchChessComGames('szymonj', { fetchImpl: fakeChessCom({}, { status: 429 }).fetchImpl })).rejects.toThrow(/rate-limiting/);
     const throws = (async () => {
       throw new TypeError('fetch failed');
     }) as typeof fetch;
-    expect((await get(throws, '/api/chesscom/szymonj/games')).body.error).toMatch(/Could not reach chess\.com/);
-    expect((await get(fakeChessCom({}).fetchImpl, '/api/chesscom/a%20b/games')).status).toBe(400);
-    expect((await get(fakeChessCom({}).fetchImpl, '/api/chesscom/szymonj/games?limit=0')).status).toBe(400);
+    await expect(fetchChessComGames('szymonj', { fetchImpl: throws })).rejects.toBeInstanceOf(ChessComError);
+    await expect(fetchChessComGames('szymonj', { fetchImpl: throws })).rejects.toThrow(/Could not reach chess\.com/);
+  });
+  it('validUsername', () => {
+    expect(validUsername('SzymonJ_1-2')).toBe(true);
+    expect(validUsername('a b')).toBe(false);
+    expect(validUsername('')).toBe(false);
   });
 });
+

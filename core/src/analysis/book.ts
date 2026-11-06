@@ -10,8 +10,11 @@
 // shortest line through it (e.g. the position after 1.e4 e5 2.Nf3 Nc6 3.Bb5 a6 4.Ba4 is named by its own entry,
 // an unnamed intermediate position inherits the opening it belongs to).
 
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+//
+// Loading is environment-neutral: the TSV contents come from a registered source — `setBookSource` (sync; Node:
+// core/src/node.ts reads data/openings/ from disk) or `loadBookAsync(read)` (the browser worker fetches the files
+// as static assets). Lookups before either throw.
+
 import { Chess } from 'chessops/chess';
 import { INITIAL_FEN, makeFen, parseFen } from 'chessops/fen';
 import { parseSan } from 'chessops/san';
@@ -30,8 +33,19 @@ export interface BookInfo {
   beforeIsStartOrBook: boolean;
 }
 
-const BOOK_FILES = ['a.tsv', 'b.tsv', 'c.tsv', 'd.tsv', 'e.tsv'];
-const DEFAULT_DIR = fileURLToPath(new URL('../../data/openings/', import.meta.url));
+export const BOOK_FILES = ['a.tsv', 'b.tsv', 'c.tsv', 'd.tsv', 'e.tsv'];
+
+export interface BookFile {
+  file: string;
+  content: string;
+}
+
+let source: (() => BookFile[]) | null = null;
+
+/** Register a synchronous source of the TSV files (read on first lookup). */
+export function setBookSource(read: (() => BookFile[]) | null): void {
+  source = read;
+}
 
 /**
  * Position key: EPD = board + turn + castling + en-passant square (only if an en-passant capture is legal, as
@@ -121,11 +135,22 @@ export function buildBook(contents: readonly { file: string; content: string }[]
 let book: Map<string, BookEntry> | null = null;
 let loadMs = 0;
 
-/** Load (once) and return the book. `dir` overrides the data directory (tests). */
-export function loadBook(dir: string = DEFAULT_DIR): Map<string, BookEntry> {
+/** Load (once, from the registered source) and return the book. */
+export function loadBook(): Map<string, BookEntry> {
+  if (book) return book;
+  if (!source) throw new Error('opening book not loaded (setBookSource / loadBookAsync)');
+  const t0 = performance.now();
+  book = buildBook(source());
+  loadMs = performance.now() - t0;
+  return book;
+}
+
+/** Load the book (once) from an async reader of the TSV files, e.g. `fetch` of static assets. */
+export async function loadBookAsync(read: (file: string) => Promise<string>): Promise<Map<string, BookEntry>> {
+  if (book) return book;
+  const contents = await Promise.all(BOOK_FILES.map(async (file) => ({ file, content: await read(file) })));
   if (book) return book;
   const t0 = performance.now();
-  const contents = BOOK_FILES.map((file) => ({ file, content: readFileSync(dir + file, 'utf8') }));
   book = buildBook(contents);
   loadMs = performance.now() - t0;
   return book;

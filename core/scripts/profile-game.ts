@@ -1,6 +1,6 @@
-// Performance profile of a full game analysis (cold cache), the same GameManager pipeline the server runs.
+// Performance profile of a full game analysis (cold cache), the same GameManager pipeline the app runs (here with Node engines).
 //
-// Usage: npx tsx server/scripts/profile-game.ts <file.pgn> [--threads 10] [--processes 1] [--hash 512] [--depth N]
+// Usage: npx tsx core/scripts/profile-game.ts <file.pgn> [--threads 10] [--processes 1] [--hash 512] [--depth N]
 //          [--probe] [--no-preempt] [--json out.json] [--label name]
 //   --threads    total Stockfish threads (split evenly over the processes; default cpus - 2)
 //   --processes  engine processes = background jobs running concurrently (default: server default)
@@ -20,6 +20,7 @@ import { Chess } from 'chessops/chess';
 import { parseFen } from 'chessops/fen';
 import { makeUci } from 'chessops/util';
 import { SearchCache, type Searcher } from '../src/analysis/searchCache';
+import { defaultThreads } from '../src/node';
 import { CacheDb } from '../src/cache';
 import { createEnginePool } from '../src/engine/pool';
 import { Scheduler } from '../src/engine/scheduler';
@@ -35,7 +36,7 @@ const flag = (name: string) => args.includes(`--${name}`);
 const VALUE_OPTS = new Set(['--threads', '--processes', '--hash', '--depth', '--json', '--label']);
 const file = args.find((a, i) => !a.startsWith('--') && !(i > 0 && VALUE_OPTS.has(args[i - 1]!)));
 if (!file) {
-  console.error('usage: npx tsx server/scripts/profile-game.ts <file.pgn> [--threads N] [--processes N] [--hash MB] [--depth N] [--probe] [--json out.json]');
+  console.error('usage: npx tsx core/scripts/profile-game.ts <file.pgn> [--threads N] [--processes N] [--hash MB] [--depth N] [--probe] [--json out.json]');
   process.exit(2);
 }
 
@@ -66,7 +67,7 @@ const dir = mkdtempSync(join(os.tmpdir(), 'chess-coach-profile-'));
 const db = new CacheDb(join(dir, 'cache.sqlite'));
 const processes = opt('processes') ? Number(opt('processes')) : undefined;
 const pool = await createEnginePool({
-  ...(opt('threads') ? { threads: Number(opt('threads')) } : {}),
+  threads: opt('threads') ? Number(opt('threads')) : defaultThreads(),
   ...(processes ? { processes } : {}),
   ...(opt('hash') ? { hashMb: Number(opt('hash')) } : {}),
 });
@@ -84,12 +85,12 @@ const games = new GameManager({ db, searchCache, scheduler, settings });
 
 const pgn = readFileSync(file, 'utf8');
 const t0 = performance.now();
-const info = games.importPgn(pgn);
+const info = await games.importPgn(pgn);
 const n = info.moves.length;
 const doneAt = new Map<number, number>();
 let first = 0;
 const waiters = new Map<number, () => void>();
-games.subscribe(info.id, (e) => {
+await games.subscribe(info.id, (e) => {
   if (e.type === 'analysis' && !doneAt.has(e.ply)) {
     const t = performance.now() - t0;
     if (!first) first = t;
@@ -105,7 +106,7 @@ async function probe(): Promise<void> {
   const P = Math.round((n * 2) / 3);
   if (doneAt.has(P)) return;
   const tf = performance.now();
-  games.focus(info.id, P);
+  await games.focus(info.id, P);
   await plyDone(P);
   probes[`focus ply ${P}`] = performance.now() - tf;
   await plyDone(P + 1).catch(() => undefined);
@@ -128,7 +129,7 @@ const probing = flag('probe') ? probe() : Promise.resolve();
 await games.whenDone(info.id);
 await probing;
 const wallMs = performance.now() - t0;
-const result = games.get(info.id)!;
+const result = (await games.get(info.id))!;
 await pool.quit();
 db.close();
 rmSync(dir, { recursive: true, force: true });

@@ -4,8 +4,10 @@ export default defineProject({
   test: {
     name: 'core',
     include: ['test/**/*.test.ts'],
-    // engine integration tests spawn Stockfish; keep them out of parallel worker contention
-    testTimeout: 60_000,
-    hookTimeout: 60_000,
+    // Node environment: engine transport (Stockfish WASM run by node, or STOCKFISH_PATH) + opening book from disk
+    setupFiles: ['test/setup.ts'],
+    // engine integration tests start Stockfish; keep them out of parallel worker contention
+    testTimeout: 120_000,
+    hookTimeout: 120_000,
   },
 });

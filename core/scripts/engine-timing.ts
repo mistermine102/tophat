@@ -1,6 +1,6 @@
 // Measures engine time for the analysis budget (ARCHITECTURE.md "Analysis budget").
-// Usage: npm run bench:engine -w server   (env THREADS, HASH to override; default Threads=10 Hash=512)
-import { Engine, type SearchRequest } from '../src/engine/uci';
+// Usage: npm run bench:engine -w core   (env THREADS, HASH to override; default Threads=10 Hash=512)
+import { Engine, type SearchRequest } from '../src/engine/node';
 
 const FENS: Record<string, string> = {
   'QGD (W, move 9)': 'r1bq1rk1/pp2bppp/2n1pn2/3p4/2PP4/2N1PN2/PP3PPP/R2QKB1R w KQ - 0 9',
