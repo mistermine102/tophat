@@ -76,6 +76,16 @@ export class Scheduler<E = Engine> {
     this.preemptEnabled = opts.preempt ?? true;
   }
 
+  /**
+   * Add an engine (one more job runs at a time), e.g. once it has started: the browser starts its WASM instances one
+   * after another and the first one already works while the others load.
+   */
+  addEngine(engine: E): void {
+    (this.engines as E[]).push(engine);
+    this.free.push(this.engines.length - 1);
+    queueMicrotask(() => this.pump());
+  }
+
   /** The first engine (single-engine use). */
   get engine(): E {
     return this.engines[0]!;

@@ -1,5 +1,7 @@
-// Picks the data layer: `?mock=1` → MockApiClient (fixture data, no server), otherwise the real HTTP API.
-import { RealApiClient } from './real';
+// Picks the data layer: `?mock=1` → MockApiClient (fixture data, no engine), otherwise the in-browser analysis
+// (LocalApiClient: the analysis worker with Stockfish WASM).
+import { analysisConfig } from '../worker/config';
+import { LocalApiClient } from './local';
 import type { ApiClient } from './types';
 
 export function isMockMode(search: string = typeof location === 'undefined' ? '' : location.search): boolean {
@@ -8,7 +10,17 @@ export function isMockMode(search: string = typeof location === 'undefined' ? ''
 }
 
 export async function createApiClient(mock = isMockMode()): Promise<ApiClient> {
-  if (!mock) return new RealApiClient();
+  if (!mock) {
+    const worker = new Worker(new URL('../worker/analysis.worker.ts', import.meta.url), { type: 'module', name: 'chess-coach-analysis' });
+    const config = analysisConfig(location.search, {
+      hardwareConcurrency: navigator.hardwareConcurrency,
+      crossOriginIsolated: self.crossOriginIsolated === true,
+      deviceMemory: (navigator as Navigator & { deviceMemory?: number }).deviceMemory,
+    });
+    const client = new LocalApiClient(worker, config);
+    if (config.testHooks) (window as unknown as { __chessCoachTest?: LocalApiClient }).__chessCoachTest = client;
+    return client;
+  }
   // Loaded on demand so the fixture data isn't part of the normal startup path.
   const { MockApiClient } = await import('./mock');
   return new MockApiClient();

@@ -322,3 +322,26 @@ describe('Scheduler with several engines (M4)', () => {
     expect(log).toEqual(['bg@A', 'side@A']);
   });
 });
+
+describe('Scheduler.addEngine', () => {
+  it('a waiting job starts on an engine added later (the browser adds its WASM instances as they start)', async () => {
+    const s = new Scheduler<{ id: string }>([{ id: 'A' }]);
+    const started: string[] = [];
+    const releases: (() => void)[] = [];
+    const job = (name: string) => async (e: { id: string }) => {
+      started.push(`${name}@${e.id}`);
+      await new Promise<void>((r) => releases.push(r));
+      return name;
+    };
+    const a = s.run('a', Priority.BACKGROUND, job('a'));
+    const b = s.run('b', Priority.BACKGROUND, job('b'));
+    await tick();
+    expect(started).toEqual(['a@A']);
+    s.addEngine({ id: 'B' });
+    await tick();
+    expect(started).toEqual(['a@A', 'b@B']);
+    expect(s.engines).toHaveLength(2);
+    releases.forEach((r) => r());
+    expect(await Promise.all([a, b])).toEqual(['a', 'b']);
+  });
+});
