@@ -1,9 +1,10 @@
 #!/usr/bin/env node
-// `npm start`: the whole app on one port — builds the client (only when its sources changed since the last build),
-// then runs the server with SERVE_CLIENT=1 so Express serves client/dist next to /api, and opens the browser.
-//   PORT (default 5174), --no-open (don't open a browser); every server env (ENGINE_THREADS, ...) is passed through.
-// Without Stockfish it first runs the download (`npm run setup:engine`); if that fails the server still starts and
-// prints how to install it. If Chess Coach is already running on the port, it only opens the browser again.
+// `npm start`: serves the app on one port and opens the browser. There is no server-side analysis any more: the
+// browser runs Stockfish (WASM) itself, this only serves static files. Builds the client first when its sources
+// changed since the last build (client/dist), then runs `vite preview` (with the cross-origin isolation headers).
+//   PORT (default 5174), --no-open (don't open a browser).
+// If Chess Coach is already running on the port, it only opens the browser again.
+// Any static web server works for client/dist too (see README "Hosting").
 
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, statSync } from 'node:fs';
@@ -30,11 +31,11 @@ function newestMtime(paths) {
 }
 
 async function probe() {
-  // Is something already listening on the port? 'coach' = a running Chess Coach, 'other' = another program.
+  // Is something already listening on the port? 'coach' = a running Chess Coach (it serves the engine files),
+  // 'other' = another program.
   try {
-    const res = await fetch(`${url}/api/health`, { signal: AbortSignal.timeout(3000) });
-    const body = await res.json().catch(() => null);
-    return body && typeof body === 'object' && 'ok' in body ? 'coach' : 'other';
+    const res = await fetch(`${url}/engine/stockfish-19-single.js`, { method: 'HEAD', signal: AbortSignal.timeout(3000) });
+    return res.ok ? 'coach' : 'other';
   } catch (e) {
     return e?.cause?.code === 'ECONNREFUSED' ? 'free' : e?.name === 'TimeoutError' ? 'other' : 'free';
   }
@@ -54,37 +55,26 @@ if (portState === 'other') {
   process.exit(1);
 }
 
-const enginePath = process.env.STOCKFISH_PATH || join(repo, 'engine', 'stockfish.exe');
-if (!existsSync(enginePath) && !process.env.STOCKFISH_PATH) {
-  console.log('[start] Stockfish is not installed yet — downloading it first (same as `npm run setup:engine`) …');
-  spawnSync(process.execPath, [join(repo, 'scripts', 'setup-engine.mjs')], { cwd: repo, stdio: 'inherit' });
-}
-
-const sources = [join(client, 'src'), join(client, 'index.html'), join(client, 'vite.config.ts'), join(client, 'package.json'), join(repo, 'shared', 'src')];
-const stale = !existsSync(distIndex) || newestMtime(sources) > statSync(distIndex).mtimeMs;
+const sources = [join(client, 'src'), join(client, 'index.html'), join(client, 'vite.config.ts'), join(client, 'package.json'), join(repo, 'shared', 'src'), join(repo, 'core', 'src'), join(repo, 'core', 'data')];
+const stale = !existsSync(distIndex) || !existsSync(join(client, 'dist', 'engine')) || newestMtime(sources) > statSync(distIndex).mtimeMs;
 if (stale) {
-  console.log('[start] building the client (vite build) …');
+  console.log('[start] building the app (vite build) …');
   const r = spawnSync('npx vite build --logLevel warn', { cwd: client, stdio: 'inherit', shell: true });
   if (r.status !== 0) {
-    console.error('[start] client build failed');
+    console.error('[start] build failed');
     process.exit(r.status ?? 1);
   }
 } else {
-  console.log('[start] client build is up to date');
+  console.log('[start] build is up to date');
 }
 
-// node:sqlite prints an "experimental feature" warning on every start: noise for the user.
-const server = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', '--import', 'tsx', join('src', 'index.ts')], {
-  cwd: join(repo, 'server'),
-  stdio: ['inherit', 'pipe', 'inherit'],
-  env: { ...process.env, SERVE_CLIENT: '1', PORT: String(port) },
-});
+const server = spawn(`npx vite preview --port ${port} --strictPort`, { cwd: client, stdio: ['inherit', 'pipe', 'inherit'], shell: true, env: { ...process.env, PORT: String(port) } });
 let opened = noOpen;
 server.stdout.setEncoding('utf8');
 server.stdout.on('data', (chunk) => {
-  process.stdout.write(chunk);
-  if (!opened && chunk.includes('Chess Coach is running')) {
+  if (!opened && /localhost:\d+/.test(chunk)) {
     opened = true;
+    console.log(`[start] Chess Coach is running — open ${url} (keep this window open; Ctrl+C stops it)`);
     openBrowser(url);
   }
 });

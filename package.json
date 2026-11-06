@@ -14,19 +14,18 @@
   ],
   "scripts": {
     "start": "node scripts/start.mjs",
-    "dev": "node scripts/check-engine.mjs && concurrently -k -n server,client -c blue,green \"npm run dev -w core\" \"npm run dev -w client\"",
+    "dev": "npm run dev -w client",
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "npm run e2e -w client",
     "acceptance": "npm run acceptance -w client",
-    "setup:engine": "node scripts/setup-engine.mjs",
     "bench:engine": "npm run bench:engine -w core",
+    "bench:browser": "tsx client/scripts/browser-profile.ts",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "build": "npm run build -w client"
   },
   "devDependencies": {
     "@types/node": "^26.6.5",
-    "concurrently": "^10.0.6",
     "tsx": "^4.23.15",
     "typescript": "~6.0.3",
     "vitest": "^5.0.5"

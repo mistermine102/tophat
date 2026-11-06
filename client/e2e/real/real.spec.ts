@@ -1,9 +1,10 @@
-// E2E against the real server + Stockfish (ANALYSIS_PROFILE=fast, see playwright.config.ts). Tests run in order
-// on one server with a fresh cache: later tests rely on games analysed by earlier ones only where noted.
+// E2E against the real in-browser analysis (Stockfish WASM, `fast` profile, see playwright.config.ts). Tests run in
+// order in one browser context with a fresh cache (IndexedDB): later tests rely on games analysed by earlier ones
+// only where noted.
 import { readFileSync } from 'node:fs';
-import { expect, test, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import { ALLOWED_MATE, BAD_ILLEGAL, FROM_FEN, LASKER_CHESSCOM, SHILLING_CHESSCOM, STALEMATE, TWO_PLIES, longGame } from '../pgns';
-import { drag, importPgn, labelledMoves, progressOf, rememberName, requireEngine, shot } from './helpers';
+import { drag, expect, gameId, hooks, importPgn, labelledMoves, progressOf, rememberName, requireEngine, shot, test } from './helpers';
 
 const OPERA = readFileSync(new URL('../../../bench/games/opera-game.pgn', import.meta.url), 'utf8');
 
@@ -14,12 +15,6 @@ test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => localStorage.clear());
   await requireEngine(page);
 });
-
-async function gameId(page: Page, pgn: string): Promise<string> {
-  const res = await page.request.post('/api/games', { data: { pgn } });
-  expect(res.ok()).toBe(true);
-  return ((await res.json()) as { id: string }).id;
-}
 
 async function waitComplete(page: Page, timeout = 120_000) {
   await expect(page.getByTestId('progress')).toContainText('Analysis complete', { timeout });
@@ -237,14 +232,14 @@ test('engine crash mid-analysis recovers; a failed ply can be retried', async ({
   await importPgn(page, OPERA);
   await expect(page.getByTestId('board')).toBeVisible();
   await expect.poll(() => labelledMoves(page), { timeout: 60_000 }).toBeGreaterThanOrEqual(2);
-  const kill = await page.request.post('/api/test/kill-engine');
-  expect((await kill.json()).killed).toBe(true);
+  const kill = await hooks(page, (h) => h.killEngines());
+  expect(kill.killed).toBeGreaterThan(0);
   await waitComplete(page, 180_000);
   expect(await labelledMoves(page)).toBe(33);
   await expect(page.getByTestId('failed-count')).toHaveCount(0);
 
   // a ply whose analysis fails twice (injected) shows an error with "Try again"
-  await page.request.post('/api/test/fail-next', { data: { n: 2 } });
+  await hooks(page, (h) => h.failNext(2));
   await page.getByTestId('open-pgn').click();
   await page.getByTestId('pgn-input').fill(TWO_PLIES.replace('1. e4 e5', '1. d4 d5'));
   await page.getByTestId('pgn-submit').click();
@@ -259,7 +254,7 @@ test('engine crash mid-analysis recovers; a failed ply can be retried', async ({
   await waitComplete(page, 30_000);
 
   // a failing side-line analysis, then a successful retry
-  await page.request.post('/api/test/fail-next', { data: { n: 2 } });
+  await hooks(page, (h) => h.failNext(2));
   await page.keyboard.press('ArrowLeft'); // after 1. d4, Black to move
   await drag(page, 'g8', 'f6');
   await expect(page.getByTestId('ply-error')).toBeVisible({ timeout: 30_000 });

@@ -92,6 +92,11 @@ export default defineConfig({
   worker: {
     format: 'es',
   },
+  // scan the analysis worker's imports up front too, so the dev server doesn't discover dependencies on the first
+  // analysis and reload the page
+  optimizeDeps: {
+    entries: ['index.html', 'src/worker/analysis.worker.ts'],
+  },
   test: {
     name: 'client',
     include: ['src/**/*.test.ts', 'test/**/*.test.ts'],

@@ -1,10 +1,9 @@
-// The prototype layouts (`?ui=a|b|c`) against the real server (fast profile): the Opera game's 15...Nxd7 shows its
+// The prototype layouts (`?ui=a|b|c`) against the real in-browser analysis (fast profile): the Opera game's 15...Nxd7 shows its
 // label badge on d7 (a spinner first) and toned sentences; B replays the move's line on the board. (The label itself
 // is not asserted: the shallow fast profile may not see the mate in 2.) Screenshots:
 // e2e/screenshots/real-<size>-proto-<ui>.png.
 import { readFileSync } from 'node:fs';
-import { expect, test } from '@playwright/test';
-import { requireEngine, shot } from './helpers';
+import { expect, gameId, requireEngine, shot, test } from './helpers';
 
 const OPERA = readFileSync(new URL('../../../bench/games/opera-game.pgn', import.meta.url), 'utf8');
 
@@ -15,9 +14,7 @@ for (const ui of ['a', 'b', 'c'] as const) {
     await page.setViewportSize({ width: 1366, height: 768 });
     await page.addInitScript(() => localStorage.clear());
     await requireEngine(page);
-    const res = await page.request.post('/api/games', { data: { pgn: OPERA } });
-    expect(res.ok()).toBe(true);
-    const { id } = (await res.json()) as { id: string };
+    const id = await gameId(page, OPERA);
     await page.goto(`/?game=${id}&ui=${ui}`);
     await expect(page.locator(`[data-layout="${ui}"]`)).toBeVisible();
 

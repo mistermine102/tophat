@@ -2,16 +2,18 @@
 
 Review your own chess.com games on your own PC. Paste a game, step through it, and for every move (yours and your
 opponent's) Chess Coach shows a chess.com-style label (Best, Mistake, Blunder …), explains in plain words what the
-move did, and suggests a better move you can actually understand. It uses the Stockfish engine, runs entirely on your
-computer and needs no account.
+move did, and suggests a better move you can actually understand. It uses the Stockfish engine, which runs **inside
+your browser** (WebAssembly): there is no server, nothing is uploaded, and it needs no account.
 
 It is meant for reviewing **finished** games, not for help during a game.
 
 ## What you need
 
-- Windows 10 or 11 (64-bit)
-- [Node.js 24](https://nodejs.org/) or newer (the "LTS" installer is fine; tick nothing special)
-- An internet connection for the first install (it downloads the Stockfish engine, about 80 MB)
+- A recent desktop browser: Chrome, Edge or Firefox (Safari should work too)
+- To run it from this folder: Windows 10 or 11, macOS or Linux and [Node.js 24](https://nodejs.org/) or newer (the
+  "LTS" installer is fine; tick nothing special)
+- An internet connection for the first install (`npm install` downloads everything, including the Stockfish engine)
+- About 2 GB of free memory while a game is analysed (each engine copy needs about 0.4 GB; see "How long it takes")
 
 ## Install (once)
 
@@ -19,14 +21,23 @@ Open a terminal (PowerShell or Command Prompt) in this folder and run:
 
 ```
 npm install
-npm run setup:engine
 npm start
 ```
 
-`npm start` opens Chess Coach in your browser at <http://localhost:5174> (the first start takes a few seconds longer).
-Next time you only need `npm start` — keep that terminal window open while you use the app; to stop it, press
-`Ctrl+C` there or close the window. Running `npm start` again while it is already running just opens the browser.
-(If you forget `npm run setup:engine`, `npm start` downloads Stockfish itself.)
+`npm start` opens Chess Coach in your browser at <http://localhost:5174> (the first start takes a few seconds longer:
+it builds the app). Next time you only need `npm start` — keep that terminal window open while you use the app; to stop
+it, press `Ctrl+C` there or close the window. Running `npm start` again while it is already running just opens the
+browser. `npm start` only serves the files; the analysis itself happens in the browser tab. The first time, the browser
+loads the engine (about 100 MB, from your own PC); after that it comes from the browser's cache.
+
+### Hosting it somewhere else
+
+`npm run build` writes a static site to `client/dist/` (the app, plus the engine files in `client/dist/engine/`). Any
+static web host can serve it. For the fastest analysis the host should send the two cross-origin isolation headers
+`Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp` (they allow the
+multi-threaded engine, `?threads=2`); without them the default single-threaded engines still work. The engine's
+`.wasm` files are about 100 MB each, more than some free hosts allow per file — the small engine (`?engine=lite`,
+2 MB) works everywhere.
 
 ## Open a game from chess.com
 
@@ -135,49 +146,67 @@ with the engine — nothing is made up. The explanations are still experimental:
 ## How long it takes
 
 The board opens right away and labels appear move by move while the rest is analysed (the header shows
-"Analysed 23/80 · about 1 min left"). A typical 40-move game takes **about 1–1.5 minutes** on a 6-core PC (e.g. Ryzen 5 3600). The move
-you are looking at and moves you try yourself jump the queue (a few seconds). Results are saved, so opening the
-same game again is instant.
+"Analysed 23/80 · about 1 min left"); the first label shows after about 2–3 seconds. A typical 40-move game takes
+**about 1 minute** on a 6-core PC (e.g. Ryzen 5 3600: 84 plies in about 50 s with the default 6 engine copies, in the
+browser). The move you are looking at and moves you try yourself jump the queue (a few seconds). Results are saved in
+the browser, so opening the same game again is instant.
+
+Chess Coach runs one engine copy per CPU core (minus two, at most six, fewer on PCs with little memory). Each copy
+needs about 0.4 GB of memory. You can choose another number by adding `?engines=3` to the address (fewer = slower
+but lighter), or use the much smaller engine with `?engine=lite` (2 MB instead of 100 MB to load, about a third
+faster, a bit weaker).
 
 ## Troubleshooting
 
 - **"Another program is using port 5174"** — close that program, or use a different port: `$env:PORT=5180;
   npm start` (PowerShell) or `set PORT=5180 && npm start` (Command Prompt), then open <http://localhost:5180>.
-- **"Engine offline" / "Stockfish is not installed"** — run `npm run setup:engine` and start again. To use a
-  Stockfish you already have, set `STOCKFISH_PATH` to the full path of `stockfish.exe`.
-- **Analysis failed for a move** — click **Try again** in the panel. If it keeps failing, restart with `npm start`.
-- **Clear the saved analyses** — stop Chess Coach and delete the `data` folder (it only holds the cache). Games are analysed again the next time you open them.
-- **The PC gets loud or slow during analysis** — that's Stockfish using the CPU. Use fewer engine processes, e.g.
-  `$env:ENGINE_PROCESSES=2` (PowerShell) before `npm start`; analysis then takes longer.
+- **"Engine offline"** — the engine could not start in the browser (the panel says why). Reload the page; if your
+  PC is short of memory, close other tabs or try `?engines=2` or `?engine=lite` in the address.
+- **Analysis failed for a move** — click **Try again** in the panel. If it keeps failing, reload the page.
+- **Clear the saved analyses** — they are stored in the browser (IndexedDB) for this address: clear the site data
+  in the browser's settings (in Chrome: the icon left of the address → Site settings → Delete data). Games are
+  analysed again the next time you open them.
+- **The PC gets loud or slow during analysis** — that's Stockfish using the CPU. Use fewer engine copies, e.g. add
+  `?engines=2` to the address; analysis then takes longer.
 - **`npm` is not recognised** — Node.js is not installed (or the terminal was open before installing it; open a new
   one).
 
 ## For developers
 
 ```
-npm run dev         # server (5174) + Vite dev server with hot reload (http://localhost:5173)
-npm test            # unit + integration tests (Vitest); engine tests skip without Stockfish
+npm run dev         # Vite dev server with hot reload (http://localhost:5173); the analysis runs in the page
+npm test            # unit + integration tests (Vitest); engine tests use Stockfish WASM in Node
 npm run typecheck   # tsc + vue-tsc
-npm run build       # client production build
-npm run e2e         # Playwright: mock UI tests + real-server tests (needs Stockfish)
+npm run build       # static production build (client/dist, incl. the engine files)
+npm run e2e         # Playwright: mock UI tests + real in-browser analysis tests
 npm run acceptance  # beginner walk-through against a running `npm start` (screenshots + log in tmp/acceptance)
+npm run bench:browser -- <file.pgn> --url http://localhost:5173 [--query "engines=4"] [--probe]
+                    # in-browser timing (Playwright Chromium, cold cache): first label, 10 plies, whole game
 ```
 
-Server environment: `PORT`, `STOCKFISH_PATH`, `ENGINE_THREADS` (total, default CPUs − 2), `ENGINE_PROCESSES`
-(default threads / 2), `ENGINE_HASH_MB`, `CHESS_COACH_DB`, `ANALYSIS_PROFILE=fast`, `LOG_ANALYSIS=1`.
+Workspaces: `shared/` (types, settings, win% formulas), `core/` (the analysis pipeline: engine wrapper, scheduler,
+facts, labels, explanations — environment-neutral TypeScript), `client/` (Vue app; `client/src/worker/` runs `core`
+in a Web Worker with Stockfish WASM workers and an IndexedDB cache).
 
-Benchmarks and tools: `npm run bench:engine` (engine timing), `npx tsx server/scripts/analyze-pgn.ts game.pgn --out
-report.md` (whole pipeline → markdown), `npx tsx server/scripts/profile-game.ts <pgn> --probe` (cold-cache timing),
-`npx tsx bench/puzzle-facts.ts` (facts vs Lichess puzzle themes), `npx tsx bench/label-benchmark.ts run|report`
-(labels vs Lichess). Reports are in `bench/reports/` (UX acceptance test: `bench/reports/acceptance.md`).
+URL parameters for the analysis: `engines=N`, `threads=N` (per engine; needs the isolation headers), `hash=MB`,
+`engine=lite`, `profile=fast` (shallow searches, for tests), `testhooks=1`.
 
-Docs: [SPEC.md](SPEC.md) (what it does), [ARCHITECTURE.md](ARCHITECTURE.md) (how: modules, API, analysis budget),
-[PLAN.md](PLAN.md) (build history).
+Benchmarks and tools run the same pipeline in Node: `npm run bench:engine` (engine timing), `npx tsx
+core/scripts/analyze-pgn.ts game.pgn --out report.md` (whole pipeline → markdown), `npx tsx core/scripts/profile-game.ts
+<pgn> --probe` (cold-cache timing), `npx tsx bench/puzzle-facts.ts` (facts vs Lichess puzzle themes), `npx tsx
+bench/label-benchmark.ts run|report` (labels vs Lichess). In Node they use the WASM engine from the `stockfish` npm
+package; set `STOCKFISH_PATH` to a native Stockfish binary to make them about 2× faster. Reports are in
+`bench/reports/` (UX acceptance test: `bench/reports/acceptance.md`).
+
+Docs: [SPEC.md](SPEC.md) (what it does), [ARCHITECTURE.md](ARCHITECTURE.md) (how: modules, worker protocol, analysis
+budget), [PLAN.md](PLAN.md) (build history).
 
 ## License
 
 Chess Coach is free software under the **GNU GPL v3.0 or later** (see [LICENSE](LICENSE)).
-It uses [Stockfish](https://stockfishchess.org/) (GPL-3.0, downloaded separately by `npm run setup:engine`, its
-licence is saved next to it as `engine/STOCKFISH-COPYING.txt`), [chessground](https://github.com/lichess-org/chessground)
+It uses [Stockfish](https://stockfishchess.org/) (GPL-3.0) compiled to WebAssembly by
+[Stockfish.js](https://github.com/nmrugg/stockfish.js) (npm `stockfish`, GPL-3.0; its licence is copied next to the
+engine files as `client/dist/engine/STOCKFISH-COPYING.txt`), [chessground](https://github.com/lichess-org/chessground)
 and [chessops](https://github.com/niklasf/chessops) (GPL-3.0), and the
 [Lichess opening book](https://github.com/lichess-org/chess-openings) (CC0). Not affiliated with chess.com or Lichess.
+

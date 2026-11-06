@@ -1,5 +1,48 @@
-// Helpers for the real-server E2E tests.
-import { expect, test, type Page } from '@playwright/test';
+// Helpers for the real E2E tests (in-browser analysis, Stockfish WASM; see playwright.config.ts).
+import { test as base, expect, type BrowserContext, type Page } from '@playwright/test';
+
+/**
+ * `test` with one browser context (and page) per test file instead of per test: IndexedDB — the analysis cache —
+ * carries over between the tests of a file, like the old server's sqlite file did (tests rely on games analysed by
+ * earlier ones only where noted). chess.com is blocked (no network from tests).
+ */
+export const test = base.extend<{ page: Page; context: BrowserContext }, { shared: { context: BrowserContext; page: Page } }>({
+  shared: [
+    async ({ browser }, use, workerInfo) => {
+      const context = await browser.newContext({ baseURL: workerInfo.project.use.baseURL });
+      await context.route('https://api.chess.com/**', (route) => route.abort());
+      const page = await context.newPage();
+      await use({ context, page });
+      await context.close();
+    },
+    { scope: 'worker' },
+  ],
+  context: async ({ shared }, use) => use(shared.context),
+  page: async ({ shared }, use) => use(shared.page),
+});
+export { expect };
+
+interface TestHooks {
+  health(): Promise<{ ok: boolean; engine: string | null; error?: string }>;
+  createGame(pgn: string): Promise<{ id: string }>;
+  killEngines(): Promise<{ killed: number }>;
+  failNext(n: number): Promise<void>;
+}
+
+/** Call a test hook of the running app (window.__chessCoachTest; the E2E dev server enables them). */
+export async function hooks<T>(page: Page, fn: (h: TestHooks, arg: unknown) => Promise<T>, arg?: unknown): Promise<T> {
+  if (!/^https?:/.test(page.url())) await page.goto('/?ui=classic');
+  await page.waitForFunction(() => '__chessCoachTest' in window);
+  return page.evaluate(([src, a]) => {
+    const f = new Function(`return (${src as string})`)() as (h: unknown, x: unknown) => Promise<T>;
+    return f((window as unknown as { __chessCoachTest: unknown }).__chessCoachTest, a);
+  }, [fn.toString(), arg] as const);
+}
+
+/** Import a PGN into the app's cache (like the old POST /api/games): its id; the analysis starts in this page. */
+export async function gameId(page: Page, pgn: string): Promise<string> {
+  return (await hooks(page, (h, p) => h.createGame(p as string), pgn)).id;
+}
 
 export const SIZES = [
   { name: '1280x720', width: 1280, height: 720 },
@@ -12,11 +55,11 @@ export async function shot(page: Page, name: string, settleMs = 400) {
   await page.screenshot({ path: `e2e/screenshots/real-${vp.width}x${vp.height}-${name}.png` });
 }
 
-/** Skip the test when the server has no engine (Stockfish not installed). */
+/** Fail early (with the reason) when the in-browser engine can't start. */
 export async function requireEngine(page: Page) {
-  const res = await page.request.get('/api/health');
-  const body = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
-  test.skip(!body.ok, `engine not available: ${body.error ?? res.status()}`);
+  await page.goto('/?ui=classic');
+  const h = await hooks(page, (x) => x.health());
+  expect(h.ok, `engine not available: ${h.error}`).toBe(true);
 }
 
 /**
