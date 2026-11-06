@@ -1,5 +1,5 @@
 // Your side per game ("You" = the side at the bottom of the board; flipping the board changes it) and the chess.com
-// username last looked up in the Open dialog, both in localStorage (no username setting on the server).
+// username last looked up on the Open screen, both in localStorage (no username setting on the server).
 import type { Color } from '@chess-coach/shared';
 
 type Store = Pick<Storage, 'getItem' | 'setItem'> | null;

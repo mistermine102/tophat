@@ -1,14 +1,13 @@
 import { createApp } from 'vue';
 import App from './App.vue';
 import { createApiClient } from './api';
+import { withGame } from './lib/route';
 import { createSession, SessionKey } from './stores/session';
 import './style.css';
 
+// the opened game into the URL, in place (lib/route.ts: from the Open screen this turns its entry into the game's)
 function setGameParam(id: string | null) {
-  const url = new URL(location.href);
-  if (id) url.searchParams.set('game', id);
-  else url.searchParams.delete('game');
-  history.replaceState(null, '', url);
+  history.replaceState(null, '', withGame(location.href, id));
 }
 
 async function bootstrap() {

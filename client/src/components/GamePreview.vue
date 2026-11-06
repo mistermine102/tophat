@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// A small read-only board that plays a game through on its own (hover preview in the Open dialog's chess.com list):
+// A small read-only board that plays a game through on its own (hover preview in the Open screen's chess.com list):
 // one move every `stepMs`, a pause on the final position, then again from the start.
 import type { Color, GameInfo } from '@chess-coach/shared';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
