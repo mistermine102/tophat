@@ -1,5 +1,5 @@
 {
-  "name": "@chess-coach/server",
+  "name": "@chess-coach/core",
   "version": "0.0.0",
   "private": true,
   "type": "module",

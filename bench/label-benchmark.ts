@@ -26,12 +26,12 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { type AnalysisSettings, type Color, DEFAULT_SETTINGS, type Label, type MoveAnalysis, type Score, toWhitePov } from '@chess-coach/shared';
-import { type LabelWork, type PrevResult, deepParams, labelMove } from '../server/src/analysis/label';
-import { SearchCache, type Searcher } from '../server/src/analysis/searchCache';
-import { bookInfo } from '../server/src/analysis/book';
-import { CacheDb } from '../server/src/cache';
-import { playMove, positionStatus, pvToSan } from '../server/src/chess/notation';
-import { Engine, type SearchResult } from '../server/src/engine/uci';
+import { type LabelWork, type PrevResult, deepParams, labelMove } from '../core/src/analysis/label';
+import { SearchCache, type Searcher } from '../core/src/analysis/searchCache';
+import { bookInfo } from '../core/src/analysis/book';
+import { CacheDb } from '../core/src/cache';
+import { playMove, positionStatus, pvToSan } from '../core/src/chess/notation';
+import { Engine, type SearchResult } from '../core/src/engine/uci';
 import { type Judgement, type LichessScore, parseLichessGame } from './lib/lichessPgn';
 
 const here = dirname(fileURLToPath(import.meta.url));

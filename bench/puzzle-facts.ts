@@ -20,8 +20,8 @@ import { parseUci, type NormalMove } from 'chessops';
 import { makeFen } from 'chessops/fen';
 import { makeSan } from 'chessops/san';
 import type { Fact } from '@chess-coach/shared';
-import { immediateFactsFromPosition } from '../server/src/facts/immediate';
-import { positionFromFen } from '../server/src/chess/material';
+import { immediateFactsFromPosition } from '../core/src/facts/immediate';
+import { positionFromFen } from '../core/src/chess/material';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const args = process.argv.slice(2);
