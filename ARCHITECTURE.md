@@ -597,7 +597,7 @@ from `GET /api/games/:id` or the stream replay);
 GameInfo `you`/`orientation` follow the *current* username setting (a first guess only — the client keeps its own:
 "You" = the side at the bottom of the board, flipping switches it and is remembered per game in localStorage
 (`client/src/lib/sides.ts`); a game opens on the remembered side, else the side whose player name is the chess.com
-name last looked up in the Open dialog (localStorage), else `GameInfo.you`). SSE: subscribe-then-replay (an analysis can
+name last looked up on the Open screen (localStorage), else `GameInfo.you`). SSE: subscribe-then-replay (an analysis can
 arrive twice — idempotent), `progress` + `summary` after every finished ply, heartbeat comment `: ping` every
 15 s, cleanup on disconnect; the stream stays open after the game is done. `focus` → 204, 404 unknown game, 400
 bad ply. `/api/analyse` → 400 for an illegal move / bad FEN / a `prev` that doesn't lead to `fenBefore`, 503
@@ -612,7 +612,8 @@ M2-client additions (client wired to the real server end to end):
   — paste the whole PGN …`; the dialog prefixes "Could not read this PGN:".
 - Client data layer (`client/src/api`): `ApiClient.health()` (never throws; drives an "Engine offline" chip and the
   error hint), `StreamHandlers.onOpen` (EventSource `open` → clears "Connection lost" after a reconnect).
-- URL: the open game is `?game=<id>` (history.replaceState); a reload or a shared URL reopens it from the cache.
+- URL: the open game is `?game=<id>` (history.replaceState); a reload or a shared URL reopens it from the cache. No
+  `game` parameter = the Open screen (`client/src/lib/route.ts`, see "Client layouts").
 - Server env (`server/src/index.ts`): `PORT`, `CHESS_COACH_DB`, `STOCKFISH_PATH`, `ENGINE_THREADS` (total, default
   cpus − 2), `ENGINE_PROCESSES` (M4, default threads / 2), `ENGINE_HASH_MB` (per process; M4: 256, was 512),
   `SERVE_CLIENT=1` (M4: also serve client/dist with an index.html fallback — `npm start`), `ANALYSIS_PROFILE` (`default` | `fast`: deep d10/1 s, shallow d6, threat /
@@ -650,6 +651,25 @@ replay the line on the board — arrows + markers + caption bar under the board,
 consequences as a chip timeline); `GoodBadLayout` (C: label · move · eval chip, "What goes wrong ✗" / "What it does
 well ✓" blocks, Better card with Play, labelled move list). E2E: `e2e/prototypes.spec.ts` (mock),
 `e2e/real/prototypes-real.spec.ts` (real server).
+
+Board marks, glyphs, Open screen (backlog session A):
+- Layout A's board marks (`lib/consequences.ts` → `BoardTags`, square tints and thin arrows in `ChessBoard`) are toned
+  for **you** (`session.state.you`: the remembered side, else the chess.com user's side, else the side at the bottom),
+  whoever moved: every mark records the side it favours; green = good for you, red = bad for you, blue
+  (`--th-neutral`) = neutral — defensive answers (`defend` → "defended", `escape` → "safe now") favour neither side.
+  The played move's threat arrow is green when you made the move, red otherwise. Each tag has a `kind` and an icon
+  (`TagIcon`: shield = defended, crossed-out shield = undefended, crosshair = attacked, fork, pushpin, padlock …).
+  The Label guide (`LabelLegend board`, layout A) explains the colours, says who "you" are, and lists the icons.
+- Decision: the ✓ / ✗ explanation sentences (`ToneList`, `StoryChips`, verdicts) stay **for the mover** — they grade
+  the move, like its label (an opponent's Blunder still reads "✗ hangs the rook"); only the board is drawn for you.
+  The legend says both (`lib/tones.ts` header).
+- Label glyphs in round badges (`LabelGlyph`, `BoardBadge`, `ToneList` markers) are SVG (`GlyphIcon`), each symbol's
+  ink box centred on the 16×16 grid — font glyphs (✕ ★ ? …) sat off-centre. A label without a shape falls back to its
+  text glyph. E2E `e2e/board-marks.spec.ts` measures the drawn pixels.
+- Open screen (`OpenScreen`, was the `PgnDialog` modal): its own screen, the landing page when no game is open
+  (`?game=` absent). "Open game" / the logo push a history entry without `game`; Back (button, Esc, the browser's
+  Back) returns to the loaded game; opening a game replaces the entry with `?game=<id>`; a `?game=` that can't be
+  opened lands on the Open screen with the error. E2E `e2e/open-screen.spec.ts`.
 
 ## Cache
 

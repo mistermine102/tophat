@@ -4,6 +4,7 @@
 import type { Color, Label } from '@chess-coach/shared';
 import { computed } from 'vue';
 import { LABELS } from '../lib/labels';
+import { uiMode } from '../lib/uiMode';
 import { useSession } from '../stores/session';
 import LabelGlyph from './LabelGlyph.vue';
 import LabelLegend from './LabelLegend.vue';
@@ -36,7 +37,8 @@ const complete = computed(() => progress.value.total > 0 && progress.value.done 
     <div class="mb-1 flex items-center justify-between">
       <span class="flex items-center gap-2">
         <span class="th-display text-[15px] font-semibold italic text-neutral-400">Accuracy</span>
-        <LabelLegend />
+        <!-- layout A draws the move's consequences on the board: the guide explains their colours too -->
+        <LabelLegend :board="uiMode === 'a'" />
       </span>
       <span v-if="!complete && progress.total" class="text-[11px] text-neutral-500" data-testid="summary-progress">partial · {{ progress.done }}/{{ progress.total }}</span>
     </div>

@@ -61,6 +61,8 @@
   --th-accent: #a34a28;
   --th-good: #3f7d4e;
   --th-bad: #b5402a;
+  /* neutral board marks (layout A: "defended", "safe now"): neither good nor bad for you */
+  --th-neutral: #3d6f8f;
   --th-stripe: rgba(150, 112, 78, 0.042);
   --th-sq-light: #f3e3c3;
   --th-sq-dark: #b98a5e;

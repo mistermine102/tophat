@@ -32,9 +32,13 @@ const lastMove = computed(() => {
 });
 const check = computed(() => isCheck(fen.value));
 
+// toned for you (the reviewed player), whoever moved: green = good for you, red = bad, blue = neutral
 const cons = computed<Consequences | null>(() =>
-  props.consequences && !preview.value && analysis.value ? moveConsequences(analysis.value) : null,
+  props.consequences && !preview.value && analysis.value ? moveConsequences(analysis.value, session.state.you) : null,
 );
+const THIN = { good: 'goodThin', bad: 'badThin', neutral: 'neutralThin' } as const;
+
+const threatBrush = computed(() => (analysis.value?.color === session.state.you ? THIN.good : THIN.bad));
 
 const ORDER: Record<Arrow['kind'], number> = { played: 0, threat: 1, best: 2, pick: 3 };
 const shapes = computed<DrawShape[]>(() => {
@@ -49,10 +53,10 @@ const shapes = computed<DrawShape[]>(() => {
   const suggestions: DrawShape[] = arrows
     .filter((a) => a.kind !== 'played' || contrast)
     .sort((a, b) => ORDER[a.kind] - ORDER[b.kind])
-    // with consequence marks red means "bad for the mover": the mover's own threat is drawn as a good (thin) arrow
-    .map((a) => ({ orig: a.from as Key, dest: a.to as Key, brush: cons.value && a.kind === 'threat' ? 'goodThin' : a.kind }));
+    // with consequence marks red means "bad for you": the mover's threat is a thin arrow, green when you made the move
+    .map((a) => ({ orig: a.from as Key, dest: a.to as Key, brush: cons.value && a.kind === 'threat' ? threatBrush.value : a.kind }));
   if (!cons.value) return suggestions;
-  const thin: DrawShape[] = cons.value.arrows.map((x) => ({ orig: x.from as Key, dest: x.to as Key, brush: x.tone === 'good' ? 'goodThin' : 'badThin' }));
+  const thin: DrawShape[] = cons.value.arrows.map((x) => ({ orig: x.from as Key, dest: x.to as Key, brush: THIN[x.tone] }));
   return [...thin, ...suggestions];
 });
 

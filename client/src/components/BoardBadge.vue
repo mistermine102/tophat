@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // chess.com-style round badge at the top-right corner of a square (the destination of the move): the label glyph,
-// a spinner while the move is analysed, "!" when its analysis failed, or a ✓ / ✗ / • tone marker (replays).
+// a spinner while the move is analysed, "!" when its analysis failed, or a ✓ / ✗ / • tone marker (replays). The
+// symbols are centred SVG (GlyphIcon), the same share of the badge at every size.
 // An overlay over the board: absolutely positioned in the board's box, follows orientation and square size
 // (ResizeObserver on the parent), never intercepts the mouse.
 import type { Color, Label, Tone } from '@chess-coach/shared';
@@ -8,6 +9,7 @@ import { computed, ref } from 'vue';
 import { LABELS } from '../lib/labels';
 import { TONE_META } from '../lib/tones';
 import { squareRect, useBoardBox } from '../lib/useBoardBox';
+import GlyphIcon from './GlyphIcon.vue';
 
 const props = defineProps<{
   square: string;
@@ -49,8 +51,8 @@ const title = computed(() => (meta.value ? `${meta.value.name} — ${meta.value.
     <div
       v-if="geom && kind"
       :key="`${square}-${kind}-${label ?? tone ?? ''}`"
-      class="cc-badge absolute flex items-center justify-center rounded-full font-black leading-none text-neutral-950"
-      :style="{ left: `${geom.left}px`, top: `${geom.top}px`, width: `${geom.d}px`, height: `${geom.d}px`, background: bg, fontSize: `${Math.round(geom.d * (meta && meta.glyph.length > 1 ? 0.46 : 0.56))}px` }"
+      class="cc-badge absolute flex items-center justify-center rounded-full text-neutral-950"
+      :style="{ left: `${geom.left}px`, top: `${geom.top}px`, width: `${geom.d}px`, height: `${geom.d}px`, background: bg }"
       :title="title"
       data-testid="board-badge"
       :data-square="square"
@@ -63,12 +65,7 @@ const title = computed(() => (meta.value ? `${meta.value.name} — ${meta.value.
         class="block animate-spin rounded-full border-2 border-[var(--th-paper)] border-t-transparent"
         :style="{ width: `${geom.d * 0.55}px`, height: `${geom.d * 0.55}px` }"
       ></span>
-      <svg v-else-if="label === 'book'" viewBox="0 0 16 16" class="h-[62%] w-[62%]" fill="currentColor">
-        <path d="M1 4.2 7.2 2.6v10.6L1 14.6zM15 4.2 8.8 2.6v10.6l6.2 1.4z" />
-      </svg>
-      <span v-else-if="kind === 'label'" class="tracking-tighter">{{ meta!.glyph }}</span>
-      <span v-else-if="kind === 'error'" class="text-neutral-950">!</span>
-      <span v-else>{{ TONE_META[tone!].icon }}</span>
+      <GlyphIcon v-else :name="kind === 'label' ? label! : kind === 'error' ? 'error' : tone!" class="block h-[66%] w-[66%]" />
     </div>
   </div>
 </template>

@@ -22,8 +22,8 @@ const props = defineProps<{
   movable: boolean;
   /** Squares to highlight (e.g. hovered square names in an explanation). */
   highlight?: string[];
-  /** Tinted squares (layout A's consequence marks): green / red for the side that moved. */
-  marks?: readonly { square: string; tone: 'good' | 'bad' }[];
+  /** Tinted squares (layout A's consequence marks): green / red / blue = good / bad / neutral for you. */
+  marks?: readonly { square: string; tone: 'good' | 'bad' | 'neutral' }[];
 }>();
 
 const emit = defineEmits<{ move: [orig: string, dest: string] }>();
@@ -41,9 +41,10 @@ const BRUSHES = {
   good: { key: 'cc-good', color: '#22c55e', opacity: 0.85, lineWidth: 11 },
   bad: { key: 'cc-bad', color: '#ef4444', opacity: 0.85, lineWidth: 11 },
   neutral: { key: 'cc-neutral', color: '#a1a1aa', opacity: 0.7, lineWidth: 10 },
-  // consequence arrows (who attacks what), thinner than the move suggestions
+  // consequence arrows (who attacks what), thinner than the move suggestions; green / red / blue for you
   goodThin: { key: 'cc-good-thin', color: '#22c55e', opacity: 0.75, lineWidth: 6 },
   badThin: { key: 'cc-bad-thin', color: '#ef4444', opacity: 0.8, lineWidth: 6 },
+  neutralThin: { key: 'cc-neutral-thin', color: '#3d7fb0', opacity: 0.75, lineWidth: 6 },
 };
 
 /** The move's mark tints, then hovered square names on top. */
@@ -137,6 +138,10 @@ defineExpose({ sync });
 .cc-board square.cc-mark-bad {
   background: rgba(239, 68, 68, 0.35);
   box-shadow: inset 0 0 0 3px rgba(239, 68, 68, 0.95);
+}
+.cc-board square.cc-mark-neutral {
+  background: rgba(61, 127, 176, 0.3);
+  box-shadow: inset 0 0 0 3px rgba(61, 127, 176, 0.9);
 }
 .cc-board coords {
   font-size: 11px;

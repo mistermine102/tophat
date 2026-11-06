@@ -1,5 +1,9 @@
 // Explanation sentences with their tone for the mover (server: Level.tones / Level.story, explain.ts). Older cached
 // analyses without tones read as neutral.
+// Deliberately NOT for "you", unlike the board's marks (consequences.ts): a sentence grades the move it explains, as
+// its label does (a Blunder's "✗ hangs the rook" is a fault of the move even when the opponent played it, and
+// "✓ forks the king and rook" is what makes the opponent's move good). The board shows the position for you; the
+// sentences coach the move. The legend (LabelLegend) says both.
 import type { Fact, Level, StoryPart, Tone } from '@chess-coach/shared';
 
 export interface ToneLine {
