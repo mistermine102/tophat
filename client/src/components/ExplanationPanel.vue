@@ -102,6 +102,21 @@ const suggestions = computed(() => {
               <span class="h-3 w-3 animate-spin rounded-full border-2 border-neutral-500 border-t-transparent"></span>
               {{ node.mainPly === null ? 'Analysing your move…' : 'Analysing this move now — usually a few seconds.' }}
             </p>
+            <!-- (D1) a quick label whose full analysis failed / is still coming -->
+            <div v-if="a?.provisional && error" class="mt-1 text-sm text-rose-300" data-testid="ply-error">
+              <p>The analysis of this move failed: {{ error }}</p>
+              <button
+                class="mt-1.5 rounded-md bg-neutral-700 px-2.5 py-1 text-xs font-medium text-neutral-100 hover:bg-neutral-600"
+                data-testid="retry"
+                @click="node.mainPly !== null ? session.retryPly(node.mainPly) : session.retrySide(node)"
+              >
+                Try again
+              </button>
+            </div>
+            <p v-else-if="a?.provisional" class="mt-1 flex items-center gap-2 text-xs text-neutral-400" data-testid="provisional">
+              <span class="h-3 w-3 animate-spin rounded-full border-2 border-neutral-500 border-t-transparent"></span>
+              Working out why…
+            </p>
           </div>
         </div>
         <div v-if="a" class="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px]" data-testid="eval-change">

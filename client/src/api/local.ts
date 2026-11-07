@@ -98,6 +98,10 @@ export class LocalApiClient implements ApiClient {
     return this.call('analyse', req);
   }
 
+  analyseQuick(req: AnalyseRequest): Promise<MoveAnalysis> {
+    return this.call('analyseQuick', req);
+  }
+
   async chessComGames(username: string, limit: number = DEFAULT_LIMIT): Promise<ChessComGames> {
     const name = username.trim();
     if (!validUsername(name)) throw new ApiError('a chess.com username has only letters, digits, "_" and "-"', 400);

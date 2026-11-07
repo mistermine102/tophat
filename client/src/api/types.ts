@@ -43,6 +43,8 @@ export interface ApiClient {
   stream(id: string, handlers: StreamHandlers): Unsubscribe;
   focus(id: string, ply: number): Promise<void>;
   analyse(req: AnalyseRequest): Promise<MoveAnalysis>;
+  /** (D1) A quick, provisional analysis (`provisional: true`, no explanations) of the same move, answered first. Optional. */
+  analyseQuick?(req: AnalyseRequest): Promise<MoveAnalysis>;
   /** The newest finished games of a chess.com player (chess.com public API, called from the browser), at most `limit` (default 50). */
   chessComGames(username: string, limit?: number): Promise<ChessComGames>;
   /** Is the analysis engine running? Never throws (a failed engine is `{ ok: false }`). */

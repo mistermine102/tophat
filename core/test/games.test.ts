@@ -85,8 +85,16 @@ describe.skipIf(!engineAvailable())('GameManager (Stockfish)', () => {
       expect(info.id).toBe(parseGamePgn(PGN).id);
 
       const events = await collect(games, info.id, allDone);
-      const analyses = events.flatMap((e) => (e.type === 'analysis' ? [e] : []));
+      // (D1) a quick, provisional label first, then the full analysis
+      const all = events.flatMap((e) => (e.type === 'analysis' ? [e] : []));
+      const analyses = all.filter((a) => !a.analysis.provisional);
       expect(new Set(analyses.map((a) => a.ply))).toEqual(new Set(Array.from({ length: 14 }, (_, i) => i + 1)));
+      const quick = all.filter((a) => a.analysis.provisional);
+      expect(quick.length).toBeGreaterThan(0);
+      for (const q of quick) {
+        expect(q.analysis.played.explanation).toBeUndefined();
+        expect(all.indexOf(q)).toBeLessThan(all.findIndex((a) => a.ply === q.ply && !a.analysis.provisional));
+      }
       expect(events.some((e) => e.type === 'progress')).toBe(true);
       expect(events.filter((e) => e.type === 'error')).toEqual([]);
       const last = analyses.find((a) => a.ply === 14)!.analysis;

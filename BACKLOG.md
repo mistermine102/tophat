@@ -113,7 +113,7 @@ move's own line, Miss only for concrete chances, gold Best star, "Show best move
 
 ## Session D — Fast feedback: "fast, then final"
 
-### D1. Quick labels first, the full analysis after
+### D1. Quick labels first, the full analysis after  *(done on branch `fast-labels`, see ARCHITECTURE.md "Fast, then final")*
 **Problem.** A move takes ~3 s to get its label and a ply you jump to ~7.5 s (ARCHITECTURE.md "Performance
 (browser)"): every ply runs the whole pipeline (deep d14 MultiPV 5 + threat / shallow / forcedness searches) before
 anything is shown.

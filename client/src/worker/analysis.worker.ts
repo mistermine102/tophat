@@ -162,6 +162,7 @@ const handlers: Handlers = {
     if (!ok) throw Object.assign(new Error('unknown game'), { status: 404 });
   },
   analyse: async (req) => (await need()).games.analyse(req),
+  analyseQuick: async (req) => (await need()).games.analyseQuick(req),
   subscribe: async ({ id, sub }) => {
     const st = await need();
     // subscribe first, then replay: an analysis finishing in between is at worst delivered twice (idempotent)

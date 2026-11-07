@@ -13,6 +13,11 @@
 //   BACKGROUND priority; `focus(ply)` bumps ply, ply+1 and ply-1 to FOCUS; side-line moves (`analyse`) run at SIDELINE.
 //   Finished analyses are cached in the store under analysisKey (ARCHITECTURE.md "Cache"): re-importing or
 //   reloading a game is instant.
+// - (D1) Fast, then final: before the full jobs, every missing ply gets a quick job (key `quick:<analysisKey>`,
+//   QUICK priority, analysis/quick.ts) whose provisional analysis is emitted as an `analysis` event while the ply has
+//   no full one (also in the snapshot; never persisted, not in `get` / summaries). `focus` bumps the quick jobs too.
+//   The full job passes the shown label on (`provisionalLabel`), so a small shift doesn't change it. Side lines:
+//   `analyseQuick` next to `analyse`.
 // - Previous-move context for ply N: ply N-1's move (prev.fenBefore / prev.uci) and, when already analysed, its
 //   result (winLoss, win%, label). Book chain: every earlier ply is a book position move (pure book check);
 //   analyzeMove additionally breaks the chain if ply N-1 wasn't labelled Book.
@@ -24,6 +29,7 @@ import { emptyHeaders, parsePgn, parseVariant, startingPosition } from 'chessops
 import { makeSan, parseSan } from 'chessops/san';
 import { type AnalyzeInput, type PrevResult, analyzeMove } from './analysis/analyzeMove';
 import { bookInfo } from './analysis/book';
+import { quickAnalysis } from './analysis/quick';
 import type { SearchCache, Searcher } from './analysis/searchCache';
 import { sha1 } from './hash';
 import type { CacheStore } from './store';
@@ -107,6 +113,8 @@ interface GameState {
   inputs: AnalyzeInput[]; // index = ply - 1 (prev.result filled at run time)
   keys: string[];
   analyses: Map<number, MoveAnalysis>;
+  /** (D1) Provisional analyses (quick pass) of plies without a full one yet; not persisted. */
+  quick: Map<number, MoveAnalysis>;
   errors: Map<number, string>;
   /** Plies whose analysis job is in flight (initial run or a focus retry of a failed ply). */
   retrying: Set<number>;
@@ -185,6 +193,8 @@ export class GameManager {
     for (const p of [ply, ply + 1, ply - 1]) {
       const key = st.keys[p - 1];
       if (!key || !sched) continue;
+      // (D1) its quick label first, if it hasn't arrived yet
+      sched.bump(`quick:${key}`, Priority.FOCUS);
       if (sched.bump(`move:${key}`, Priority.FOCUS)) bumped.push(p);
       else if (p >= ply && st.errors.has(p) && !st.retrying.has(p)) {
         // a failed ply is analysed again when the user looks at it (e.g. after an engine crash)
@@ -210,6 +220,7 @@ export class GameManager {
     if (!st) return [];
     const out: GameEvent[] = [];
     for (const [ply, analysis] of [...st.analyses].sort((a, b) => a[0] - b[0])) out.push({ type: 'analysis', ply, analysis });
+    for (const [ply, analysis] of [...st.quick].sort((a, b) => a[0] - b[0])) if (!st.analyses.has(ply)) out.push({ type: 'analysis', ply, analysis });
     for (const [ply, message] of st.errors) out.push({ type: 'error', ply, message });
     const s = summarize(st.parsed, st.analyses);
     out.push({ type: 'progress', done: s.done, total: s.total }, { type: 'summary', summary: s });
@@ -231,6 +242,19 @@ export class GameManager {
 
   /** Side-line (or any) single move analysis at SIDELINE priority. Throws BadRequestError for bad input. */
   async analyse(body: unknown): Promise<MoveAnalysis> {
+    return this.run(this.moveInput(body), Priority.SIDELINE);
+  }
+
+  /** (D1) The quick, provisional analysis of a side-line move (SIDELINE priority; a full one is cached: that one). */
+  async analyseQuick(body: unknown): Promise<MoveAnalysis> {
+    const input = this.moveInput(body);
+    const key = analysisKey(this.settingsKey, input);
+    const full = await this.deps.db.get<MoveAnalysis>('analyses', key);
+    if (full) return full;
+    return this.runQuick(input, key, Priority.SIDELINE);
+  }
+
+  private moveInput(body: unknown): AnalyzeInput {
     const b = body as { fenBefore?: unknown; uci?: unknown; prev?: { fenBefore?: unknown; uci?: unknown } | null };
     if (!b || typeof b.fenBefore !== 'string' || typeof b.uci !== 'string') throw new BadRequestError('body must be { fenBefore, uci, prev? }');
     let input: AnalyzeInput;
@@ -249,7 +273,7 @@ export class GameManager {
     } catch (e) {
       throw new BadRequestError((e as Error).message);
     }
-    return this.run(input, Priority.SIDELINE);
+    return input;
   }
 
   /** Test hook: the next `n` analysis attempts fail with an EngineError (each ply is tried twice). */
@@ -296,6 +320,7 @@ export class GameManager {
       inputs,
       keys,
       analyses: new Map(),
+      quick: new Map(),
       errors: new Map(),
       retrying: new Set(),
       listeners: new Set(),
@@ -305,11 +330,35 @@ export class GameManager {
       if (a) st.analyses.set(i + 1, a);
     });
     this.games.set(parsed.id, st);
+    // (D1) fast, then final: every missing ply's quick label first (QUICK priority), the full analyses behind them
+    for (let i = 0; i < inputs.length; i++) {
+      if (!st.analyses.has(i + 1)) void this.quickPly(st, i + 1);
+    }
     for (let i = 0; i < inputs.length; i++) {
       if (st.analyses.has(i + 1)) continue;
       void this.analysePly(st, i + 1);
     }
     return st;
+  }
+
+  /** (D1) The ply's quick label, emitted while it has no full analysis. Failures are silent (the full job reports). */
+  private async quickPly(st: GameState, ply: number): Promise<void> {
+    if (!this.deps.scheduler) return;
+    const input = st.inputs[ply - 1]!;
+    try {
+      const a = await this.runQuick(input, st.keys[ply - 1]!, Priority.QUICK);
+      if (st.analyses.has(ply)) return;
+      st.quick.set(ply, a);
+      this.emit(st, { type: 'analysis', ply, analysis: a });
+    } catch {
+      // the full analysis follows anyway
+    }
+  }
+
+  private runQuick(input: AnalyzeInput, key: string, priority: Priority): Promise<MoveAnalysis> {
+    const sched = this.deps.scheduler;
+    if (!sched) return Promise.reject(new Error('engine not running'));
+    return sched.run(`quick:${key}`, priority, (engine) => quickAnalysis({ searcher: engine, cache: this.deps.searchCache, settings: this.deps.settings }, input));
   }
 
   private async analysePly(st: GameState, ply: number, priority: Priority = Priority.BACKGROUND): Promise<void> {
@@ -323,10 +372,13 @@ export class GameManager {
         // the previous ply's job stores its result before resolving, so the store has it even if our state lags
         const prev = st.analyses.get(ply - 1) ?? (ply > 1 ? await this.deps.db.get<MoveAnalysis>('analyses', st.keys[ply - 2]!) : undefined);
         const result: PrevResult | null = prev ? { winLoss: prev.winLoss, winBefore: prev.winBefore, label: prev.label } : null;
-        return input.prev ? { ...input, prev: { ...input.prev, result } } : input;
+        const shown = st.quick.get(ply)?.label;
+        const inp: AnalyzeInput = shown ? { ...input, provisionalLabel: shown } : input;
+        return inp.prev ? { ...inp, prev: { ...inp.prev, result } } : inp;
       });
       if (started) this.log(`game ${st.parsed.id.slice(0, 8)} ply ${ply} done in ${Date.now() - started} ms`);
       st.analyses.set(ply, analysis);
+      st.quick.delete(ply);
       st.errors.delete(ply);
       this.emit(st, { type: 'analysis', ply, analysis });
     } catch (e) {

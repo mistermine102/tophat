@@ -637,6 +637,21 @@ page (Vue app)
 - **Book:** `core/data/openings/*.tsv` are imported with `?url` (hashed static assets) and fetched + parsed in the
   worker at startup (`loadBookAsync`).
 
+### Fast, then final (D1)
+
+Every ply first gets a quick, provisional analysis (`core/src/analysis/quick.ts`: `labelMove` with `QUICK_BUDGET` d10 MultiPV 2,
+no verification, plus the position after the move at the same budget for evalAfter / `nextBest`; `provisional: true`,
+no explanations, not persisted), queued at the scheduler's `QUICK` priority (SIDELINE 0 > FOCUS 1 > QUICK 2 >
+BACKGROUND 3) ahead of the full jobs; `focus` bumps it too. Side lines: `analyseQuick` (protocol + `ApiClient`) next to
+`analyse`. The client shows the provisional label at once ("Working out why…" until the full analysis arrives),
+counts only full analyses as done, and never lets a provisional result replace a full one or clear a ply's error.
+Sticky labels (`stickyLabel` in analyzeMove.ts): the full job gets the shown label (`provisionalLabel`, not part of the
+cache key) and keeps it when the full label is a win-chance neighbour within `STICKY_MARGIN` (3 %) of the threshold
+between them, or a quick Best within `BEST_STICKY_LOSS` (1 %) of the top move. Measured (YMOxEowk, 84 plies, 6 × 1,
+cold): first label 0.6 s (was 2.7 s), 10 plies 1.4 s (7.7 s), every ply labelled 2.2 s; the full analyses still take
+≈ 50 s. On shiniimini–mistermine102 about 4 of 30 labels change when the full analysis arrives (real differences:
+Good → Miss, Best → Excellent beyond 1 %).
+
 ### Performance (browser)
 
 `npm run bench:browser -- <pgn> --url <dev or preview server> --query "<params>" [--probe]` (Playwright Chromium,

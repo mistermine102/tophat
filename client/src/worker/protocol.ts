@@ -13,6 +13,8 @@ export interface Requests {
   getGame: { req: { id: string }; res: { game: GameInfo; analyses: Record<number, MoveAnalysis>; summary: GameSummary } };
   focus: { req: { id: string; ply: number }; res: void };
   analyse: { req: AnalyseRequest; res: MoveAnalysis };
+  /** (D1) the quick, provisional analysis of a side-line move */
+  analyseQuick: { req: AnalyseRequest; res: MoveAnalysis };
   subscribe: { req: { id: string; sub: number }; res: void };
   unsubscribe: { req: { sub: number }; res: void };
   /** Test hooks (`?testhooks=1`). */

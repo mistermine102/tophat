@@ -187,6 +187,15 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onKey, true));
             <span class="h-4 w-4 animate-spin rounded-full border-2 border-neutral-500 border-t-transparent"></span>
             Analysing {{ m.moveName.value }}…
           </p>
+          <!-- (D1) a quick label whose full analysis failed / is still coming -->
+          <div v-if="m.a.value?.provisional && m.error.value" class="mt-2 text-sm text-rose-300" data-testid="ply-error">
+            <p>The analysis of this move failed: {{ m.error.value }}</p>
+            <button class="mt-1.5 rounded-md bg-neutral-700 px-2.5 py-1 text-xs font-medium text-neutral-100 hover:bg-neutral-600" data-testid="retry" @click="m.retry()">Try again</button>
+          </div>
+          <p v-else-if="m.a.value?.provisional" class="mt-2 flex items-center gap-2 text-xs text-neutral-400" data-testid="provisional">
+            <span class="h-3 w-3 animate-spin rounded-full border-2 border-neutral-500 border-t-transparent"></span>
+            Working out why…
+          </p>
           <p v-if="m.ruleNote.value" class="mt-1.5 text-xs text-neutral-500">{{ m.ruleNote.value }}</p>
 
           <div v-if="m.a.value" class="mt-3.5 flex flex-wrap gap-2">

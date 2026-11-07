@@ -120,11 +120,17 @@ const accent = computed(() => m.meta.value?.color ?? '#737373');
               <template v-if="m.verdict.value.sentence"><span class="text-neutral-500"> — </span>{{ m.verdict.value.sentence }}</template>
             </p>
           </div>
-          <div v-else-if="m.error.value" class="mt-2 text-sm text-rose-300" data-testid="ply-error">
+          <!-- no full analysis yet: its failure, the quick label's "working out why", or the spinner -->
+          <div v-if="m.error.value && (!m.a.value || m.a.value.provisional)" class="mt-2 text-sm text-rose-300" data-testid="ply-error">
             <p>The analysis of this move failed: {{ m.error.value }}</p>
             <button class="th-btn th-btn-sm mt-1.5" data-testid="retry" @click="m.retry()">Try again</button>
           </div>
-          <p v-else class="mt-2 flex items-center gap-2 text-[15px] text-neutral-300">
+          <!-- (D1) a quick label: the full analysis (and the why) is on its way -->
+          <p v-else-if="m.a.value?.provisional" class="mt-2 flex items-center gap-2 text-[13px] text-neutral-400" data-testid="provisional">
+            <span class="h-3 w-3 animate-spin rounded-full border-2 border-neutral-500 border-t-transparent"></span>
+            Working out why…
+          </p>
+          <p v-else-if="!m.a.value" class="mt-2 flex items-center gap-2 text-[15px] text-neutral-300">
             <span class="h-4 w-4 animate-spin rounded-full border-2 border-neutral-500 border-t-transparent"></span>
             Analysing {{ m.moveName.value }}…
           </p>

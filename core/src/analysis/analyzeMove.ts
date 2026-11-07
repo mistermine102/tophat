@@ -58,6 +58,33 @@ export interface AnalyzeInput {
   prev?: PrevInput | null;
   /** SPEC book chain: every earlier move of the game was book (undefined = unknown, treated as true). */
   earlierMovesAllBook?: boolean;
+  /** (D1) The label the quick pass already showed: kept when the full one is only a small shift (`stickyLabel`). */
+  provisionalLabel?: Label;
+}
+
+/** (D1) The win-chance labels in order; a shown label sticks to a neighbour near the threshold between them. */
+const WIN_CHANCE_SCALE: readonly Label[] = ['excellent', 'good', 'inaccuracy', 'mistake', 'blunder'];
+/** (D1) Win% around a threshold within which the quick label stays (the full search is just as noisy there). */
+export const STICKY_MARGIN = 3;
+/** (D1) A quick Best stays when the full analysis puts the move this close (win%) to its top move. */
+export const BEST_STICKY_LOSS = 1;
+
+/**
+ * (D1) "Fast, then final": the label the quick pass showed stays unless the full analysis finds a real difference.
+ * Kept only when the full label came from win chance alone (no material / mate / Miss / Great / Brilliant rule), both
+ * are neighbours on the win-chance scale and the full winLoss is within STICKY_MARGIN of the threshold between them.
+ */
+export function stickyLabel(full: Label, provisional: Label | undefined, winChance: Label, winLoss: number, settings: AnalysisSettings): Label {
+  if (!provisional || provisional === full || full !== winChance) return full;
+  // a quick Best within BEST_STICKY_LOSS of the full search's top move: the two searches only disagree within their
+  // noise — the star stays ("as good as the best move")
+  if (provisional === 'best' && full === 'excellent' && winLoss <= BEST_STICKY_LOSS) return 'best';
+  const i = WIN_CHANCE_SCALE.indexOf(full);
+  const j = WIN_CHANCE_SCALE.indexOf(provisional);
+  if (i < 0 || j < 0 || Math.abs(i - j) !== 1) return full;
+  const t = settings.labels;
+  const thresholds = [t.excellentMaxLoss, t.goodMaxLoss, t.inaccuracyMaxLoss, t.mistakeMaxLoss];
+  return Math.abs(winLoss - thresholds[Math.min(i, j)]!) <= STICKY_MARGIN ? provisional : full;
 }
 
 /** Everything known about one move (a candidate or the played move) while building the analysis. */
@@ -341,6 +368,8 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
   if (cr.label === 'miss' && cr.labelReason.miss && !cr.labelReason.missedMate && !cr.labelReason.missedMaterial && !concreteChance(bestWork)) {
     cr.label = worseLabel(cr.labelReason.winChance, cr.labelReason.material?.label);
   }
+  // (D1) the label the quick pass showed stays for a small shift
+  cr.label = stickyLabel(cr.label, input.provisionalLabel, cr.labelReason.winChance, cr.winLoss, settings);
   // M3 missed-mate rule: the Immediate level names the mate the move misses (best line, ends in checkmate)
   const mm = cr.labelReason.missedMate;
   if (mm && !playedIsBest && !cr.checkmate && mm.mateIn <= MATE_LINE_MAX_MOVES) {

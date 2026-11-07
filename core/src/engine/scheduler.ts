@@ -3,7 +3,7 @@
 // - `run(key, priority, job)`: queues `job(engine)`; resolves/rejects with its result. Each running job has an engine
 //   of its own, so with N engines up to N jobs run concurrently (M4: N engine processes; one engine = one job at a
 //   time, as before).
-// - Lower number = higher priority (SIDELINE=0 > FOCUS=1 > BACKGROUND=2); FIFO within the same priority.
+// - Lower number = higher priority (SIDELINE=0 > FOCUS=1 > QUICK=2 > BACKGROUND=3); FIFO within the same priority.
 // - Dedupe: while a job with the same key is queued or running, another `run` with that key returns the SAME
 //   promise (the job function is not run twice); the job is upgraded to the higher priority (a running job too, so
 //   it is no longer preemptable by that priority).
@@ -25,7 +25,9 @@ import type { Engine } from './uci';
 export const Priority = {
   SIDELINE: 0,
   FOCUS: 1,
-  BACKGROUND: 2,
+  /** (D1) the quick pass: every ply's provisional label before any full analysis */
+  QUICK: 2,
+  BACKGROUND: 3,
 } as const;
 export type Priority = (typeof Priority)[keyof typeof Priority];
 

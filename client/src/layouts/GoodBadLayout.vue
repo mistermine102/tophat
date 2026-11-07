@@ -145,6 +145,15 @@ const accent = computed(() => m.meta.value?.color ?? '#737373');
           <button class="mt-1.5 rounded-md bg-neutral-700 px-2.5 py-1 text-xs font-medium text-neutral-100 hover:bg-neutral-600" data-testid="retry" @click="m.retry()">Try again</button>
         </div>
         <p v-else class="text-sm text-neutral-400">Analysing this move — usually a few seconds.</p>
+        <!-- (D1) a quick label whose full analysis failed / is still coming -->
+        <div v-if="m.a.value?.provisional && m.error.value" class="text-sm text-rose-300" data-testid="ply-error">
+          <p>The analysis of this move failed: {{ m.error.value }}</p>
+          <button class="mt-1.5 rounded-md bg-neutral-700 px-2.5 py-1 text-xs font-medium text-neutral-100 hover:bg-neutral-600" data-testid="retry" @click="m.retry()">Try again</button>
+        </div>
+        <p v-else-if="m.a.value?.provisional" class="flex items-center gap-2 text-xs text-neutral-400" data-testid="provisional">
+          <span class="h-3 w-3 animate-spin rounded-full border-2 border-neutral-500 border-t-transparent"></span>
+          Working out why…
+        </p>
         <p v-if="m.ruleNote.value" class="text-xs text-neutral-500">{{ m.ruleNote.value }}</p>
 
         <template v-if="m.a.value">

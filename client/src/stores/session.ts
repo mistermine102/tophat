@@ -47,6 +47,9 @@ export interface SessionOptions {
 
 const SHOW_BEST_KEY = 'chess-coach:show-best';
 
+/** (D1) A full (not provisional) analysis. */
+const isFinal = (a: MoveAnalysis | undefined): a is MoveAnalysis => !!a && !a.provisional;
+
 /** How often the engine's health is checked again while it is offline. */
 export const HEALTH_RETRY_MS = 5000;
 
@@ -140,8 +143,9 @@ export function createSession(api: ApiClient, opts: SessionOptions = {}) {
 
   const progress = computed(() => {
     const total = state.game?.moves.length ?? 0;
-    const done = Math.max(state.progress.done, Object.keys(state.analyses).length);
-    const failed = Object.keys(state.plyErrors).filter((p) => !state.analyses[Number(p)]).length;
+    // (D1) only full analyses count as done (a provisional label is shown, but its explanation is still coming)
+    const done = Math.max(state.progress.done, Object.values(state.analyses).filter(isFinal).length);
+    const failed = Object.keys(state.plyErrors).filter((p) => !isFinal(state.analyses[Number(p)])).length;
     return { done: Math.min(done, total), total, failed };
   });
 
@@ -195,13 +199,16 @@ export function createSession(api: ApiClient, opts: SessionOptions = {}) {
   function startStream(id: string) {
     stopStream();
     const now = Date.now();
-    state.rate = { start: now, doneAtStart: Object.keys(state.analyses).length, last: now };
+    state.rate = { start: now, doneAtStart: Object.values(state.analyses).filter(isFinal).length, last: now };
     unsubscribe = api.stream(id, {
       onAnalysis(ply, analysis) {
         if (state.game?.id !== id) return;
-        if (!state.analyses[ply] && state.rate) state.rate.last = Date.now();
+        // (D1) a quick, provisional result never replaces a full one (a replayed snapshot can bring both)
+        if (analysis.provisional && state.analyses[ply] && !state.analyses[ply]!.provisional) return;
+        if (!analysis.provisional && !isFinal(state.analyses[ply]) && state.rate) state.rate.last = Date.now();
         state.analyses[ply] = analysis;
-        delete state.plyErrors[ply];
+        // (a quick label can arrive after the full analysis failed: the failure stands until a full one arrives)
+        if (!analysis.provisional) delete state.plyErrors[ply];
         state.connectionError = null;
       },
       onProgress(done, total) {
@@ -215,7 +222,7 @@ export function createSession(api: ApiClient, opts: SessionOptions = {}) {
       },
       onPlyError(ply, message) {
         if (state.game?.id !== id) return;
-        if (state.analyses[ply]) return; // stale replay of an error that was retried successfully
+        if (isFinal(state.analyses[ply])) return; // stale replay of an error that was retried successfully (a provisional label still fails)
         state.plyErrors[ply] = message;
         focused.delete(ply);
         void checkHealth();
@@ -248,7 +255,7 @@ export function createSession(api: ApiClient, opts: SessionOptions = {}) {
   /** Ask the server to analyse a failed main-line ply again (focus re-queues failed plies). */
   function retryPly(ply: number) {
     const game = state.game;
-    if (!game || state.analyses[ply]) return;
+    if (!game || isFinal(state.analyses[ply])) return;
     delete state.plyErrors[ply];
     focused.add(ply);
     api.focus(game.id, ply).catch((e: unknown) => {
@@ -280,7 +287,7 @@ export function createSession(api: ApiClient, opts: SessionOptions = {}) {
       state.serverSummary = snap.summary;
       state.progress = { done: Object.keys(snap.analyses).length, total: snap.game.moves.length };
       opts.onGameChange?.(snap.game.id);
-      if (Object.keys(snap.analyses).length < snap.game.moves.length) startStream(snap.game.id);
+      if (Object.values(snap.analyses).filter(isFinal).length < snap.game.moves.length) startStream(snap.game.id);
       else if (!snap.summary) startStream(snap.game.id);
       return true;
     } catch (e) {
@@ -312,8 +319,16 @@ export function createSession(api: ApiClient, opts: SessionOptions = {}) {
     const parent = node.parent;
     const prev = parent && parent.fenBefore ? { fenBefore: parent.fenBefore, uci: parent.uci } : undefined;
     const gameId = state.game?.id;
+    const req = { fenBefore: node.fenBefore, uci: node.uci, ...(prev ? { prev } : {}) };
+    // (D1) the quick label first: shown at once, the explanation follows with the full analysis
+    api.analyseQuick?.(req)
+      .then((quick) => {
+        const e = state.side.get(node.id);
+        if (state.game?.id === gameId && e?.status === 'pending' && !e.analysis) state.side.set(node.id, { status: 'pending', analysis: quick });
+      })
+      .catch(() => undefined);
     api
-      .analyse({ fenBefore: node.fenBefore, uci: node.uci, ...(prev ? { prev } : {}) })
+      .analyse(req)
       .then((analysis) => {
         if (state.game?.id === gameId) state.side.set(node.id, { status: 'done', analysis });
       })
@@ -327,7 +342,7 @@ export function createSession(api: ApiClient, opts: SessionOptions = {}) {
     focusTimer = setTimeout(() => {
       focusTimer = null;
       const game = state.game;
-      if (!game || state.analyses[ply] || focused.has(ply)) return;
+      if (!game || isFinal(state.analyses[ply]) || focused.has(ply)) return;
       focused.add(ply);
       api.focus(game.id, ply).catch(() => focused.delete(ply));
     }, focusDebounceMs);
@@ -341,7 +356,7 @@ export function createSession(api: ApiClient, opts: SessionOptions = {}) {
       state.highlight = [];
       if (!node || node.ply === 0) return;
       if (node.mainPly !== null) {
-        if (!state.analyses[node.mainPly] && !state.plyErrors[node.mainPly]) scheduleFocus(node.mainPly);
+        if (!isFinal(state.analyses[node.mainPly]) && !state.plyErrors[node.mainPly]) scheduleFocus(node.mainPly);
       } else {
         requestSide(node);
       }
