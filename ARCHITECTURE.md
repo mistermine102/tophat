@@ -5,44 +5,49 @@ parallel. If you need to change a contract, update this file in the same commit 
 
 ## Stack
 
-- **npm workspaces** monorepo, TypeScript everywhere, ESM, Node 24.
-- `shared/` — types + pure chess helpers used by both sides (no Node/browser-specific APIs).
-- `server/` — Express 5 + TypeScript (run with `tsx`), native Stockfish 19 via UCI, `node:sqlite` cache,
-  Server-Sent Events.
-- `client/` — Vue 3 + Vite + Tailwind 4 + TypeScript, `chessground` (board), `chessops` (rules/SAN/FEN/PGN).
-- Chess logic library on both sides: **`chessops`** (Lichess, GPL-3). Do not add chess.js.
+- **npm workspaces** monorepo, TypeScript everywhere, ESM, Node 24 (for tooling only).
+- **No server (C1):** the whole analysis runs in the browser — see "In-browser analysis" below. A static build
+  (`client/dist`) can be hosted anywhere.
+- `shared/` — types + pure chess helpers (no Node/browser-specific APIs).
+- `core/` (was `server/`) — the analysis pipeline: engine wrapper (pluggable UCI transport), scheduler, search cache,
+  facts, labels, explanations, GameManager. Environment-neutral TypeScript: runs in the browser's analysis worker and
+  in Node (tests, `core/scripts/*`, `bench/*`; `core/src/node.ts` sets up the Node environment). Node-only files:
+  `src/node.ts`, `src/engine/node.ts`, `src/cache.ts` (sqlite, scripts/benchmarks only).
+- `client/` — Vue 3 + Vite + Tailwind 4 + TypeScript, `chessground` (board), `chessops` (rules/SAN/FEN/PGN);
+  `client/src/worker/` hosts `core` in a Web Worker.
+- Chess logic library everywhere: **`chessops`** (Lichess, GPL-3). Do not add chess.js.
 - Tests: **Vitest** (unit/integration), **Playwright** (e2e). Benchmarks are scripts under `bench/`.
-- Engine binary: `engine/stockfish.exe` (gitignored; `npm run setup:engine` downloads Stockfish 19 from the
-  official GitHub release `sf_19`, asset `stockfish-windows-x86-64-universal.zip`). Path override via env
-  `STOCKFISH_PATH`.
+- Engine: **Stockfish.js 19** (npm `stockfish` 19.0.1, by Nathan Rugg / Chess.com, GPL-3.0 — compatible with this
+  repo's GPL-3.0-or-later): Stockfish 19 with its full NNUE network compiled to WebAssembly. Browser: the files are
+  served from `node_modules/stockfish/bin` at `/engine/` (Vite plugin in `client/vite.config.ts`; copied to
+  `dist/engine/` with the licence). Node: the same build run by `node` as a child process; env `STOCKFISH_PATH` may
+  point at a native binary instead (≈ 2.3× faster per thread, identical search at 1 thread).
 - **TypeScript 6.0.x** (not 7.x): TS 7 is the native Go port without the JS compiler API, and `vue-tsc` cannot
   run on it. One TS version for the whole repo (root devDependency). No build step: `noEmit`, `moduleResolution:
   bundler`, extensionless relative imports; `tsx` runs the server, Vite/Vitest transform TS directly.
 - **`@chess-coach/shared`** is consumed as TS source: its `package.json` `exports` map `.` → `src/index.ts` and
   `./*` → `src/*.ts`. Import `from '@chess-coach/shared'` (or `'@chess-coach/shared/winchance'`) in server, client
   and tests alike. Do not add Node/browser APIs to shared.
-- Root `npm test` runs Vitest projects `shared`, `server`, `client` (root `vitest.config.ts`); `npm run typecheck`
-  runs `tsc` (shared, server) and `vue-tsc` (client).
+- **`@chess-coach/core`** likewise: `exports` `./*` → `src/*.ts` (`'@chess-coach/core/games'`, …).
+- Root `npm test` runs Vitest projects `shared`, `core`, `client` (root `vitest.config.ts`); `npm run typecheck`
+  runs `tsc` (shared, core) and `vue-tsc` (client, which also checks the core modules the worker imports).
 
 ## Layout
 
 ```
 chess-coach/
-  SPEC.md  ARCHITECTURE.md  PLAN.md  README.md
-  package.json            # workspaces: shared, server, client; root scripts: dev, test, e2e, bench:*, setup:engine
-  scripts/setup-engine.mjs
-  engine/                 # gitignored
-  data/                   # gitignored: cache sqlite, downloaded benchmark data
+  SPEC.md  ARCHITECTURE.md  PLAN.md  README.md  BACKLOG.md
+  package.json            # workspaces: shared, core, client; root scripts: start, dev, test, e2e, build, bench:*
+  data/                   # gitignored: sqlite cache of the Node scripts/benchmarks, downloaded benchmark data
   shared/src/
     types.ts              # API + analysis types (below)
     settings.ts           # default thresholds/settings (below)
     winchance.ts          # cp/mate -> win%, move accuracy, game accuracy (Lichess formulas)
-  server/src/
-    index.ts              # starts the engine pool + Scheduler, Express on PORT (default 5174; + built client with SERVE_CLIENT=1)
-    app.ts                # createApp(ctx: AppContext) -- Express app factory (testable without engine/listen)
-    engine/uci.ts         # Engine: UCI process wrapper
-    engine/pool.ts        # M4: N Stockfish processes (default 2 x threads/2)
-    engine/scheduler.ts   # priority queue in front of the engines: one job per engine, preemption of background jobs
+  core/src/               # environment-neutral analysis pipeline (browser worker + Node)
+    engine/uci.ts         # Engine: UCI wrapper over a pluggable transport (UciSpawn)
+    engine/node.ts        # Node transport (child process: Stockfish WASM via node, or STOCKFISH_PATH); Node-only
+    engine/pool.ts        # N engines started together (Node scripts)
+    engine/scheduler.ts   # priority queue in front of the engines: one job per engine, preemption, addEngine
     chess/                # pure position helpers on chessops: material (PIECE_VALUES, positionFromFen, lineMaterial),
                           # see.ts (static exchange), attacks, notation.ts (UCI normalisation, SAN of PVs, FEN after moves)
     facts/immediate.ts    # Immediate facts: (posBefore, move) -> Fact[]
@@ -50,24 +55,27 @@ chess-coach/
     facts/line.ts         # Short-term narration of a PV, forcedness, null-move threat
     facts/longterm.ts     # Long-term level: filtered positional deltas, positional-gain, deep-payoff, necessary
     analysis/classify.ts  # label rules incl. material rule, Miss, Great, Forced, Book
-    analysis/book.ts      # opening book lookup (Lichess chess-openings TSV, vendored in server/data/openings/)
-    analysis/searchCache.ts  # memoised engine searches (memory + sqlite), keyed by position + search params
+    analysis/book.ts      # opening book lookup (Lichess chess-openings TSV, vendored in core/data/openings/; source registered)
+    analysis/searchCache.ts  # memoised engine searches (memory + CacheStore), keyed by position + search params
     analysis/suggest.ts   # explainable pick
     analysis/explain.ts   # Fact -> text templates (the ONLY place that produces prose)
     analysis/analyzeMove.ts  # orchestrates engine calls for one (fenBefore, move) -> MoveAnalysis
-    games.ts              # PGN import -> Game; per-game queue state; summary
-    cache.ts              # node:sqlite cache
-    routes.ts             # REST + SSE
-  server/test/            # vitest; engine-dependent tests use describe.skipIf(!engineAvailable())
-  server/scripts/engine-timing.ts  # `npm run bench:engine -w server`: times the analysis budget searches
-  server/scripts/analyze-pgn.ts    # full pipeline on a PGN (no HTTP) -> markdown report (+ JSON)
-  server/scripts/profile-game.ts   # M4: cold-cache timing of a whole game per search type + focus / side-line latency
-  scripts/start.mjs       # `npm start`: build the client if stale, serve it + the API on one port (5174), open the browser
-                          # (M6: already running on the port -> just opens the browser; no Stockfish -> runs setup-engine first)
-  scripts/check-engine.mjs  # `npm run dev` pre-step: tells the user to run `npm run setup:engine` if Stockfish is missing
-  bench/games/            # sample PGNs for analyze-pgn (Opera game, Kasparov–Topalov 1999, Deep Blue–Kasparov g6)
-  client/src/ ...
-  client/e2e/             # playwright (M6: e2e/acceptance = beginner walk-through vs a running `npm start`, `npm run acceptance`)
+    games.ts              # PGN import -> Game; per-game queue state; summary (GameManager, async store)
+    store.ts              # CacheStore interface + MemoryStore
+    hash.ts               # pure-JS sha1 (game ids, cache keys)
+    profiles.ts           # analysis profiles (default / fast)
+    cache.ts              # node:sqlite CacheStore (Node scripts/benchmarks only)
+    node.ts               # Node environment: engine transport + book from disk (tests' setup file, scripts, bench)
+  core/test/              # vitest; engine tests run Stockfish WASM in Node (STOCKFISH_PATH: native)
+  core/scripts/engine-timing.ts  # `npm run bench:engine`: times the analysis budget searches
+  core/scripts/analyze-pgn.ts    # full pipeline on a PGN -> markdown report (+ JSON)
+  core/scripts/profile-game.ts   # cold-cache timing of a whole game per search type + focus / side-line latency (Node)
+  client/src/worker/      # in-browser analysis: analysis.worker.ts, stockfish.ts, idbStore.ts, protocol.ts, config.ts
+  client/src/api/         # ApiClient: local.ts (worker), mock.ts (?mock=1), chesscom.ts (direct chess.com API)
+  client/scripts/browser-profile.ts  # `npm run bench:browser`: in-browser timing with Playwright Chromium
+  scripts/start.mjs       # `npm start`: build if stale, `vite preview` on 5174 (COOP/COEP), open the browser
+  bench/games/            # sample PGNs (Opera game, Kasparov–Topalov 1999, Deep Blue–Kasparov g6, 60 Lichess games)
+  client/e2e/             # playwright (e2e/acceptance = beginner walk-through vs a running `npm start`, `npm run acceptance`)
   bench/                  # puzzle + annotated-games benchmarks, reports written to bench/reports/*.md
 ```
 
@@ -87,7 +95,7 @@ chess-coach/
 - Settings are passed explicitly (no globals) so the cache key can include a settings hash.
 - `ANALYSIS_VERSION` constant in `shared/src/settings.ts`; bump it when output semantics change (invalidates cache).
 
-## Engine (`server/src/engine/uci.ts`)
+## Engine (`core/src/engine/uci.ts`; transports: see "In-browser analysis")
 
 ```ts
 export interface EngineOptions { path?: string; threads?: number; hashMb?: number }
@@ -201,7 +209,7 @@ Measured per ply (cold cache, Threads 10): 4–7 s, ≈ 5.5 s on average (the ca
 
 ### Performance (M4)
 
-`npx tsx server/scripts/profile-game.ts <pgn> [--threads N] [--processes N] [--depth N] [--no-preempt] --probe`:
+`npx tsx core/scripts/profile-game.ts <pgn> [--threads N] [--processes N] [--depth N] [--no-preempt] --probe`:
 cold cache (temp sqlite, fresh engines), the GameManager pipeline; probes = at 15 s focus the ply at 2/3 of the game,
 then a side-line move from the next position and a reply to it. Game: Lichess YMOxEowk (84 plies, sharp). Ryzen 5
 3600; another agent's Stockfish (≤ 4 threads) ran part of the time, so absolute numbers carry ±15 % noise; configs were
@@ -573,7 +581,7 @@ Additions made in the UI round (tones; all additive optional fields, `ANALYSIS_V
   best move allows the same reply with the same effect, and marked `already` when it equals the opponent's pre-move
   threat and hits nothing new. `ExplainContext` carries `label` and `uci` (uncovered pins are credited to the pinner).
 
-## Board facts (M1b: `server/src/chess/*`, `server/src/facts/*`; pure, no engine)
+## Board facts (M1b: `core/src/chess/*`, `core/src/facts/*`; pure, no engine)
 
 - `chess/material.ts` (M2: the single home of `PIECE_VALUES` and `positionFromFen`; attacks.ts no longer exports them).
 - `chess/attacks.ts`: `toPieceRef`, `attackersOf(board, sq, color, {occupied?, xray?})`,
@@ -591,7 +599,71 @@ Additions made in the UI round (tones; all additive optional fields, `ANALYSIS_V
   end of the short line).
 - Benchmark: `npx tsx bench/puzzle-facts.ts [--theme fork] [--n 500] [--report]` → `bench/reports/puzzle-facts.md`.
 
-## HTTP API (server, prefix `/api`; Vite dev proxies `/api` to the server)
+## In-browser analysis (C1: no server)
+
+```
+page (Vue app)
+  api/local.ts  LocalApiClient  ── postMessage ──►  worker/analysis.worker.ts (module worker)
+  (same ApiClient interface)                          GameManager + Scheduler(preempt) + SearchCache
+  chess.com: direct fetch                             IdbStore (IndexedDB 'chess-coach') · opening book (fetched TSVs)
+                                                      └─ N × Stockfish WASM worker (worker/stockfish.ts), 1 job each
+```
+
+- **Engine transport** (`core/src/engine/uci.ts`): `Engine` speaks UCI through a `UciSpawn` (`write(line)`, `kill()`,
+  handlers `onLine` / `onExit` / `onStderr`). Browser: `workerSpawn(url)` — the stockfish.js file *is* the worker
+  (UCI strings in and out via postMessage; it loads the `.wasm` with the same name; `quit` terminates the worker).
+  Node: `engine/node.ts` (child process). `Engine.killInstance()` simulates a crash (test hook); the next search
+  starts a new instance.
+- **Engines** (`worker/config.ts`): default `min(cores − 2, 6, ⌊0.75 × navigator.deviceMemory⌋)` instances of the
+  **single-threaded full-network build** (`stockfish-19-single.js`; works without cross-origin isolation), Hash 32 MB
+  each. URL overrides: `engines`, `threads` (per instance; > 1 only when `crossOriginIsolated`, uses the
+  multi-threaded `stockfish-19.js`), `hash`, `engine=lite` (`stockfish-19-lite-single.js`, 2 MB network),
+  `profile=fast`, `testhooks=1`; `VITE_ANALYSIS_DEFAULTS` bakes defaults into a dev server/build (E2E). The first
+  instance starts alone (fills the HTTP/code cache), its scheduler slot is a stand-in whose searches wait for it, so
+  games open and jobs queue at once; the others start in parallel afterwards and join with `Scheduler.addEngine`.
+- **Cross-origin isolation:** Vite dev and preview send `COOP: same-origin`, `COEP: require-corp`, `CORP:
+  same-origin`. Needed only for `threads > 1` (SharedArrayBuffer). chess.com's API sends `Access-Control-Allow-Origin:
+  *`, so it works from the isolated page (verified in Chromium); requests use only CORS-safelisted headers.
+- **Worker protocol** (`worker/protocol.ts`, replaces the HTTP API + SSE one to one): requests `{ id, type, payload }`
+  → `{ kind: 'response', id, ok, value | error: { message, status } }` (status mirrors the old HTTP codes: 400 bad
+  PGN / input, 404 unknown game, 500 other). Types: `init(AnalysisConfig)`, `health`, `createGame {pgn}`, `getGame
+  {id}`, `focus {id, ply}`, `analyse {fenBefore, uci, prev?}`, `subscribe {id, sub}` / `unsubscribe {sub}` (events
+  `{ kind: 'event', sub, event: GameEvent }`: replay of the finished state after subscribing, then live — an
+  analysis can arrive twice), test hooks `killEngines`, `failNext {n}`, `stats`. `LocalApiClient.mode` is `'real'`
+  so localStorage keys (recent games, sides, chess.com name) are unchanged.
+- **Cache:** `IdbStore` implements `CacheStore` with the same tables and keys as the sqlite cache (values stored as
+  structured clones). Per browser profile and origin. Persisting is best-effort (a failed write doesn't fail the
+  analysis); without IndexedDB a `MemoryStore` is used.
+- **Book:** `core/data/openings/*.tsv` are imported with `?url` (hashed static assets) and fetched + parsed in the
+  worker at startup (`loadBookAsync`).
+
+### Performance (browser)
+
+`npm run bench:browser -- <pgn> --url <dev or preview server> --query "<params>" [--probe]` (Playwright Chromium,
+fresh profile = cold IndexedDB and HTTP cache, i.e. includes loading the 100 MB engine from localhost). Game:
+Lichess YMOxEowk (84 plies), default analysis settings (deep d14 MultiPV 5), Ryzen 5 3600 (12 threads, 16 GB) shared
+with other agents' engines and E2E runs (CPU ≈ 60 % busy before starting), so ±20 % noise:
+
+| config | first label | 10 plies | 84 plies | focused ply (at 15 s) |
+|---|---|---|---|---|
+| browser 2 × 1 thread | 1.8 s | 13.9 s | 132 s | – |
+| browser 4 × 1 thread | 2.1 s | 14.6 s | 78 s | 8.1 s |
+| **browser 6 × 1 thread (default here)** | 2.7 s | 7.7 s | **48.6 s** | 7.5 s |
+| browser 3 × 2 threads (multi-threaded build) | 2.1 s | 9.8 s | 104 s | – |
+| browser 6 × 1, `engine=lite` | 1.3 s | 4.4 s | 31.9 s | – |
+| Node, native Stockfish 5 × 2 threads (old server default), same conditions | 1.0 s | 4.0 s | 37.5 s | 6.0 s |
+
+Kasparov–Topalov 1999 (87 plies), browser 6 × 1: 44.4 s, first label 2.7 s. So the browser is ≈ 1.3× the native
+server on this machine at the same depth (the M4 table's 68–74 s was measured at d16). Single-threaded WASM is ≈ 2.3×
+slower than native per thread (same node counts), but 1-thread instances use the cores best (as in M4: threads widen
+the search at a fixed depth) — 3 × 2 threads took twice as long as 6 × 1. Memory: ≈ 0.4 GB per full-network instance
+(6 instances ≈ 2.4 GB of browser memory); hence the cap and the deviceMemory rule. The lite network is ≈ 1/3 faster
+and loads 2 MB instead of 100 MB but is weaker (its label agreement was not benchmarked), so it is opt-in.
+
+## HTTP API (historical: removed in C1)
+
+The server is gone; the worker protocol above replaces these routes one to one (same semantics, errors and replay rules). Kept for reference:
+
 
 | Method | Path | Body | Response |
 |---|---|---|---|
@@ -601,7 +673,7 @@ Additions made in the UI round (tones; all additive optional fields, `ANALYSIS_V
 | POST | `/api/games/:id/focus` | `{ ply }` | 204; bumps that ply (and ply+1, then ply−1 — M4) to FOCUS priority |
 | POST | `/api/analyse` | `{ fenBefore, uci, prev?: { fenBefore, uci } }` | `MoveAnalysis` (SIDELINE priority; `prev` enables Miss detection) |
 | GET/PUT | `/api/settings` | `Settings` | `Settings` (persisted in sqlite). **No longer used by the client** (no username setting): the client decides "You" itself (see below); the server's `GameInfo.you` is only its first guess |
-| GET | `/api/chesscom/:username/games?limit=30` | — | `ChessComGames` `{ username, games: ChessComGame[] }`, newest first (`server/src/chesscom.ts`: chess.com public API, newest monthly archives first, at most 6 archives, `rules: 'chess'` only, limit ≤ 100). 400 bad name/limit, 404 unknown player, 502 chess.com unreachable / rate-limited |
+| GET | `/api/chesscom/:username/games?limit=30` | — | `ChessComGames` `{ username, games: ChessComGame[] }`, newest first (`core/src/chesscom.ts`: chess.com public API, newest monthly archives first, at most 6 archives, `rules: 'chess'` only, limit ≤ 100). 400 bad name/limit, 404 unknown player, 502 chess.com unreachable / rate-limited |
 | GET | `/api/health` | — | `{ ok: true, engine: 'Stockfish 19' }`; 503 `{ ok: false, engine: null, error }` if the engine isn't running |
 
 `ply` is 1-based index into `moves` (ply 1 = the game's first move — Black's for a SetUp/FEN game with Black to
@@ -629,17 +701,14 @@ M2-client additions (client wired to the real server end to end):
   error hint), `StreamHandlers.onOpen` (EventSource `open` → clears "Connection lost" after a reconnect).
 - URL: the open game is `?game=<id>` (history.replaceState); a reload or a shared URL reopens it from the cache. No
   `game` parameter = the Open screen (`client/src/lib/route.ts`, see "Client layouts").
-- Server env (`server/src/index.ts`): `PORT`, `CHESS_COACH_DB`, `STOCKFISH_PATH`, `ENGINE_THREADS` (total, default
-  cpus − 2), `ENGINE_PROCESSES` (M4, default threads / 2), `ENGINE_HASH_MB` (per process; M4: 256, was 512),
-  `SERVE_CLIENT=1` (M4: also serve client/dist with an index.html fallback — `npm start`), `ANALYSIS_PROFILE` (`default` | `fast`: deep d10/1 s, shallow d6, threat /
-  forcedness d8, 300 ms caps — own settings hash, so its cache entries never mix with full-depth ones),
-  `LOG_ANALYSIS=1` (per-ply timing + focus bumps on stdout), `CHESSCOM_API` (chess.com API base, default `https://api.chess.com/pub`; E2E sets a dead port), `CHESS_COACH_TEST_HOOKS=1` (mounts
-  `POST /api/test/kill-engine` → kills the Stockfish processes; `POST /api/test/fail-next {n}` → the next n analysis
-  attempts throw an EngineError; each ply is attempted twice). Vite: `CLIENT_PORT` (5173), `API_PORT` (5174).
-- E2E (`npm run e2e`): Playwright projects `mock` (`e2e/*.spec.ts`, `?mock=1`, port 5183) and `real`
-  (`e2e/real/*.spec.ts`: own server on 5194 with a fresh temp sqlite, `ANALYSIS_PROFILE=fast`, `ENGINE_THREADS=2`,
-  test hooks; client on 5193; skipped without Stockfish). `E2E_REAL=0` runs only the mock project. Screenshots of
-  real data: `client/e2e/screenshots/real-<size>-*.png`.
+- (C1) Server env is gone. The browser equivalents are the URL parameters in "In-browser analysis" (`profile=fast` =
+  the old `ANALYSIS_PROFILE=fast`: deep d10/1 s, shallow d6, threat / forcedness d8, 300 ms caps — own settings hash),
+  test hooks `?testhooks=1` → `window.__chessCoachTest.killEngines()` / `.failNext(n)` (each ply is attempted twice).
+  Node scripts: `STOCKFISH_PATH`, `CHESS_COACH_DB`, `ANALYSIS_PROFILE`. Vite: `CLIENT_PORT` (dev, 5173), `PORT` (preview, 5174).
+- E2E (`npm run e2e`): Playwright projects `mock` (`e2e/*.spec.ts`, `?mock=1`, port 5283) and `real`
+  (`e2e/real/*.spec.ts`: the in-browser analysis on a dev server on 5293 with `VITE_ANALYSIS_DEFAULTS=profile=fast&engines=2&testhooks=1`;
+  one browser context per file, so IndexedDB carries over between its tests; chess.com blocked). `E2E_REAL=0` runs only
+  the mock project; `E2E_MOCK_PORT` / `E2E_REAL_PORT` change the ports. Screenshots of real data: `client/e2e/screenshots/real-<size>-*.png`.
 
 ## Client layouts (UI round: prototypes)
 
@@ -689,11 +758,12 @@ Board marks, glyphs, Open screen (backlog session A):
 ## Cache
 
 Key = sha1(`ANALYSIS_VERSION | settingsHash | fenBefore | uci | prevKey | bookChain`) (`games.ts analysisKey`;
-prevKey = prev fenBefore + uci, bookChain = 1/0/u). Value = MoveAnalysis JSON.
-`data/cache.sqlite` via `node:sqlite` (`DatabaseSync`; path override env `CHESS_COACH_DB`, `':memory:'` in
-tests). Tables (key → JSON): `analyses`, `searches` (SearchCache: EPD + depth + maxMs + MultiPV + searchmoves →
+prevKey = prev fenBefore + uci, bookChain = 1/0/u). Value = MoveAnalysis. The store is an async `CacheStore`
+(`core/src/store.ts`): **IndexedDB in the app** (`client/src/worker/idbStore.ts`, database `chess-coach`),
+`MemoryStore` in tests, and for the Node scripts/benchmarks `data/cache.sqlite` via `node:sqlite` (`core/src/cache.ts`;
+path override env `CHESS_COACH_DB`). `sha1` is pure JS (`core/src/hash.ts`, same digests as node:crypto). Tables: `analyses`, `searches` (SearchCache: EPD + depth + maxMs + MultiPV + searchmoves →
 SearchResult; independent of ANALYSIS_VERSION, so changing facts/explain code re-uses all engine work), `games`
 (id = sha1 of start FEN + UCI move list), `settings`. A restart reloads a game by id and re-queues only missing plies.
 
-`npx tsx server/scripts/analyze-pgn.ts game.pgn --out report.md [--json out.json] [--db path] [--fresh]` runs the
+`npx tsx core/scripts/analyze-pgn.ts game.pgn --out report.md [--json out.json] [--db path] [--fresh]` runs the
 same GameManager pipeline without HTTP (`--fresh` ignores cached analyses but keeps cached searches).

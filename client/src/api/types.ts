@@ -1,4 +1,4 @@
-// Data-layer contract used by the UI. Two implementations: RealApiClient (HTTP API from ARCHITECTURE.md) and
+// Data-layer contract used by the UI. Two implementations: LocalApiClient (in-browser analysis worker, api/local.ts) and
 // MockApiClient (fixture data + simulated streaming, `?mock=1`).
 import type { ChessComGames, GameInfo, GameSummary, MoveAnalysis } from '@chess-coach/shared';
 
@@ -19,15 +19,15 @@ export interface StreamHandlers {
   onAnalysis?(ply: number, analysis: MoveAnalysis): void;
   onProgress?(done: number, total: number): void;
   onSummary?(summary: GameSummary): void;
-  /** Analysis of one ply failed on the server. */
+  /** Analysis of one ply failed. */
   onPlyError?(ply: number, message: string): void;
-  /** Connection-level problem (the real client keeps retrying via EventSource). */
+  /** The analysis worker failed or the subscription could not be made. */
   onConnectionError?(message: string): void;
-  /** The stream is (re)connected; the server replays finished analyses after this. */
+  /** The subscription is open; finished analyses are replayed after this. */
   onOpen?(): void;
 }
 
-/** GET /api/health. */
+/** Is the in-browser engine running? */
 export interface Health {
   ok: boolean;
   engine: string | null;
@@ -43,9 +43,9 @@ export interface ApiClient {
   stream(id: string, handlers: StreamHandlers): Unsubscribe;
   focus(id: string, ply: number): Promise<void>;
   analyse(req: AnalyseRequest): Promise<MoveAnalysis>;
-  /** The newest finished games of a chess.com player (GET /api/chesscom/:username/games), at most `limit` (server default 50). */
+  /** The newest finished games of a chess.com player (chess.com public API, called from the browser), at most `limit` (default 50). */
   chessComGames(username: string, limit?: number): Promise<ChessComGames>;
-  /** Is the analysis engine running? Never throws (an unreachable server is `{ ok: false }`). */
+  /** Is the analysis engine running? Never throws (a failed engine is `{ ok: false }`). */
   health(): Promise<Health>;
 }
 
