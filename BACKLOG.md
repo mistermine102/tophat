@@ -105,3 +105,47 @@ static build you can host anywhere.
 - **Tests:** move server tests to the new location. Engine integration tests run against the WASM build in Node (or
   are marked browser-only). E2E without the server. Update README, ARCHITECTURE.md and `npm start` / `npm run dev`.
 - **Depends on:** Session B landed (avoids moving code that's about to change).
+
+---
+
+Feedback round 2 (2026-11-07). A–C are done (merged into master). The "Why" round (explanations from the played
+move's own line, Miss only for concrete chances, gold Best star, "Show best move" toggle) is on `explanations-v2`.
+
+## Session D — Fast feedback: "fast, then final"
+
+### D1. Quick labels first, the full analysis after
+**Problem.** A move takes ~3 s to get its label and a ply you jump to ~7.5 s (ARCHITECTURE.md "Performance
+(browser)"): every ply runs the whole pipeline (deep d14 MultiPV 5 + threat / shallow / forcedness searches) before
+anything is shown.
+**Decision (2026-11-07):** "fast, then final" — a quick result shows almost at once, a deeper check runs in the
+background, and the label only changes if the deeper check finds a real difference (Good → Blunder), never for small
+shifts. No flickering arrows.
+**Design.**
+- `core/src/analysis/quick.ts`: `labelMove` with a light deep budget (≈ d10, MultiPV 2; own SearchCache params, so
+  nothing mixes with the full searches) → a provisional `MoveAnalysis` (`provisional: true`): label, evals, best move,
+  arrows, `labelText` without reasons, `nextBest`; no explanations.
+- Scheduler: a `QUICK` priority between FOCUS and BACKGROUND. `GameManager.load` queues every ply's quick job, then
+  the full jobs; `focus` bumps the ply's quick job too. Quick results are emitted as `analysis` events while the
+  ply has no final one, and are not persisted.
+- Sticky labels: `analyzeMove` gets the provisional label; when the full label is a neighbour on the same side
+  (Excellent ↔ Good, Inaccuracy ↔ Mistake) the provisional one stays (labelText rendered for it). Best, Great,
+  Brilliant, Miss, Book, Forced and any good ↔ bad change always take the full result.
+- Side lines: `analyseQuick` (worker protocol + `ApiClient`), fired next to `analyse`; the session shows the quick
+  label at once and the explanation when the full one arrives.
+- Client: progress / "Analysis complete" count only final analyses; the explanation panel shows "Working out why…"
+  for a provisional analysis; the badge shows the provisional label normally.
+- Measure with `npm run bench:browser` (first label, focused ply). Target: a label < 0.5 s after a move is shown.
+
+## Session E — Explanations, next steps (after reviewing `explanations-v2`)
+
+### E1. More causes from the played move's line
+`facts/cause.ts` covers a piece the move leaves loose that the line goes after, and trades into a lost / drawn
+ending. Still told as "e3, f4 or c3 were all much better": moves whose damage is positional, e.g. 7.d3 and 8.Nd2 in
+shiniimini–mistermine102. Candidates, each only when the line uses it: a line opened to the king (f3 opening e1–h4), a
+hole the opponent's piece lands on, a development lead the opponent cashes in, a piece chased with tempo.
+Corpus: `tmp/grade2.mjs` grading over 15 Lichess games (275 bad moves) — keep it as `bench/explanations.ts`.
+
+### E2. A missed chance whose point is deeper
+"f4 was much better. f4 attacks Black's knight on e5." (Re3, a −25% blunder): the best line's later payoff (the knight
+is trapped / won ten plies on) isn't told. Extend the best line's story to its first kept material gain within
+`LATER_PLIES` and say what it wins.
