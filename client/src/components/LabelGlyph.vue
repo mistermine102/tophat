@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// Round coloured label glyph (★ ! ✓ ?! ? ?? ✕ □ and a small book icon), drawn as centred SVG (GlyphIcon).
+// Round coloured label glyph (!! ★ ! ✓ ?! ? ?? ✕ □ and a small book icon), drawn as centred SVG (GlyphIcon).
 import type { Label } from '@chess-coach/shared';
 import { computed } from 'vue';
 import { LABELS } from '../lib/labels';

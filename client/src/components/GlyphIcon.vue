@@ -23,6 +23,8 @@ const question = (dx = 0, sx = 1, r = 1.3): Part[] => [{ d: Q, dx, sx }, { dot: 
 const SHAPES: Partial<Record<GlyphName, Part[]>> = {
   // five-pointed star around (8, 8.6): its bounding box (taller above the centre) spans y 2.2–13.8
   best: [{ d: 'M8 2.2 9.53 6.5 14.09 6.62 10.47 9.4 11.76 13.78 8 11.2 4.24 13.78 5.53 9.4 1.91 6.62 6.47 6.5z', fill: true }],
+  // !! : two slightly thinner bangs, the pair spanning x ≈ 4–12
+  brilliant: [{ d: 'M5.2 2.9v6.6', w: 2.3 }, { dot: [5.2, 13.1], r: 1.35 }, { d: 'M10.8 2.9v6.6', w: 2.3 }, { dot: [10.8, 13.1], r: 1.35 }],
   great: BANG,
   error: BANG,
   excellent: CHECK,
