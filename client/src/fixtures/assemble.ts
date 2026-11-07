@@ -138,7 +138,7 @@ export function assembleAnalysis(spec: AssembleSpec): MoveAnalysis {
     playedCand.explanation = { ...playedCand.explanation, immediate: badFirst(playedCand.explanation.immediate) };
   }
 
-  const confirmed = label === 'best' || label === 'great' || label === 'book' || label === 'forced';
+  const confirmed = label === 'best' || label === 'great' || label === 'brilliant' || label === 'book' || label === 'forced';
   let pick: Candidate | null;
   const pickSan = spec.pick === undefined ? (confirmed ? played.san : best.san) : spec.pick;
   if (pickSan === null) pick = null;

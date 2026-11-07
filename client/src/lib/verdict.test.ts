@@ -4,6 +4,7 @@ import { levelLines, lowerFirst, storyParts } from './tones';
 import { parseUiMode } from './uiMode';
 import type { Candidate } from '@chess-coach/shared';
 import { candidateSentence, moveVerdict } from './verdict';
+import { labelReasonText } from './reason';
 
 const level = (text: string[], tones?: Level['tones'], extra: Partial<Level> = {}): Level => ({ facts: [{ type: 'check' }], text, ...(tones ? { tones } : {}), ...extra });
 
@@ -62,5 +63,22 @@ describe('verdict', () => {
     expect(candidateSentence(cand(['Like c5, it develops the knight.', 'Wins Black’s pawn on e5.'], ['neutral', 'good']))).toEqual({ text: 'Wins Black’s pawn on e5.', tone: 'good' });
     expect(candidateSentence(cand(['Nothing special happens right away (as with c5).'], ['neutral']))).toBeNull();
     expect(candidateSentence(cand(['Leaves the knight on c2 hanging: Black can win it.'], ['bad']))).toBeNull();
+  });
+});
+
+describe('(B) Brilliant and missed free material', () => {
+  const nothing: Level = { facts: [{ type: 'nothing-notable' }], text: ['Nothing special happens right away.'], tones: ['neutral'] };
+  const base = (over: Partial<MoveAnalysis>): MoveAnalysis =>
+    ({ san: 'O-O', uci: 'e1g1', color: 'white', winLoss: 3, winAfter: 94, best: { san: 'Nxh4', uci: 'f3h4' }, candidates: [], played: { rank: 5, explanation: { immediate: nothing, short: nothing, long: nothing } }, ...over }) as unknown as MoveAnalysis;
+  const queen = { role: 'queen' as const, square: 'h4', color: 'black' as const };
+  it('a Miss for a free piece says what was missed', () => {
+    const a = base({ label: 'miss', labelReason: { winChance: 'good', missedMaterial: { gain: 9, piece: queen, free: true } } });
+    expect(moveVerdict(a, { moverIsYou: true })).toMatchObject({ name: 'Miss', sentence: 'misses Nxh4, which wins the queen for free.', tone: 'bad' });
+    expect(labelReasonText(a, { moverIsYou: true })).toBe("Missed a free queen: Nxh4 wins the queen on h4, this move doesn't.");
+  });
+  it('a Brilliant move names the sacrificed piece', () => {
+    const a = base({ label: 'brilliant', san: 'Qb8+', uci: 'b3b8', winLoss: 0, winAfter: 100, best: { san: 'Qb8+', uci: 'b3b8' } as MoveAnalysis['best'], labelReason: { winChance: 'best', brilliant: { sacrifice: 9, piece: { role: 'queen', square: 'b8', color: 'white' } } } });
+    expect(moveVerdict(a, { moverIsYou: true })).toMatchObject({ name: 'Brilliant', sentence: 'a sound sacrifice of the queen.', tone: 'good' });
+    expect(labelReasonText(a, { moverIsYou: true })).toBe('A sound sacrifice: Qb8+ gives up the queen on b8, and you stay winning.');
   });
 });

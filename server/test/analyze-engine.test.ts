@@ -185,6 +185,22 @@ describe.skipIf(!engineAvailable())('analyzeMove on real positions (Stockfish)',
     },
     T,
   );
+
+  it(
+    '(B1) mistermine102 vs M1_2_3M: 6...Qh4?? 7.O-O is a Miss — Nxh4 wins the queen for free (and also stops Qxf2#)',
+    async () => {
+      const moves = 'e2e4 e7e5 g1f3 g8f6 b1c3 f8c5 f1c4 d7d6 d2d3 f6e4 d3e4 d8h4'.split(' ');
+      const prevFen = playUci(legalFen('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'), moves.slice(0, -1));
+      const fen = playUci(prevFen, ['d8h4']);
+      const a = await run({ fenBefore: fen, uci: 'e1g1', prev: { fenBefore: prevFen, uci: 'd8h4' } });
+      const msg = dump(a);
+      // at least Miss (under CPU load the played move's PV sometimes loses material too: then the material rule's Blunder)
+      expect(['miss', 'blunder'], msg).toContain(a.label);
+      expect(a.labelReason.missedMaterial, msg).toMatchObject({ piece: { role: 'queen', square: 'h4' }, free: true });
+      if (a.label === 'miss') expect(a.played.explanation!.immediate.text[0], msg).toMatch(/^Misses Nxh4, which wins Black's queen on h4 for free/);
+    },
+    T,
+  );
 });
 
 // (c) premise: found by scanning the bench/games reports for pick != best; stable over repeated cold runs.

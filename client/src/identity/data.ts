@@ -51,6 +51,7 @@ export const VERDICT = {
 export const GLYPH: Record<Label, string> = {
   book: '≡',
   forced: '□',
+  brilliant: '!!',
   great: '!',
   best: '★',
   excellent: '✓',

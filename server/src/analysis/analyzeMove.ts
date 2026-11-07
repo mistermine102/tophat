@@ -390,6 +390,14 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
   if (BAD_LABELS.has(cr.label) && !playedIsBest && pf) {
     const misses: Extract<Fact, { type: 'misses' }> = { type: 'misses', san: bestWork.san, uci: bestWork.uci, facts: betterR.flatMap((r) => r.facts) };
     if (partial) misses.partial = true;
+    // (B1) missed free material: say "for free", and name a threat the played move parried that the best move
+    // stops as well (only when the threat move is no longer legal after the best move, e.g. its piece was taken)
+    const free = cr.labelReason.missedMaterial;
+    if (free?.free) {
+      misses.free = free.piece;
+      const parried = pf.immediate.find((f): f is Extract<Fact, { type: 'defends-threat' }> => f.type === 'defends-threat');
+      if (parried && legalPrefix(bestWork.fenAfter, [parried.move]).length === 0) misses.alsoStops = parried.san;
+    }
     playedCand.explanation = renderExplanation({ immediate: [...pf.immediate, misses], short: pf.short, long: pf.long }, pf.ctx);
   }
   // (M5c) the suggestions shown next to the played move don't repeat its sentences as their own point

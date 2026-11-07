@@ -115,7 +115,7 @@ const hoverInfo = computed(() => {
     ref="root"
     class="relative h-full w-full cursor-pointer select-none overflow-hidden rounded-[10px] border-2 border-[var(--th-ink)] bg-[var(--th-paper-2)]"
     data-testid="eval-graph"
-    title="Who was winning during the game: the higher the light area, the better for White. Dots mark mistakes and great moves. Click to jump to that move."
+    title="Who was winning during the game: the higher the light area, the better for White. Dots mark mistakes and brilliant / great moves. Click to jump to that move."
     @mousemove="hover = plyAt($event)"
     @mouseleave="hover = null"
     @click="emit('select', plyAt($event))"

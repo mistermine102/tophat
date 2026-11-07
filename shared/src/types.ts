@@ -3,7 +3,7 @@
 
 export type Color = 'white' | 'black';
 export type Label =
-  | 'forced' | 'book' | 'best' | 'great' | 'excellent' | 'good'
+  | 'forced' | 'book' | 'brilliant' | 'best' | 'great' | 'excellent' | 'good'
   | 'inaccuracy' | 'mistake' | 'miss' | 'blunder';
 export interface Score { cp?: number; mate?: number }   // exactly one set; mate>0 = side to move mates
 
@@ -30,7 +30,7 @@ export type Fact =
   | { type: 'hangs'; piece: PieceRef; loss: number; already?: boolean }  // negative: leaves material en prise; already = was en prise before the move and still is
   | { type: 'allows-mate'; inMoves: number; line?: string[] }        // negative; line (M5b): the mating sequence from the opponent's reply (SAN, ends in checkmate on the board)
   | { type: 'misses-mate'; mateIn: number; best: string; line: string[] }  // negative (M5b): the mover had a forced mate (the best move's line, SAN from the best move, ends in checkmate) and the move doesn't mate
-  | { type: 'misses'; san: string; uci: string; facts: Fact[]; partial?: boolean }       // partial (M5c): the verified reasons are small next to the eval drop (the text adds 'the engine sees more than this'). M5b, bad moves whose Immediate level says nothing else: the engine's best move and its verified facts this move doesn't share (empty facts = no reason in words was found)
+  | { type: 'misses'; san: string; uci: string; facts: Fact[]; partial?: boolean; free?: PieceRef; alsoStops?: string }       // free (B1): the move wins this opponent piece for free (labelReason.missedMaterial); alsoStops (B1): SAN of the threat the played move parried, which the move stops too (the threat move is illegal after it); partial (M5c): the verified reasons are small next to the eval drop (the text adds 'the engine sees more than this'). M5b, bad moves whose Immediate level says nothing else: the engine's best move and its verified facts this move doesn't share (empty facts = no reason in words was found)
   | { type: 'castling-lost'; color: Color; sides: ('king' | 'queen')[]; at?: 'line-end' }  // M5b: `color` loses its last castling rights (king or rook moved; at 'line-end': its king was driven out during the short line)
   | { type: 'attack-pinned'; attacker: PieceRef; pinned: PieceRef; pinner: PieceRef; behind: PieceRef; absolute: boolean }  // M5b: the move adds an attacker to an enemy piece that was already pinned, and the piece can now be won
   | { type: 'trapped'; piece: PieceRef; attacker: PieceRef }       // M5b: an enemy piece is attacked, can be won, and every square it can move to loses it too (confirmed by the engine line winning it)
@@ -96,6 +96,10 @@ export interface MaterialCheck { playedLine: number; bestLine: number; loss: num
 export interface AllowedMate { matedIn: number; bestMatedIn?: number }
 /** The mover had a forced mate in `mateIn` moves (the best move) and played a move that doesn't force mate. */
 export interface MissedMate { mateIn: number }
+/** (B1) The best move wins `gain` points of material for free (quiet-point material of its line) and the played move doesn't; `piece` = the opponent's piece the best move captures. */
+export interface MissedMaterial { gain: number; piece: PieceRef; free?: boolean }  // free: the capture loses nothing back (static exchange = the piece's full value)
+/** (B2) The played move gives up `sacrifice` points of material (quiet-point material of its line) and the position stays good; `piece` = the mover's piece left en prise. */
+export interface BrilliantSacrifice { sacrifice: number; piece: PieceRef }
 
 export interface MoveAnalysis {
   version: number;
@@ -107,7 +111,7 @@ export interface MoveAnalysis {
   winLoss: number;
   accuracy: number;                    // per-move accuracy %
   label: Label;
-  labelReason: { winChance: Label; material?: MaterialCheck; miss?: boolean; great?: { secondBestLoss: number }; book?: { eco: string; name: string }; allowedMate?: AllowedMate; missedMate?: MissedMate };
+  labelReason: { winChance: Label; material?: MaterialCheck; miss?: boolean; great?: { secondBestLoss: number }; book?: { eco: string; name: string }; allowedMate?: AllowedMate; missedMate?: MissedMate; missedMaterial?: MissedMaterial; brilliant?: BrilliantSacrifice };
   played: Candidate;                   // the played move as a candidate, with explanation
   best: Candidate;
   pick: Candidate | null;              // explainable pick; null if none
@@ -117,7 +121,7 @@ export interface MoveAnalysis {
   arrows: Arrow[];
   timings?: Record<string, number>;
   labelText?: string;                  // rendered label + reason (explain.ts), mover-neutral
-  verdictText?: string;                // caption for confirmed moves (Book/Forced/Best/Great), e.g. "Opening theory."
+  verdictText?: string;                // caption for confirmed moves (Book/Forced/Brilliant/Best/Great), e.g. "Opening theory."
 }
 export interface Arrow { from: string; to: string; kind: 'pick' | 'best' | 'threat' | 'played' }
 

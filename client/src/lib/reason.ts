@@ -117,7 +117,15 @@ export function labelReasonText(a: MoveAnalysis, ctx: ReasonContext): string {
         ? `The only good move — the next best, ${second.san}, would have thrown away ${pct(l)} win chance.`
         : 'The only good move here.';
     }
+    case 'brilliant': {
+      const s = r.brilliant;
+      const stays = a.winAfter >= 70 ? 'winning' : 'fine';
+      const are = ctx.moverIsYou ? 'you stay' : `${sideName(a.color)} stays`;
+      return s ? `A sound sacrifice: ${a.san} gives up the ${s.piece.role} on ${s.piece.square}, and ${are} ${stays}.` : 'A sound sacrifice.';
+    }
     case 'miss': {
+      const mm = r.missedMaterial;
+      if (mm) return mm.free ? `Missed a free ${mm.piece.role}: ${a.best.san} wins the ${mm.piece.role} on ${mm.piece.square}, this move doesn't.` : `Missed a chance to win material: ${a.best.san} takes the ${mm.piece.role} on ${mm.piece.square}, this move doesn't.`;
       const prev = ctx.prevMove ? ` ${ctx.prevMove}` : ' the previous move';
       return `Missed the chance to punish${prev}: ${a.best.san} would have kept the advantage (${pct(loss)} win chance given back).`;
     }

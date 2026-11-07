@@ -18,7 +18,7 @@ const pending = computed(() => props.node.mainPly === null && session.isPending(
 const failed = computed(() => !!session.errorFor(props.node));
 const severe = computed(() => !!a.value && LABELS[a.value.label].severity >= 3);
 // (prototype C) labelled badges: a bigger glyph, errors and great moves tinted with their label colour
-const tint = computed(() => (props.badges && a.value && (severe.value || a.value.label === 'great') && !active.value ? { background: `${LABELS[a.value.label].color}22` } : undefined));
+const tint = computed(() => (props.badges && a.value && (severe.value || a.value.label === 'great' || a.value.label === 'brilliant') && !active.value ? { background: `${LABELS[a.value.label].color}22` } : undefined));
 </script>
 
 <template>

@@ -145,9 +145,12 @@ describe.skipIf(!engineAvailable())('classification on real positions (Stockfish
       expect(a.result.labelReason.material?.label, msg).toBeUndefined(); // not taking is not "throwing away"
       expect(a.result.labelReason.miss, msg).toBe(true);
       expect(a.result.label, msg).toBe('miss');
-      // without the previous-move context it is a plain Inaccuracy/Mistake
+      // without the previous-move context the win-chance Miss rule can't fire, but (B1) the free bishop still makes it a Miss
       const noCtx = await analyseMove(engine, fen, 'a1b1');
-      expect(['inaccuracy', 'mistake'], dump(noCtx)).toContain(noCtx.result.label);
+      expect(['inaccuracy', 'mistake'], dump(noCtx)).toContain(noCtx.result.labelReason.winChance);
+      expect(noCtx.result.labelReason.miss, dump(noCtx)).toBeUndefined();
+      expect(noCtx.result.labelReason.missedMaterial, dump(noCtx)).toMatchObject({ piece: { role: 'bishop', square: 'g4' } });
+      expect(noCtx.result.label, dump(noCtx)).toBe('miss');
     },
     T,
   );
