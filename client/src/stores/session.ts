@@ -1,7 +1,7 @@
 // Session store: the loaded game, streamed analyses, the move tree/cursor, side-line analyses, your side.
 // "You" = the side at the bottom of the board: flipping the board switches it, and the choice is remembered per game
 // (lib/sides.ts). A game opens with the remembered side, else the side whose player name matches the chess.com name
-// last looked up in the Open dialog, else the server's guess (GameInfo.you).
+// last looked up on the Open screen, else the server's guess (GameInfo.you).
 // Plain Vue reactivity; one instance per app (provided via `provide`/`inject`, see useSession()).
 import type { Color, GameInfo, GameSummary, MoveAnalysis, Tone } from '@chess-coach/shared';
 import { computed, inject, reactive, watch, type InjectionKey } from 'vue';
@@ -66,7 +66,7 @@ export function createSession(api: ApiClient, opts: SessionOptions = {}) {
     loadError: null as string | null,
     connectionError: null as string | null,
     preview: null as Preview | null,
-    /** The chess.com username last looked up in the Open dialog (remembered in the browser). */
+    /** The chess.com username last looked up on the Open screen (remembered in the browser). */
     chessComName: loadChessComName(storage, api.mode),
     recent: loadRecent(storage, recentKey(api.mode)) as RecentGame[],
     /** Last /api/health answer (null = not checked yet). */

@@ -81,7 +81,7 @@ for (const ui of ['a', 'b', 'c'] as const) {
     await expect(page.getByTestId('explanation').locator('[data-tone="good"]').first()).toBeVisible();
 
     if (ui === 'a') {
-      // the move's consequences on the board (red = bad for the mover); no tint just for being attacked
+      // the move's consequences on the board (red = bad for you: Black, the fixture player); no tint just for being attacked
       await page.locator('[data-node="m52"]').click();
       await expect(page.locator('[data-testid="board-tag"][data-tone="bad"]').first()).toBeVisible();
       expect(await page.locator('cg-board square[class*=cc-hang-]').count()).toBe(0);

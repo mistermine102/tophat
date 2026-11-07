@@ -1,4 +1,4 @@
-// Rows for the chess.com game list in the Open dialog: the game seen from the player's side.
+// Rows for the chess.com game list on the Open screen: the game seen from the player's side.
 import type { ChessComGame } from '@chess-coach/shared';
 import { type Ending, endingFromChessCom } from './ending';
 

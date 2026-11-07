@@ -1,19 +1,21 @@
 <script setup lang="ts">
-// Header (Tophat logo = home, players, progress, Open game) + the screen: layout A (board-first); the older layouts only by
-// URL (`?ui=classic|b|c`, lib/uiMode.ts). All layouts share the session store.
+// Header (Tophat logo = home, players, progress, Open game) + one of two screens (lib/route.ts): the Open screen
+// (OpenScreen: the landing page when no game is open) or the game in layout A (board-first); the older layouts only
+// by URL (`?ui=classic|b|c`, lib/uiMode.ts). All layouts share the session store.
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
-import PgnDialog from './components/PgnDialog.vue';
+import OpenScreen from './components/OpenScreen.vue';
 import TophatMark from './components/TophatMark.vue';
 import BoardFirstLayout from './layouts/BoardFirstLayout.vue';
 import ClassicLayout from './layouts/ClassicLayout.vue';
 import CoachLayout from './layouts/CoachLayout.vue';
 import GoodBadLayout from './layouts/GoodBadLayout.vue';
+import { gameIdOf, isOpenState, OPEN_STATE, type Screen, withGame } from './lib/route';
 import { uiMode } from './lib/uiMode';
 import { useSession } from './stores/session';
 
 const session = useSession();
-const showPgn = ref(false);
-const booting = ref(true);
+/** null while booting (a `?game=` URL is being opened). */
+const screen = ref<Screen | null>(null);
 const game = computed(() => session.state.game);
 const progress = computed(() => session.progress.value);
 const analysing = computed(() => progress.value.total > 0 && progress.value.done + progress.value.failed < progress.value.total);
@@ -32,21 +34,46 @@ const players = computed(() => {
   return { white: `${h.White ?? 'White'}${elo(h.WhiteElo)}`, black: `${h.Black ?? 'Black'}${elo(h.BlackElo)}`, result: h.Result ?? '*' };
 });
 
-onMounted(async () => {
-  await session.checkHealth();
-  const id = new URLSearchParams(location.search).get('game');
-  if (id && (await session.openGame(id))) {
-    booting.value = false;
+/** The screen for the URL: `?game=<id>` opens that game (unless it is the one loaded), else the Open screen. */
+async function route() {
+  const id = gameIdOf(location.search);
+  if (id && (session.state.game?.id === id || (await session.openGame(id)))) {
+    screen.value = 'game';
     return;
   }
-  booting.value = false;
-  showPgn.value = true;
+  // a game that can't be opened (e.g. gone from the server's cache): the Open screen says why, and a reload doesn't
+  // try again
+  if (id) history.replaceState(null, '', withGame(location.href, null));
+  screen.value = 'open';
+}
+
+onMounted(async () => {
+  await session.checkHealth();
+  await route();
 });
+window.addEventListener('popstate', route);
+onBeforeUnmount(() => window.removeEventListener('popstate', route));
+
+/** Header "Open game" / the logo: the Open screen over the game, which stays loaded (Back returns to it). */
+function showOpen() {
+  if (screen.value === 'open') return;
+  if (session.state.game) history.pushState(OPEN_STATE, '', withGame(location.href, null));
+  screen.value = 'open';
+}
+/** Back from the Open screen to the loaded game. */
+function backToGame() {
+  if (!session.state.game) return;
+  if (isOpenState(history.state)) history.back(); // → popstate → route()
+  else {
+    history.replaceState(null, '', withGame(location.href, session.state.game.id));
+    screen.value = 'game';
+  }
+}
 
 function onKey(e: KeyboardEvent) {
   const t = e.target as HTMLElement | null;
   if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
-  if (showPgn.value || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (screen.value !== 'game' || e.ctrlKey || e.metaKey || e.altKey) return;
   const actions: Record<string, () => void> = {
     ArrowLeft: () => session.prev(),
     ArrowRight: () => session.next(),
@@ -76,7 +103,7 @@ onBeforeUnmount(() => {
           class="-ml-1 flex items-center gap-2 rounded-lg px-1 py-0.5 hover:bg-white/5"
           title="Home: your chess.com games, paste a game, recently opened"
           data-testid="home"
-          @click="showPgn = true"
+          @click="showOpen()"
         >
           <TophatMark class="h-8 w-8" />
           <span class="th-display text-[26px] font-bold leading-none tracking-[-0.01em]">Tophat</span>
@@ -86,7 +113,7 @@ onBeforeUnmount(() => {
         </span>
       </div>
       <!-- layout A shows the players above / below the board instead -->
-      <div v-if="players && uiMode !== 'a'" class="min-w-0 truncate text-sm text-neutral-300" data-testid="players">
+      <div v-if="players && screen === 'game' && uiMode !== 'a'" class="min-w-0 truncate text-sm text-neutral-300" data-testid="players">
         <span class="mr-1 inline-block h-2.5 w-2.5 rounded-full th-side-white align-middle"></span>{{ players.white }}
         <span class="mx-1.5 text-neutral-500">vs</span>
         <span class="mr-1 inline-block h-2.5 w-2.5 rounded-full th-side-black align-middle"></span>{{ players.black }}
@@ -95,7 +122,7 @@ onBeforeUnmount(() => {
       <div class="ml-auto flex items-center gap-2">
         <!-- analysis progress: quiet text while it runs; once complete only screen readers (and tests) see it -->
         <span
-          v-if="game"
+          v-if="game && screen === 'game'"
           class="inline-flex items-center gap-2 text-[13px] text-neutral-400"
           :class="{ 'sr-only': !analysing && !progress.failed }"
           role="status"
@@ -112,36 +139,27 @@ onBeforeUnmount(() => {
         </span>
         <span v-if="health && !health.ok" class="th-badge th-badge-bad" :title="health.error" data-testid="engine-down">Engine offline</span>
         <span v-if="session.state.connectionError" class="th-badge th-badge-bad" :title="session.state.connectionError">Connection lost</span>
-        <button class="th-btn th-btn-primary" data-testid="open-pgn" @click="showPgn = true">
+        <button v-if="screen === 'game'" class="th-btn th-btn-primary" data-testid="open-pgn" @click="showOpen()">
           <svg viewBox="0 0 20 20" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4v12M4 10h12" /></svg>
           Open game
         </button>
       </div>
     </header>
 
-    <template v-if="game">
+    <OpenScreen v-if="screen === 'open'" @opened="screen = 'game'" @back="backToGame()" />
+
+    <template v-else-if="screen === 'game' && game">
       <BoardFirstLayout v-if="uiMode === 'a'" />
       <CoachLayout v-else-if="uiMode === 'b'" />
       <GoodBadLayout v-else-if="uiMode === 'c'" />
       <ClassicLayout v-else />
     </template>
 
+    <!-- booting: the game in the URL is being opened -->
     <main v-else class="flex flex-1 flex-col items-center justify-center gap-3 text-center">
-      <template v-if="booting || session.state.loading">
-        <span class="h-6 w-6 animate-spin rounded-full border-2 border-neutral-500 border-t-transparent"></span>
-        <p class="text-sm text-neutral-400">Loading…</p>
-      </template>
-      <template v-else>
-        <TophatMark class="h-14 w-14 opacity-40" />
-        <p class="text-neutral-300">No game open.</p>
-        <p v-if="session.state.loadError" class="max-w-md text-sm text-rose-300">{{ session.state.loadError }}</p>
-        <button class="th-btn th-btn-primary mt-1" @click="showPgn = true">
-          Open a game
-        </button>
-      </template>
+      <span class="h-6 w-6 animate-spin rounded-full border-2 border-neutral-500 border-t-transparent"></span>
+      <p class="text-sm text-neutral-400">Loading…</p>
     </main>
-
-    <PgnDialog v-if="showPgn" :closable="!!game" @close="showPgn = false" />
   </div>
 </template>
 
