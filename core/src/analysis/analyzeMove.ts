@@ -103,12 +103,15 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
   // 2. evaluation after the move (= next ply's deep search)
   const status = positionStatus(played.fenAfter);
   let evalAfter: Score;
+  let nextBest: MoveAnalysis['nextBest'];
   if (status === 'checkmate') evalAfter = toWhitePov({ mate: 0 }, opp);
   else if (status === 'stalemate') evalAfter = { cp: 0 };
   else {
     const after = await search('deepAfter', played.fenAfter, deepParams);
     const s = after.lines[0]?.score;
     evalAfter = s ? toWhitePov(s, opp) : toWhitePov(playedLine.score, mover);
+    const nb = after.lines[0]?.move;
+    if (nb && legalPrefix(played.fenAfter, [nb]).length === 1) nextBest = { uci: nb, san: playMove(played.fenAfter, nb).san };
   }
 
   // 3. shallow search
@@ -387,6 +390,7 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
     arrows,
     timings,
   };
+  if (nextBest) analysis.nextBest = nextBest;
   // why the best move is better (its own verified facts, incl. quiet / long-term ones — M5b), for the label text and,
   // when the played move's Immediate level has nothing else to say, as a 'misses' sentence there
   const bf = allFacts.get(bestWork.uci);

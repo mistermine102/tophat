@@ -81,6 +81,7 @@ function onKey(e: KeyboardEvent) {
     End: () => session.last(),
     f: () => session.flip(),
     n: () => session.nextMistake(),
+    b: () => session.toggleShowBest(),
   };
   const act = actions[e.key];
   if (act && session.state.tree) {

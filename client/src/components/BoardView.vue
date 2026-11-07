@@ -41,13 +41,19 @@ const THIN = { good: 'goodThin', bad: 'badThin', neutral: 'neutralThin' } as con
 const threatBrush = computed(() => (analysis.value?.color === session.state.you ? THIN.good : THIN.bad));
 
 const ORDER: Record<Arrow['kind'], number> = { played: 0, threat: 1, best: 2, pick: 3 };
+// "Show best move" (session.state.showBest): the best move here, instead of the arrows about the previous move's alternatives
+const bestHereShape = computed<DrawShape | null>(() => {
+  const b = session.state.showBest && !preview.value ? session.bestHere.value : null;
+  return b ? { orig: b.uci.slice(0, 2) as Key, dest: b.uci.slice(2, 4) as Key, brush: 'bestHere' } : null;
+});
 const shapes = computed<DrawShape[]>(() => {
   if (preview.value) return (preview.value.arrows ?? []).map((a) => ({ orig: a.from as Key, dest: a.to as Key, brush: a.brush }));
-  if (!analysis.value || !props.arrows) return [];
+  const here = bestHereShape.value ? [bestHereShape.value] : [];
+  if (!analysis.value || !props.arrows) return here;
   const played = analysis.value.uci;
   const noSuggestion = analysis.value.label === 'book' || analysis.value.label === 'forced';
   const arrows = analysis.value.arrows.filter(
-    (a) => !((a.kind === 'pick' || a.kind === 'best') && (noSuggestion || played.startsWith(a.from + a.to))),
+    (a) => !((a.kind === 'pick' || a.kind === 'best') && (noSuggestion || played.startsWith(a.from + a.to) || session.state.showBest)),
   );
   const contrast = arrows.some((a) => a.kind === 'pick' || a.kind === 'best');
   const suggestions: DrawShape[] = arrows
@@ -55,9 +61,9 @@ const shapes = computed<DrawShape[]>(() => {
     .sort((a, b) => ORDER[a.kind] - ORDER[b.kind])
     // with consequence marks red means "bad for you": the mover's threat is a thin arrow, green when you made the move
     .map((a) => ({ orig: a.from as Key, dest: a.to as Key, brush: cons.value && a.kind === 'threat' ? threatBrush.value : a.kind }));
-  if (!cons.value) return suggestions;
+  if (!cons.value) return [...suggestions, ...here];
   const thin: DrawShape[] = cons.value.arrows.map((x) => ({ orig: x.from as Key, dest: x.to as Key, brush: THIN[x.tone] }));
-  return [...thin, ...suggestions];
+  return [...thin, ...suggestions, ...here];
 });
 
 /** The badge: the current move's label on its destination square (or the preview's marker). */

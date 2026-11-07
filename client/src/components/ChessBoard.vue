@@ -35,6 +35,8 @@ let ro: ResizeObserver | null = null;
 const BRUSHES = {
   pick: { key: 'cc-pick', color: '#16a34a', opacity: 0.9, lineWidth: 11 },
   best: { key: 'cc-best', color: '#2563eb', opacity: 0.85, lineWidth: 11 },
+  // "Show best move": the engine's best move in the position on the board
+  bestHere: { key: 'cc-best-here', color: '#e0a400', opacity: 0.9, lineWidth: 12 },
   threat: { key: 'cc-threat', color: '#dc2626', opacity: 0.85, lineWidth: 10 },
   played: { key: 'cc-played', color: '#6b7280', opacity: 0.55, lineWidth: 9 },
   // (UI prototypes) replayed steps, by tone for the mover

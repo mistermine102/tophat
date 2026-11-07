@@ -1,6 +1,10 @@
 <script setup lang="ts">
+import { useSession } from '../stores/session';
+
 defineProps<{ canPrev: boolean; canNext: boolean; inSideLine: boolean; canMistake: boolean }>();
 const emit = defineEmits<{ first: []; prev: []; next: []; last: []; flip: []; back: []; mistake: [] }>();
+// "Show best move" lives in the session (remembered), so every layout's controls share it
+const session = useSession();
 </script>
 
 <template>
@@ -20,6 +24,19 @@ const emit = defineEmits<{ first: []; prev: []; next: []; last: []; flip: []; ba
     <button class="th-btn nav-btn ml-1" title="Flip board (F) — the side at the bottom is “You”" aria-label="Flip board" data-testid="flip" @click="emit('flip')">
       <svg viewBox="0 0 20 20" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
         <path d="M6 3v13M6 16l-3-3M6 16l3-3M14 17V4M14 4l-3 3M14 4l3 3" />
+      </svg>
+    </button>
+    <button
+      class="th-btn nav-btn best-btn"
+      :class="{ 'is-on': session.state.showBest }"
+      :title="session.state.showBest ? 'Hide the best move (B)' : 'Show the best move in this position (B)'"
+      aria-label="Show best move"
+      :aria-pressed="session.state.showBest"
+      data-testid="show-best"
+      @click="session.toggleShowBest()"
+    >
+      <svg viewBox="0 0 20 20" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 16L15 4M15 4H8.5M15 4v6.5" />
       </svg>
     </button>
     <button
@@ -50,5 +67,10 @@ const emit = defineEmits<{ first: []; prev: []; next: []; last: []; flip: []; ba
 .nav-btn {
   width: 2.75rem;
   padding: 0;
+}
+.best-btn.is-on {
+  background: #e0a400;
+  border-color: #b98700;
+  color: #1c1917;
 }
 </style>

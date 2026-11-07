@@ -45,6 +45,8 @@ export interface SessionOptions {
   onGameChange?: (id: string | null) => void;
 }
 
+const SHOW_BEST_KEY = 'chess-coach:show-best';
+
 /** How often the engine's health is checked again while it is offline. */
 export const HEALTH_RETRY_MS = 5000;
 
@@ -75,6 +77,8 @@ export function createSession(api: ApiClient, opts: SessionOptions = {}) {
     highlight: [] as string[],
     /** For the time-left estimate: when this session started waiting for the stream, and how many plies were done then. */
     rate: null as { start: number; doneAtStart: number; last: number } | null,
+    /** "Show best move": an arrow for the engine's best move in the position on the board (off by default — it is a hint; remembered). */
+    showBest: storage?.getItem(SHOW_BEST_KEY) === '1',
   });
 
   let unsubscribe: Unsubscribe | null = null;
@@ -103,6 +107,29 @@ export function createSession(api: ApiClient, opts: SessionOptions = {}) {
   }
 
   const currentAnalysis = computed(() => analysisFor(current.value));
+
+  /**
+   * The engine's best move in the position on the board: from the analysis of the move that led here (its search of
+   * the position after it), or for the start position from the first move's analysis. Null while it is analysed.
+   */
+  const bestHere = computed<{ uci: string; san: string } | null>(() => {
+    const node = current.value;
+    if (!node) return null;
+    if (node.ply === 0) {
+      const first = state.analyses[1];
+      return first ? { uci: first.best.uci, san: first.best.san } : null;
+    }
+    const a = analysisFor(node);
+    if (a?.nextBest) return a.nextBest;
+    // a main-line move analysed before nextBest existed: the next ply's best move is the same search
+    const next = node.mainPly !== null ? state.analyses[node.mainPly + 1] : undefined;
+    return next ? { uci: next.best.uci, san: next.best.san } : null;
+  });
+
+  function toggleShowBest() {
+    state.showBest = !state.showBest;
+    storage?.setItem(SHOW_BEST_KEY, state.showBest ? '1' : '0');
+  }
 
   const summary = computed<GameSummary | null>(() => {
     if (!state.game) return null;
@@ -398,6 +425,8 @@ export function createSession(api: ApiClient, opts: SessionOptions = {}) {
     state,
     current,
     currentAnalysis,
+    bestHere,
+    toggleShowBest,
     summary,
     progress,
     etaSeconds,

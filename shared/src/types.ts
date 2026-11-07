@@ -124,6 +124,7 @@ export interface MoveAnalysis {
   timings?: Record<string, number>;
   labelText?: string;                  // rendered label + reason (explain.ts), mover-neutral
   verdictText?: string;                // caption for confirmed moves (Book/Forced/Brilliant/Best/Great), e.g. "Opening theory."
+  nextBest?: { uci: string; san: string };  // (Why round) the engine's best move in the position after this move (the deep search for evalAfter), for the "Show best move" toggle; absent when the game is over
 }
 export interface Arrow { from: string; to: string; kind: 'pick' | 'best' | 'threat' | 'played' }
 

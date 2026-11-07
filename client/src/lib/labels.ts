@@ -19,12 +19,12 @@ export const LABELS: Record<Label, LabelMeta> = {
   forced: { name: 'Forced', glyph: '□', color: '#7c8691', severity: 0, blurb: 'The only legal move.', rule: 'The only legal move.' },
   brilliant: { name: 'Brilliant', glyph: '!!', color: '#119c8f', severity: 0, blurb: 'A sound sacrifice.', rule: 'The best move (or nearly), and it gives up material — a piece is left to be taken — while the position stays good. Not when the position was already completely winning anyway, nor for recaptures or plain trades.' },
   great: { name: 'Great', glyph: '!', color: '#1f7fb3', severity: 0, blurb: 'The only good move here.', rule: 'The best move, and the only good one: the 2nd-best move would have been a mistake.' },
-  best: { name: 'Best', glyph: '★', color: '#2f8a4c', severity: 0, blurb: 'The best move.', rule: 'The top move — only that one.' },
+  best: { name: 'Best', glyph: '★', color: '#2f8a4c', severity: 0, blurb: 'The best move.', rule: 'The top move — only that one (gold star).' },
   excellent: { name: 'Excellent', glyph: '✓', color: '#4fa36a', severity: 1, blurb: 'Almost as good as the best move.', rule: 'Loses at most 2% win chance compared with the best move.' },
   good: { name: 'Good', glyph: '✓', color: '#8aa167', severity: 2, blurb: 'A solid move, a little worse than the best.', rule: 'Loses at most 5% win chance.' },
   inaccuracy: { name: 'Inaccuracy', glyph: '?!', color: '#d9a514', severity: 3, blurb: 'A better move was available.', rule: 'Loses 5–10% win chance.' },
   mistake: { name: 'Mistake', glyph: '?', color: '#db7420', severity: 4, blurb: 'This gave away a good part of your chances.', rule: 'Loses 10–20% win chance, or gives away 2+ pawns of material for nothing.' },
-  miss: { name: 'Miss', glyph: '✕', color: '#a94fb3', severity: 5, blurb: 'Missed the chance to punish the previous move.', rule: 'The opponent just made a mistake and this move let the chance to punish it slip — or a forced mate in 3 or less, or a free piece, was missed.' },
+  miss: { name: 'Miss', glyph: '✕', color: '#a94fb3', severity: 5, blurb: 'Missed the chance to punish the previous move.', rule: 'The opponent just made a mistake and this move let a concrete chance to punish it slip (a move that wins material, mates or has a tactic) — or a forced mate in 3 or less, or a free piece, was missed.' },
   blunder: { name: 'Blunder', glyph: '??', color: '#c8323f', severity: 6, blurb: 'A serious error.', rule: 'Loses more than 20% win chance, hangs 3+ pawns of material for nothing, or allows a forced mate in 3 or less that the best move avoids.' },
 };
 
