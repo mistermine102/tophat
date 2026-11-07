@@ -47,8 +47,8 @@ export interface ExplainContext {
   label?: Label;
   /** The move (UCI): tells a pin made by the moving piece from one it uncovers. */
   uci?: string;
-  /** (M5c) Played bad move: the eval drop vs the best move (pawns, no mates involved) for the honest hedge. */
-  hedge?: { dropPawns: number; bestSan: string };
+  /** (M5c) Played bad move: the eval drop vs the best move (pawns, no mates involved) for the honest hedge; laterLoss (Why round): material the mover is down further along the line (`LATER_PLIES`, quiet point). */
+  hedge?: { dropPawns: number; bestSan: string; laterLoss?: number };
 }
 
 type F<T extends Fact['type']> = Extract<Fact, { type: T }>;
@@ -347,8 +347,52 @@ function immediateFactText(f: Fact, ctx: ExplainContext): string | null {
       return defendsText(f, ctx);
     case 'allows':
       return allowsText(f, ctx);
+    case 'loosens':
+      return capitalize(loosensPhrase(f, ctx.mover));
+    case 'trades-down':
+      return capitalize(tradesDownPhrase(f, ctx.mover));
     default:
       return null;
+  }
+}
+
+/**
+ * (Why round) "leaves the pawn on g3 without a defender: Black's knight heads for f5 to attack it (…Nh6, …Nf5), and
+ * White's king has to defend it from f2, giving up castling" — a verb phrase (the move is the subject).
+ */
+export function loosensPhrase(f: F<'loosens'>, mover: Color, opts: { short?: boolean } = {}): string {
+  const opp = colorName(other(mover));
+  const me = colorName(mover);
+  const what = f.undefended ? `leaves ${the(f.target)} undefended` : `takes a defender away from ${the(f.target)}`;
+  const moves = f.route.map((s) => moveName(s, other(mover)));
+  const capturesOnArrival = /x/.test(f.route[f.route.length - 1] ?? '');
+  const attack = f.route.length >= 2 && !capturesOnArrival
+    ? `${opp}'s ${f.attacker.role} heads for ${f.attacker.square} to attack it (${moves.join(', ')})`
+    : `${moves[moves.length - 1]} attacks it`;
+  if (opts.short) return `${what}, and ${attack.replace(/ \(.*\)$/, '')}`;
+  const answer = f.answer?.how === 'king'
+    ? `${me}'s king has to defend it from ${f.answer.san.replace(/^K|[+#]$/g, '').slice(-2)}${f.castlingLost ? ', giving up castling' : ''}`
+    : f.answer?.how === 'defends' ? `${me} has to defend it with ${f.answer.san}` : null;
+  let s = `${what}: ${attack}`;
+  if (answer) s += `, and ${answer}`;
+  if (f.won) s += answer ? `, but ${me} still loses it` : `, and ${me} loses it`;
+  return s;
+}
+
+/** (Why round) "leads to a lost pawn ending: after Qxe3+ Kxe3 only the kings and pawns are left" (the move is the subject). */
+export function tradesDownPhrase(f: F<'trades-down'>, mover: Color): string {
+  const me = colorName(mover);
+  const opp = colorName(other(mover));
+  const after = `after ${f.line.slice(1).map((s, i) => (i % 2 === 0 ? moveName(s, other(mover)) : s)).join(' ')}`;
+  const left = f.trade === 'pieces' || f.ending === 'pawn' ? 'only the kings and pawns are left' : 'the queens are off';
+  const ending = f.ending === 'pawn' ? 'pawn ending' : 'ending';
+  switch (f.verdict) {
+    case 'lost':
+      return `leads to a lost ${ending} for ${me}: ${after} ${left}`;
+    case 'draw':
+      return `lets a won position slip into a drawn ${ending}: ${after} ${left}`;
+    default:
+      return `leads to ${f.ending === 'pawn' ? 'a pawn ending' : 'an ending'} that is clearly better for ${opp}: ${after} ${left}`;
   }
 }
 
@@ -1010,16 +1054,22 @@ function missesText(f: F<'misses'>, ctx: ExplainContext, long: readonly Fact[], 
   if (reasons.length) return `Misses ${f.san}, which ${reasons[0]}.`;
   // (round 6) the move's own engine line loses material: say that, not "no tactical problem"
   const line = short.find((x): x is F<'line'> => x.type === 'line');
+  // (Why round) several moves about as good as the best one: name them — the played move is the odd one out
+  const which = f.fine && f.fine.length >= 2 ? orList(f.fine) : f.san;
+  const all = f.fine && f.fine.length === 2 ? 'both' : 'all';
+  const verb = f.fine && f.fine.length >= 2 ? (ctx.label === 'inaccuracy' ? 'were a bit better' : `were ${all} much better`) : better;
   if (line?.result === 'loses-material') {
-    return `Nothing is lost right away, but ${colorName(ctx.mover)} soon loses ${material(line.materialDelta)}; ${f.san} ${better}.`;
+    return `Nothing is lost right away, but ${colorName(ctx.mover)} soon loses ${material(line.materialDelta)}; ${which} ${verb}.`;
   }
-  return `${f.san} ${better}.`;
+  return `${which} ${verb}.`;
 }
 
 /** (M5c) Size (pawns) of the worst verified negative fact of a move (mates and perpetuals: Infinity). */
-function negativeSize(facts: readonly Fact[]): number {
+export function negativeSize(facts: readonly Fact[]): number {
   let m = 0;
   for (const f of facts) {
+    // (Why round) a cause read from the engine line is the reason for the whole drop
+    if (f.type === 'loosens' || f.type === 'trades-down') return Infinity;
     if (f.type === 'allows-mate' || f.type === 'misses-mate' || (f.type === 'allows' && (f.mateIn !== undefined || f.perpetual || f.facts.some((x) => x.type === 'checkmate' || (x.type === 'threat' && x.mateIn))))) return Infinity;
     if (f.type === 'allows') m = Math.max(m, f.gain ?? 0, ...f.facts.map((x) => (x.type === 'capture' ? -x.net : x.type === 'threat' ? x.gain : 0)));
     if (f.type === 'hangs') m = Math.max(m, f.loss);
@@ -1038,7 +1088,7 @@ export function renderExplanation(all: AllFacts, ctx: ExplainContext): Explanati
     else {
       // (M5b) a bad move whose Immediate level only tells what it does well (stops a threat, takes back, develops):
       // what it misses leads, when that has a verified reason
-      const negative = all.immediate.some((f) => f.type === 'allows' || f.type === 'hangs' || f.type === 'allows-mate' || f.type === 'misses-mate' || (f.type === 'capture' && f.outcome === 'loses-material'));
+      const negative = all.immediate.some((f) => f.type === 'allows' || f.type === 'hangs' || f.type === 'loosens' || f.type === 'trades-down' || f.type === 'allows-mate' || f.type === 'misses-mate' || (f.type === 'capture' && f.outcome === 'loses-material'));
       // (M5c) …and also without a verified reason: the honest fallback, so a Mistake doesn't read as a list of merits
       if (!negative) immediateLines = [missesLine, ...immediateLines].slice(0, MAX_SENTENCES);
       else if (ctx.hedge && !misses.partial) {
@@ -1048,8 +1098,13 @@ export function renderExplanation(all: AllFacts, ctx: ExplainContext): Explanati
           // (UI round) right after the other bad sentences; the last other sentence makes room
           const lines = immediateLines.length >= MAX_SENTENCES ? immediateLines.slice(0, MAX_SENTENCES - 1) : immediateLines;
           const at = lines.filter((l) => l.tone === 'bad').length;
-          const h: ToneLine = { text: at ? `It is worse than that: ${ctx.hedge.bestSan} was much better.` : `${ctx.hedge.bestSan} was much better.`, tone: 'bad' };
-          immediateLines = [...lines.slice(0, at), h, ...lines.slice(at)];
+          // (Why round) not "It is worse than that: Rfe1 was much better" (that only repeats the label): what the line
+          // goes on to cost, when it costs more than told; otherwise the told reason stands on its own
+          const later = ctx.hedge.laterLoss ?? 0;
+          if (later >= negativeSize(all.immediate) + 1) {
+            const h: ToneLine = { text: `A few moves later ${colorName(ctx.mover)} is ${material(later)} down.`, tone: 'bad' };
+            immediateLines = [...lines.slice(0, at), h, ...lines.slice(at)];
+          }
         }
       }
     }
@@ -1378,7 +1433,21 @@ export type LabelTextInput = Pick<MoveAnalysis, 'label' | 'labelReason' | 'color
   san?: string;
   /** The played move's own verified 'hangs' fact (Immediate level), if any. */
   verifiedHang?: { piece: PieceRef; loss: number; already?: boolean } | null;
+  /** (Why round) What the played move's own engine line shows goes wrong; leads the text when given. */
+  cause?: F<'loosens'> | F<'trades-down'> | null;
+  /** (Why round) Other moves about as good as the best one (`fineAlternatives`). */
+  fine?: readonly string[];
+  /** (Why round) Material the best move's line has won further on (`LATER_PLIES`), when more than its told reasons. */
+  betterLater?: number;
 };
+
+/** "c3, d3 or a3" */
+const orList = (items: readonly string[]): string => (items.length <= 1 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} or ${items[items.length - 1]}`);
+
+/** (Why round) The cause as the subject sentence of the label text: "f3 leaves the pawn on g3 undefended, and …". */
+function causeLead(cause: F<'loosens'> | F<'trades-down'>, san: string, mover: Color): string {
+  return `${san} ${cause.type === 'loosens' ? loosensPhrase(cause, mover, { short: true }) : tradesDownPhrase(cause, mover)}.`;
+}
 
 const mateIn = (n: number): string => (n === 1 ? 'mate in one' : `a forced mate in ${n}`);
 
@@ -1393,7 +1462,16 @@ export function labelText(a: LabelTextInput, settings: AnalysisSettings): string
   const isBestMove = a.uci === a.bestUci;
   const m = a.labelReason.material;
   const materialDecides = m?.label !== undefined && m.label === a.label && a.labelReason.winChance !== a.label;
-  const why = a.better?.length ? ` ${a.bestSan} ${a.better[0]}${a.better[1] ? `, and it ${a.better[1]}` : ''}${a.betterPartial ? ' — but there is more to it than that' : ''}.` : '';
+  // (Why round) a partial reason no longer ends in "— but there is more to it than that": the best line's later
+  // material tells the rest when it shows more, else the reason stands on its own
+  const ahead = a.betterPartial && a.betterLater ? `; a few moves later ${me} is ${Math.round(a.betterLater)} points of material ahead` : '';
+  const why = a.better?.length ? ` ${a.bestSan} ${a.better[0]}${a.better[1] ? `, and it ${a.better[1]}` : ''}${ahead}.` : '';
+  // (Why round) the played move's own line tells what goes wrong: that leads, and the moves that keep the
+  // position close the sentence about the chances ("…; c3, d3 or a3 would have kept them")
+  const fine = a.fine?.length ? a.fine : [a.bestSan];
+  if (a.cause && a.san && (a.label === 'inaccuracy' || a.label === 'mistake' || a.label === 'blunder')) {
+    return `${name} — ${causeLead(a.cause, a.san, a.color)} ${capitalize(chances)}; ${orList(fine)} would have kept them.`;
+  }
   switch (a.label) {
     case 'forced':
       return `${name} — the only legal move.`;
@@ -1415,6 +1493,9 @@ export function labelText(a: LabelTextInput, settings: AnalysisSettings): string
     case 'good':
       return `${name} — a little weaker than ${a.bestSan} (${loss}).`;
     case 'inaccuracy':
+      // (Why round) no reason to tell: name the moves that were a bit better (several = no single
+      // missed idea, the played move just isn't one of the best)
+      if (!why && a.fine && a.fine.length >= 2) return `${name} — ${orList(a.fine)} were a bit better (${loss}).`;
       return `${name} — ${a.bestSan} was better (${loss}).${why}`;
     case 'miss':
       if (a.labelReason.missedMate) return `${name} — ${a.bestSan} was ${mateIn(a.labelReason.missedMate.mateIn)}, and this move doesn't force mate (${loss}).`;

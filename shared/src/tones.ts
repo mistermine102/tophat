@@ -42,6 +42,8 @@ export function factTone(f: Fact, mover: Color): Tone {
     case 'allows-mate':
     case 'misses-mate':
     case 'misses':
+    case 'loosens':
+    case 'trades-down':
       return 'bad';
     case 'castling-lost':
       return f.color === mover ? 'bad' : 'good';

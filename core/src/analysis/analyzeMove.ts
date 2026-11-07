@@ -21,8 +21,8 @@
 
 import type { AnalysisSettings, Arrow, Candidate, Color, Fact, Label, MaterialCheck, MoveAnalysis, Score } from '@chess-coach/shared';
 import { ANALYSIS_VERSION, moveAccuracy, toWhitePov, winPercentForColor, winPercentFromScore } from '@chess-coach/shared';
-import { guardCp, materialCheck, sameMoveUci } from './classify';
-import { BAD_LABELS, betterReasonFacts, contrastWithPlayed, type ExplainContext, labelText, reasonsArePartial, renderExplanation, verdictText } from './explain';
+import { guardCp, materialCheck, sameMoveUci, worseLabel } from './classify';
+import { BAD_LABELS, betterReasonFacts, contrastWithPlayed, type ExplainContext, labelText, negativeSize, reasonsArePartial, renderExplanation, verdictText } from './explain';
 import { type PrevResult, deepParams as labelDeepParams, labelMove } from './label';
 import { type SearchParams, type Searcher, SearchCache } from './searchCache';
 import { type ReasonCode, lineDelta, suggest } from './suggest';
@@ -34,6 +34,7 @@ import { PIECE_VALUES, lineMaterial, materialBalance, positionFromFen } from '..
 import { immediateFacts } from '../facts/immediate';
 import { type ForcedInfo, type NarratedLine, type ThreatFact, forcedFromSearch, forcednessChecks, mateLineSan, narrateLine, narrationPlies, nullMoveFen, preventsFact, pvFork, refutationFact, threatFromSearch, threatStillWorks } from '../facts/line';
 import { longTermFacts } from '../facts/longterm';
+import { fineAlternatives, loosensFact, tradesDownFact } from '../facts/cause';
 
 export interface AnalyzeContext {
   searcher: Searcher;
@@ -299,7 +300,11 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
     shortFacts.set(w.uci, short);
     const ectx: ExplainContext = label ? { mover, label, uci: w.uci } : { mover, uci: w.uci };
     // (M5c) the played bad move's eval drop, for the honest hedge (only without mate scores: the number then means something)
-    if (label && BAD_LABELS.has(label) && best.score.mate === undefined && w.score.mate === undefined && w.uci !== cands[0]!.uci) ectx.hedge = { dropPawns: (guardCp(best.score) - guardCp(w.score)) / 100, bestSan: cands[0]!.san };
+    if (label && BAD_LABELS.has(label) && best.score.mate === undefined && w.score.mate === undefined && w.uci !== cands[0]!.uci) {
+      ectx.hedge = { dropPawns: (guardCp(best.score) - guardCp(w.score)) / 100, bestSan: cands[0]!.san };
+      const later = -laterMaterial(fen, w.pv);
+      if (later >= 1) ectx.hedge.laterLoss = later;
+    }
     allFacts.set(w.uci, { immediate, short, long, ctx: ectx });
     const e = renderExplanation({ immediate, short, long }, ectx);
     factsMs += now() - tf;
@@ -327,6 +332,12 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
 
   const bestWork = cands[0]!;
   const playedIsBest = sameMoveUci(fen, playedWork.uci, bestWork.uci);
+  // (Why round) a Miss is a missed chance: the generic rule (the opponent's last move was a mistake and this one
+  // doesn't punish it) keeps Miss only when the best move has a concrete point — it wins material, mates or carries
+  // a tactic. Otherwise the win-chance label stands: missing a quiet developing move is no missed opportunity.
+  if (cr.label === 'miss' && cr.labelReason.miss && !cr.labelReason.missedMate && !cr.labelReason.missedMaterial && !concreteChance(bestWork)) {
+    cr.label = worseLabel(cr.labelReason.winChance, cr.labelReason.material?.label);
+  }
   // M3 missed-mate rule: the Immediate level names the mate the move misses (best line, ends in checkmate)
   const mm = cr.labelReason.missedMate;
   if (mm && !playedIsBest && !cr.checkmate && mm.mateIn <= MATE_LINE_MAX_MOVES) {
@@ -387,9 +398,25 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
   // (M5c) the eval drop (pawns, mover POV, mates as big numbers) vs the biggest verified reason
   const dropPawns = (guardCp(best.score) - guardCp(playedLine.score)) / 100;
   const partial = reasonsArePartial(betterR, dropPawns, cr.label === 'mistake' || cr.label === 'blunder' || cr.label === 'miss');
+  // (Why round) what goes wrong in the played move's own line — a piece it leaves loose that the line goes after, a
+  // trade into a lost / drawn ending — told when nothing verified covers the drop yet: no label rule names the
+  // reason (allowed / missed mate, missed free material, the material rule), the best move's reasons are missing or
+  // small, and the played move's own negative facts are small next to the drop. A Miss stays about the chance.
+  let cause: Extract<Fact, { type: 'loosens' }> | Extract<Fact, { type: 'trades-down' }> | null = null;
+  let fine: string[] = [];
+  if (BAD_LABELS.has(cr.label) && !playedIsBest && pf) {
+    const lr = cr.labelReason;
+    const ruled = !!lr.allowedMate || !!lr.missedMate || !!lr.missedMaterial || (lr.material?.label !== undefined && lr.material.label === cr.label);
+    const covered = betterR.length > 0 && !partial;
+    if (!ruled && !covered && cr.label !== 'miss' && negativeSize(pf.immediate) < dropPawns / 2) {
+      cause = tradesDownFact({ fenBefore: fen, pv: playedWork.pv, bestPv: bestWork.pv, winBest, winPlayed: winBest - cr.winLoss }) ?? loosensFact(fen, playedWork.pv);
+    }
+    fine = fineAlternatives(cands.map((c) => ({ san: c.san, uci: c.uci, winLoss: Math.max(0, winBest - winPercentFromScore(c.score)) })), playedWork.uci, cr.winLoss);
+  }
   if (BAD_LABELS.has(cr.label) && !playedIsBest && pf) {
     const misses: Extract<Fact, { type: 'misses' }> = { type: 'misses', san: bestWork.san, uci: bestWork.uci, facts: betterR.flatMap((r) => r.facts) };
     if (partial) misses.partial = true;
+    if (fine.length) misses.fine = fine;
     // (B1) missed free material: say "for free", and name a threat the played move parried that the best move
     // stops as well (only when the threat move is no longer legal after the best move, e.g. its piece was taken)
     const free = cr.labelReason.missedMaterial;
@@ -398,7 +425,10 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
       const parried = pf.immediate.find((f): f is Extract<Fact, { type: 'defends-threat' }> => f.type === 'defends-threat');
       if (parried && legalPrefix(bestWork.fenAfter, [parried.move]).length === 0) misses.alsoStops = parried.san;
     }
-    playedCand.explanation = renderExplanation({ immediate: [...pf.immediate, misses], short: pf.short, long: pf.long }, pf.ctx);
+    // the cause leads the Immediate level, unless the refutation sentence already tells that same reply ("Allows Qa5,
+    // pinning the knight on c3" vs "…Qa5 attacks it"): then it only shapes the label text
+    const sameReply = cause?.type === 'loosens' && cause.route.length === 1 && pf.immediate.some((f) => f.type === 'allows' && f.reply.san === cause!.route[0]);
+    playedCand.explanation = renderExplanation({ immediate: [...(cause && !sameReply ? [cause] : []), ...pf.immediate, misses], short: pf.short, long: pf.long }, pf.ctx);
   }
   // (M5c) the suggestions shown next to the played move don't repeat its sentences as their own point
   const pe = playedCand.explanation;
@@ -407,20 +437,48 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
       if (c?.explanation && !sameMoveUci(fen, c.uci, playedCand.uci)) c.explanation = contrastWithPlayed(c.explanation, pe, played.san);
     }
   }
+  // (Why round) the best line's material further on, when it shows more than the reasons told
+  const told = Math.max(0, ...betterR.map((r) => r.magnitude));
+  const bl = partial && !playedIsBest ? laterMaterial(fen, bestWork.pv) : 0;
+  const betterLater = bl >= told + 1 ? bl : 0;
   const hangs = playedWork.immediate.filter((f): f is Extract<Fact, { type: 'hangs' }> => f.type === 'hangs').sort((a, b) => b.loss - a.loss);
   const hang0 = hangs.find((h) => h.piece.square === cr.labelReason.material?.hung?.square) ?? hangs[0];
   // (M5c) a hung piece the refutation takes with a tactic (Nxc7+ forking king and rook): the tactic is the reason, not the pawn
   const refut = pf?.immediate.find((f): f is Extract<Fact, { type: 'allows' }> => f.type === 'allows');
   const tacticTakes = !!refut && refut.facts.some((x) => x.type === 'fork' || x.type === 'skewer' || x.type === 'discovered-attack') && refut.facts.some((x) => x.type === 'capture' && x.captured.square === hang0?.piece.square);
   const hang = tacticTakes ? undefined : hang0;
-  analysis.labelText = labelText({ ...analysis, bestSan: bestWork.san, bestUci: bestWork.uci, checkmate: cr.checkmate, better, ...(partial ? { betterPartial: true } : {}), verifiedHang: hang ? { piece: hang.piece, loss: hang.loss, ...(hang.already ? { already: true } : {}) } : null }, settings);
+  analysis.labelText = labelText({ ...analysis, bestSan: bestWork.san, bestUci: bestWork.uci, checkmate: cr.checkmate, better, ...(partial ? { betterPartial: true } : {}), verifiedHang: hang ? { piece: hang.piece, loss: hang.loss, ...(hang.already ? { already: true } : {}) } : null, cause, fine, ...(betterLater ? { betterLater } : {}) }, settings);
   const verdict = verdictText(cr.label, playedIsBest);
   if (verdict) analysis.verdictText = verdict;
   return analysis;
 }
 
+/** (Why round) Plies of a PV read for the material it has won or lost further on (no sentence claims more than this). */
+export const LATER_PLIES = 14;
+
+/** (Why round) The mover's material change along `pv` up to LATER_PLIES, at a quiet point (0 when the line ends mid-exchange or in mate). */
+export function laterMaterial(fen: string, pv: readonly string[]): number {
+  if (pv.length < 2) return 0;
+  const m = lineMaterial(fen, pv, { horizonPlies: Math.min(pv.length, LATER_PLIES) });
+  return m.quiet && !m.mate ? m.delta : 0;
+}
+
 /** Allowed / missed mates up to this many moves are told with their moves. */
 export const MATE_LINE_MAX_MOVES = 3;
+
+/** Board facts that make a move a concrete chance (Miss): a tactic or a material / mating point. */
+const CONCRETE_TYPES = new Set<Fact['type']>(['checkmate', 'fork', 'pin', 'skewer', 'discovered-attack', 'trapped', 'attack-pinned', 'promotion']);
+
+/**
+ * (Why round) The move has a concrete point: it wins material at once, carries a tactic, threatens mate or material
+ * (>= a pawn), or its narrated line wins material or mates.
+ */
+function concreteChance(w: Pick<MoveWork, 'immediate' | 'narrated'>): boolean {
+  if (w.narrated.line.result === 'wins-material' || w.narrated.line.result === 'mate') return true;
+  return w.immediate.some((f) => CONCRETE_TYPES.has(f.type)
+    || (f.type === 'capture' && f.outcome === 'wins-material')
+    || (f.type === 'threat' && (f.mateIn !== undefined || f.gain >= 1)));
+}
 
 /**
  * A checking fork the engine line carries out (`pvFork`): attach the follow-up to the board fork of the same piece,
