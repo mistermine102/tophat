@@ -40,6 +40,17 @@ const session = useSession();
       </svg>
     </button>
     <button
+      class="th-btn nav-btn"
+      :title="session.state.sound ? 'Mute move sounds (M)' : 'Turn move sounds on (M)'"
+      aria-label="Move sounds"
+      :aria-pressed="session.state.sound"
+      data-testid="sound"
+      @click="session.toggleSound()"
+    >
+      <template v-if="session.state.sound"><svg viewBox="0 0 20 20" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8v4h3l4 3.5v-11L6 8z" fill="currentColor" /><path d="M13 7.5a3.5 3.5 0 0 1 0 5M15.2 5.3a6.6 6.6 0 0 1 0 9.4" /></svg></template>
+      <template v-else><svg viewBox="0 0 20 20" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8v4h3l4 3.5v-11L6 8z" fill="currentColor" /><path d="M13.5 8l4 4M17.5 8l-4 4" /></svg></template>
+    </button>
+    <button
       v-if="!inSideLine"
       class="th-btn ml-auto"
       data-testid="next-mistake"

@@ -1,10 +1,11 @@
-// Mock-mode check of "Show best move" (B / the arrow button): a gold arrow for the best move in the position on the
-// board — in the main line and in a side line — off by default, remembered, and it replaces the arrows about the
-// previous move's alternatives. Screenshot: e2e/screenshots/show-best-1366x768.png.
+// Mock-mode check of "Show best move" (B / the arrow button): gold arrows for the engine's top moves in the position on
+// the board, as bright as they are good, ranked at the arrowheads — in the main line and in a side line — off by default, remembered. No big arrows for
+// the best / suggested move otherwise (feedback round 3). Screenshot: e2e/screenshots/show-best-1366x768.png.
 import { expect, test, type Page } from '@playwright/test';
 
 const GOLD = '#e0a400';
 const BLUE = '#2563eb';
+const GREEN = '#16a34a';
 
 async function openSample(page: Page) {
   await page.goto('/?mock=1');
@@ -32,10 +33,16 @@ async function drag(page: Page, from: string, to: string) {
   await page.mouse.up();
 }
 
+/** Gold arrows drawn, with their opacities. */
+const goldOpacities = (page: Page) => page.locator('cg-container svg line').evaluateAll((ls, gold) => ls.filter((l) => l.getAttribute('stroke') === gold).map((l) => Number(l.getAttribute('opacity'))), GOLD);
+
+/** The rank labels at the arrowheads. */
+const rankLabels = (page: Page) => page.locator('cg-container svg text').allTextContents();
+
 /** Stroke colours of the arrows chessground draws. */
 const arrowColours = (page: Page) => page.locator('cg-container svg line').evaluateAll((ls) => ls.map((l) => l.getAttribute('stroke')));
 
-test('show best move: a gold arrow for the best move here, main line and side line, remembered', async ({ page }) => {
+test('show best move: gold arrows for the top moves here, main line and side line, remembered', async ({ page }) => {
   await page.setViewportSize({ width: 1366, height: 768 });
   await page.addInitScript(() => {
     if (!sessionStorage.getItem('cleared')) {
@@ -44,17 +51,26 @@ test('show best move: a gold arrow for the best move here, main line and side li
     }
   });
   await openSample(page);
-  // a bad move: its alternatives are drawn (blue), no gold arrow while the toggle is off
+  // a bad move: no big arrows for its alternatives, no gold arrows while the toggle is off
   await page.locator('[data-node="m32"]').click();
-  await expect.poll(() => arrowColours(page)).toContain(BLUE);
+  await page.waitForTimeout(300);
+  expect(await arrowColours(page)).not.toContain(BLUE);
+  expect(await arrowColours(page)).not.toContain(GREEN);
   expect(await arrowColours(page)).not.toContain(GOLD);
   await expect(page.getByTestId('show-best')).toHaveAttribute('aria-pressed', 'false');
 
   // on: the best move in this position, and the previous move's alternatives give way
   await page.keyboard.press('b');
   await expect(page.getByTestId('show-best')).toHaveAttribute('aria-pressed', 'true');
-  await expect.poll(() => arrowColours(page)).toContain(GOLD);
-  expect(await arrowColours(page)).not.toContain(BLUE);
+  await expect.poll(async () => (await goldOpacities(page)).length).toBeGreaterThanOrEqual(2);
+  const ops = await goldOpacities(page);
+  expect(ops.length).toBeLessThanOrEqual(5);
+  // as bright as they are good: the best move is the most opaque, and it is drawn last (on top)
+  expect(Math.max(...ops)).toBeGreaterThan(Math.min(...ops));
+  expect(ops[ops.length - 1]).toBe(Math.max(...ops));
+  // ranks at the arrowheads, 1 = the best
+  await expect.poll(() => rankLabels(page)).toContain('1');
+  expect((await rankLabels(page)).length).toBe(ops.length);
   await page.waitForTimeout(300);
   await page.screenshot({ path: 'e2e/screenshots/show-best-1366x768.png' });
 
@@ -75,4 +91,41 @@ test('show best move: a gold arrow for the best move here, main line and side li
   await page.reload();
   await expect(page.getByTestId('board')).toBeVisible();
   await expect(page.getByTestId('show-best')).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('show best move: "Moves here" lists what the arrows\' moves do, numbered like the arrows', async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await page.addInitScript(() => {
+    if (!sessionStorage.getItem('cleared')) {
+      localStorage.clear();
+      sessionStorage.setItem('cleared', '1');
+    }
+  });
+  await openSample(page);
+  await page.locator('[data-node="m32"]').click();
+  // off: no list
+  await expect(page.getByTestId('top-ideas')).toHaveCount(0);
+  await page.keyboard.press('b');
+  const list = page.getByTestId('top-ideas');
+  await expect(list).toBeVisible();
+  // one row per arrow, in the arrows' order
+  await expect.poll(async () => (await goldOpacities(page)).length).toBeGreaterThanOrEqual(2);
+  await expect(list.getByTestId('top-idea')).toHaveCount((await goldOpacities(page)).length);
+  // the points arrive after the arrows
+  await expect(page.getByTestId('top-ideas-pending')).toHaveCount(0, { timeout: 10_000 });
+  await expect(list.getByTestId('tone-line').first()).toBeVisible();
+  // hovering a move highlights its squares
+  const first = list.getByTestId('top-idea').first();
+  const uci = (await first.getAttribute('data-uci'))!;
+  await first.hover();
+  await expect.poll(() => page.evaluate(() => document.querySelectorAll('cg-board square.cc-hl').length)).toBeGreaterThan(0);
+  expect(uci).toMatch(/^[a-h][1-8][a-h][1-8]/);
+  await page.mouse.move(5, 5);
+  await page.screenshot({ path: 'e2e/screenshots/show-best-ideas-1366x768.png' });
+
+  // the start position: several developing moves, the later ones told by how they differ
+  await page.keyboard.press('Home');
+  await expect(list.getByTestId('top-idea').first()).toBeVisible();
+  await expect(page.getByTestId('top-ideas-pending')).toHaveCount(0, { timeout: 10_000 });
+  await page.screenshot({ path: 'e2e/screenshots/show-best-ideas-start-1366x768.png' });
 });

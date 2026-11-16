@@ -2,7 +2,7 @@
 // old HTTP API + SSE stream one to one: a request gets one response with the same id; a subscription streams
 // GameEvents (analysis / progress / summary / error), replaying the finished state first.
 import type { GameEvent } from '@chess-coach/core/games';
-import type { GameInfo, GameSummary, MoveAnalysis } from '@chess-coach/shared';
+import type { GameInfo, GameSummary, MoveAnalysis, TopIdeasResult, TopMovesResult } from '@chess-coach/shared';
 import type { AnalyseRequest, Health } from '../api/types';
 import type { AnalysisConfig } from './config';
 
@@ -15,6 +15,10 @@ export interface Requests {
   analyse: { req: AnalyseRequest; res: MoveAnalysis };
   /** (D1) the quick, provisional analysis of a side-line move */
   analyseQuick: { req: AnalyseRequest; res: MoveAnalysis };
+  /** (engine arrows) the engine's top moves in a position */
+  topMoves: { req: { fen: string; prev?: { fenBefore: string; uci: string } | null }; res: TopMovesResult };
+  /** (points) what those top moves do, and how moves with the same idea differ */
+  topIdeas: { req: { fen: string; prev?: { fenBefore: string; uci: string } | null }; res: TopIdeasResult };
   subscribe: { req: { id: string; sub: number }; res: void };
   unsubscribe: { req: { sub: number }; res: void };
   /** Test hooks (`?testhooks=1`). */

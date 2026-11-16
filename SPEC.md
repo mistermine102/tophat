@@ -58,7 +58,7 @@ Labels (thresholds are settings; defaults approximate chess.com's expected-point
 | **Inaccuracy ?!** | `5 < winLoss ≤ 10` |
 | **Mistake ?** | `10 < winLoss ≤ 20` |
 | **Blunder ??** | `winLoss > 20` |
-| **Miss** | The opponent's previous move was a Mistake/Blunder (by win chance), the best move now would have kept most of that gain, and the played move gave back ≥ an inaccuracy's worth (`winLoss > 5`). Replaces Inaccuracy/Mistake; a Blunder stays Blunder. |
+| **Miss** | The opponent's previous move was a Mistake/Blunder (by win chance), the best move now would have kept most of that gain, and the played move gave back ≥ an inaccuracy's worth (`winLoss > 5`). Replaces Inaccuracy/Mistake; a Blunder stays Blunder. Only when the best move is a concrete chance (it wins material or mates, or carries a tactic — a threat on a piece that can simply step away is none). **Feedback round 3:** a Blunder by win chance whose best move was a concrete chance (free material, a short mate, a tactic) is a **Miss** when the played move throws nothing away itself (no material-rule label, no piece left en prise, no allowed mate): 10.Bd2 missing Qxc6+ that wins a knight is a Miss, not a Blunder. |
 
 **Material rule (user requirement):** a move that throws away material for nothing is labelled by material too,
 and the final label is the *worse* of win-chance label and material label. This makes "hung my queen while +12"
@@ -82,7 +82,8 @@ positions, where the win% clamp hides everything.
   allows a much longer one, ≥ 3 moves longer) → at least **Blunder**, even if win% was already ~0
   (Opera game 15...Nxd7?? allows 16.Qb8+! Nxb8 17.Rd8#; 15...Qxd7 avoids the mate).
 - **Missed mate:** the mover had a forced mate in ≤ 3 (setting) and played a move that doesn't force mate → at
-  least **Miss** (a Blunder stays a Blunder; a slower mate is not "missed").
+  least **Miss** (a slower mate is not "missed"; a Blunder stays a Blunder only when the move also throws something
+  away itself — see Miss, feedback round 3).
 - The UI says it, e.g. *"Blunder ?? — this allows a forced mate in 2. Black was already losing, but Qxd7 would have
   avoided it — watch for mating threats."*
 

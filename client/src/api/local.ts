@@ -2,7 +2,7 @@
 // of an HTTP server. Requests are postMessage round trips; `stream` is a worker subscription (replay + live events,
 // like the old SSE stream). chess.com is called directly (its public API allows cross-origin requests).
 import type { GameEvent } from '@chess-coach/core/games';
-import type { ChessComGames, GameInfo, MoveAnalysis } from '@chess-coach/shared';
+import type { ChessComGames, GameInfo, MoveAnalysis, TopIdeasResult, TopMovesResult } from '@chess-coach/shared';
 import type { AnalysisConfig } from '../worker/config';
 import type { FromWorker, RequestType, Requests, ToWorker, WorkerStats } from '../worker/protocol';
 import { ChessComError, DEFAULT_LIMIT, fetchChessComGames, validUsername } from './chesscom';
@@ -100,6 +100,14 @@ export class LocalApiClient implements ApiClient {
 
   analyseQuick(req: AnalyseRequest): Promise<MoveAnalysis> {
     return this.call('analyseQuick', req);
+  }
+
+  topMoves(fen: string, prev: { fenBefore: string; uci: string } | null = null): Promise<TopMovesResult> {
+    return this.call('topMoves', { fen, prev });
+  }
+
+  topIdeas(fen: string, prev: { fenBefore: string; uci: string } | null = null): Promise<TopIdeasResult> {
+    return this.call('topIdeas', { fen, prev });
   }
 
   async chessComGames(username: string, limit: number = DEFAULT_LIMIT): Promise<ChessComGames> {

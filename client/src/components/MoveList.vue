@@ -23,7 +23,8 @@ watch(
     if (!el || !scroller.value) return;
     const box = scroller.value.getBoundingClientRect();
     const r = el.getBoundingClientRect();
-    if (r.top < box.top + 4 || r.bottom > box.bottom - 4) el.scrollIntoView({ block: 'center' });
+    // centre it in the list's own box only (scrollIntoView would also scroll the page on a phone, away from the board)
+    if (r.top < box.top + 4 || r.bottom > box.bottom - 4) scroller.value.scrollTop += r.top - box.top - (box.height - r.height) / 2;
   },
 );
 </script>

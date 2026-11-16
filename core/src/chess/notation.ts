@@ -96,3 +96,13 @@ export function positionStatus(fen: string): 'checkmate' | 'stalemate' | 'ongoin
   if (pos.isStalemate(ctx)) return 'stalemate';
   return 'ongoing';
 }
+
+/** (Feedback round 3) The first `n` distinct legal moves of `moves` (engine lines, best first) at `fen`, with SAN. */
+export function topMoves(fen: string, moves: readonly (string | undefined)[], n = 3): { uci: string; san: string }[] {
+  const out: { uci: string; san: string }[] = [];
+  for (const m of moves) {
+    if (!m || out.length >= n || out.some((o) => o.uci === m) || legalPrefix(fen, [m]).length !== 1) continue;
+    out.push({ uci: m, san: playMove(fen, m).san });
+  }
+  return out;
+}

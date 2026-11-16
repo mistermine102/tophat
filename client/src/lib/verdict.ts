@@ -2,7 +2,7 @@
 // sentence for the better move, picked from the server's toned sentences (explain.ts is still the only source of
 // chess prose; this only picks). (Round 10) One sentence each, nothing under it: when no sentence says something
 // concrete, a short plain fallback ("Nc6 was better.") or the label alone.
-import type { Candidate, MoveAnalysis, Tone } from '@chess-coach/shared';
+import type { Candidate, MoveAnalysis, MovePoint, Tone } from '@chess-coach/shared';
 import { CONFIRMED, LABELS } from './labels';
 import { labelReasonText, type ReasonContext } from './reason';
 import { levelLines, lowerFirst, type ToneLine } from './tones';
@@ -108,4 +108,39 @@ const FILLER = /^Nothing special happens/;
 export function candidateSentence(c: Candidate): ToneLine | null {
   const imm = levelLines(c.explanation?.immediate).filter((l) => !FILLER.test(l.text));
   return imm.find((l) => l.tone === 'good') ?? imm.find((l) => l.tone === 'neutral') ?? null;
+}
+
+/**
+ * (Points) What the viewed move does, as its pros and cons under the verdict (MoveAnalysis.points, core
+ * movePoints.ts): its own points, plus what it has or lacks next to the best move when that had the same idea
+ * ("✗ Doesn't attack the pawn on e5"). Pros first, then the neutral points, then the cons. Only the played move:
+ * the engine's other moves aren't explained.
+ * null: no points (an older or quick analysis, Book / Forced moves, or nothing to show).
+ */
+export interface VerdictPoints {
+  lines: MovePoint[];
+}
+
+const TONE_ORDER: Record<Tone, number> = { good: 0, neutral: 1, bad: 2 };
+
+export function verdictPoints(a: MoveAnalysis | null): VerdictPoints | null {
+  if (!a?.points || a.provisional || a.label === 'book' || a.label === 'forced') return null;
+  const { played } = a.points;
+  const lines: MovePoint[] = [];
+  for (const p of [...played.points, ...(played.plus ?? []), ...(played.minus ?? [])]) {
+    if (!lines.some((l) => l.key === p.key && l.tone === p.tone)) lines.push(p);
+  }
+  lines.sort((x, y) => TONE_ORDER[x.tone] - TONE_ORDER[y.tone]);
+  return lines.length ? { lines } : null;
+}
+
+/**
+ * (Points) The verdict's one sentence stays only when the points don't already say what the move does: always for a
+ * bad move (it is the reason), for Great / Brilliant only when it is their own plain reason ("the only good move
+ * here", not a sentence the points repeat).
+ */
+export function sentenceWithPoints(a: MoveAnalysis, v: Verdict, p: VerdictPoints | null): string {
+  if (!p || BAD.has(a.label)) return v.sentence;
+  if ((a.label === 'brilliant' || a.label === 'great') && v.usedIndex === null) return v.sentence;
+  return p.lines.length ? '' : v.sentence;
 }

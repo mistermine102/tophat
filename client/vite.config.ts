@@ -83,6 +83,8 @@ export default defineConfig({
     port: clientPort,
     strictPort: true,
     headers: ISOLATION_HEADERS,
+    // testing on a phone through an ngrok tunnel (`ngrok http 5173`)
+    allowedHosts: ['.ngrok-free.app', '.ngrok-free.dev', '.ngrok.app'],
   },
   preview: {
     port: Number(process.env.PORT ?? 5174),

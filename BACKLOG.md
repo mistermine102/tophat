@@ -149,3 +149,54 @@ Corpus: `tmp/grade2.mjs` grading over 15 Lichess games (275 bad moves) — keep 
 "f4 was much better. f4 attacks Black's knight on e5." (Re3, a −25% blunder): the best line's later payoff (the knight
 is trapped / won ten plies on) isn't told. Extend the best line's story to its first kept material gain within
 `LATER_PLIES` and say what it wins.
+
+---
+
+Feedback round 4 (2026-11-11): the "Show best move" arrows hit the spot, but they clash on one line, a clear best move
+looks no different from three equal ones, and openings have more than three good moves. And the long-standing gap:
+real explanations, now also for the candidate moves.
+
+## Session F — Engine arrows  *(done on `fast-labels`, see ARCHITECTURE.md "Show best move" arrows)*
+
+### F1. Arrows as bright as they are good, as many as make sense, ranked
+The deep search per position (MultiPV 5, shared with the analysis): the best three always, then every move almost as
+good as the best (at most 5). Brightness and width follow how much worse each move is (win% or, when a side is far
+ahead, centipawns); rank labels at the arrowheads tell overlapping arrows apart.
+
+## Session H — Points instead of one sentence  *(done on `fast-labels`, see ARCHITECTURE.md "Points: what a move does")*
+
+### H1. What a move does, as short points; moves with the same idea told by their differences
+Points ("Develops the knight", "Keeps the bishop off g4", "Prepares to castle") from verified facts and board rules
+(`core/src/analysis/movePoints.ts`). A move with the same idea as a better one says only how it differs (coach style:
+"Nc3: same idea as Nf3, but doesn't attack the pawn on e5"). Shown for the arrows' moves ("Moves here", layout A) and
+for the played move under its verdict (`MoveAnalysis.points`, analysis version 13).
+
+**Next steps:**
+- G1's AI pass can grade the points per move (are they the ones a coach would pick?) instead of whole sentences.
+- About a quarter of the top moves still get only a plan (quiet rook / king moves, waiting moves). Candidates: a rook
+  behind a passed pawn, "makes room for the king" (luft against a back-rank mate), pawn breaks that open a file
+  for a rook, "improves the worst piece".
+- The comparison only knows the points it has: two captures on the same square look like the same idea even when
+  one wins much more (the verdict then hides "same idea" for bad moves).
+
+## Session G — Explanations written with AI at build time, not at run time
+
+**Decision (2026-11-11):** no live AI calls for every user: an engaged user would cost more in API credits than ads
+bring in (≈ 0.3 ¢ per explanation with Haiku vs ≈ 0.1–0.5 ¢ per page view). The facts stay local and free; AI is used
+on our side, once.
+
+### G1. AI-guided rules and templates
+Run Claude once over a few hundred positions from the corpus (`bench/games`, the 15 graded games): give it the facts
+the code already computes (engine lines, attacks, threats, development, pins, material outcome, passed pawns) and have
+it write the explanation a coach would give, for the played move and for each of the top moves. Study what it picks
+and how it combines facts; turn the recurring patterns into fact selection rules and sentence templates in
+`explain.ts`. Grade against today's text with `bench/explanations.ts` (E1's corpus). Covers the positional cases that
+now read "X was better" where the facts support a reason. Also the candidate-move explanations (why each arrow is
+good: "Nf3 develops, eyes e5 and prepares castling").
+
+### G2. Shipped explanations for common opening positions
+The most common few thousand positions of the vendored Lichess opening book: explanations for the position's good
+moves generated once (AI, from the same facts, checked by a validator: every square / move it mentions must be in the
+facts), shipped as a static, lazily loaded asset keyed by EPD. One-off cost; instant and free at run time.
+
+### G3. Live AI explanations (own API key / paid tier)  *(to discuss: costs, keys in the browser, abuse)*

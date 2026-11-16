@@ -43,6 +43,9 @@ export function factTone(f: Fact, mover: Color): Tone {
     case 'misses-mate':
     case 'misses':
     case 'loosens':
+    case 'chased':
+    case 'passer':
+    case 'undeveloped':
     case 'trades-down':
       return 'bad';
     case 'castling-lost':

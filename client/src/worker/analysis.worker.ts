@@ -163,6 +163,8 @@ const handlers: Handlers = {
   },
   analyse: async (req) => (await need()).games.analyse(req),
   analyseQuick: async (req) => (await need()).games.analyseQuick(req),
+  topMoves: async (req) => (await need()).games.topMoves(req),
+  topIdeas: async (req) => (await need()).games.topIdeas(req),
   subscribe: async ({ id, sub }) => {
     const st = await need();
     // subscribe first, then replay: an analysis finishing in between is at worst delivered twice (idempotent)

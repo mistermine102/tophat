@@ -1,6 +1,6 @@
 // Data-layer contract used by the UI. Two implementations: LocalApiClient (in-browser analysis worker, api/local.ts) and
 // MockApiClient (fixture data + simulated streaming, `?mock=1`).
-import type { ChessComGames, GameInfo, GameSummary, MoveAnalysis } from '@chess-coach/shared';
+import type { ChessComGames, GameInfo, GameSummary, MoveAnalysis, TopIdeasResult, TopMovesResult } from '@chess-coach/shared';
 
 export interface GameSnapshot {
   game: GameInfo;
@@ -45,6 +45,11 @@ export interface ApiClient {
   analyse(req: AnalyseRequest): Promise<MoveAnalysis>;
   /** (D1) A quick, provisional analysis (`provisional: true`, no explanations) of the same move, answered first. Optional. */
   analyseQuick?(req: AnalyseRequest): Promise<MoveAnalysis>;
+  /** (Engine arrows) The engine's top moves in a position, for the "Show best move" arrows. Optional (else the analyses' own top moves). */
+  /** (Brilliant lines) `prev`: the move that led there (a take-back is no sacrifice). */
+  topMoves?(fen: string, prev?: { fenBefore: string; uci: string } | null): Promise<TopMovesResult>;
+  /** (Points) What the engine's top moves in a position do, as short points; asked for after topMoves. `prev`: the move that led there (recaptures). Optional (no list without it). */
+  topIdeas?(fen: string, prev?: { fenBefore: string; uci: string } | null): Promise<TopIdeasResult>;
   /** The newest finished games of a chess.com player (chess.com public API, called from the browser), at most `limit` (default 50). */
   chessComGames(username: string, limit?: number): Promise<ChessComGames>;
   /** Is the analysis engine running? Never throws (a failed engine is `{ ok: false }`). */

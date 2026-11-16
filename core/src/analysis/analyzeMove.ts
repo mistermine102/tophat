@@ -21,12 +21,12 @@
 
 import type { AnalysisSettings, Arrow, Candidate, Color, Fact, Label, MaterialCheck, MoveAnalysis, Score } from '@chess-coach/shared';
 import { ANALYSIS_VERSION, moveAccuracy, toWhitePov, winPercentForColor, winPercentFromScore } from '@chess-coach/shared';
-import { guardCp, materialCheck, sameMoveUci, worseLabel } from './classify';
-import { BAD_LABELS, betterReasonFacts, contrastWithPlayed, type ExplainContext, labelText, negativeSize, reasonsArePartial, renderExplanation, verdictText } from './explain';
+import { guardCp, materialCheck, missedChanceMiss, sameMoveUci, worseLabel } from './classify';
+import { allowsText, BAD_LABELS, betterReasonFacts, contrastWithPlayed, type Cause, type ExplainContext, labelText, negativeSize, reasonsArePartial, renderExplanation, verdictText } from './explain';
 import { type PrevResult, deepParams as labelDeepParams, labelMove } from './label';
 import { type SearchParams, type Searcher, SearchCache } from './searchCache';
 import { type ReasonCode, lineDelta, suggest } from './suggest';
-import { legalMove as legalMoveAt, legalPrefix, playMove, positionStatus, pvToSan, uciSquares } from '../chess/notation';
+import { legalMove as legalMoveAt, legalPrefix, playMove, positionStatus, pvToSan, topMoves, uciSquares } from '../chess/notation';
 import { hangingLoss, seeCaptureWith, seeMove } from '../chess/see';
 import { parseSquare } from 'chessops/util';
 import type { PvLine, SearchResult } from '../engine/uci';
@@ -34,7 +34,8 @@ import { PIECE_VALUES, lineMaterial, materialBalance, positionFromFen } from '..
 import { immediateFacts } from '../facts/immediate';
 import { type ForcedInfo, type NarratedLine, type ThreatFact, forcedFromSearch, forcednessChecks, mateLineSan, narrateLine, narrationPlies, nullMoveFen, preventsFact, pvFork, refutationFact, threatFromSearch, threatStillWorks } from '../facts/line';
 import { longTermFacts } from '../facts/longterm';
-import { fineAlternatives, loosensFact, tradesDownFact } from '../facts/cause';
+import { chasedFact, fineAlternatives, loosensFact, passerFact, tradesDownFact, undevelopedFact } from '../facts/cause';
+import { compareIdeas, median, movePoints, narratedDelta } from './movePoints';
 
 export interface AnalyzeContext {
   searcher: Searcher;
@@ -131,6 +132,7 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
   const status = positionStatus(played.fenAfter);
   let evalAfter: Score;
   let nextBest: MoveAnalysis['nextBest'];
+  let nextTop: MoveAnalysis['nextTop'];
   if (status === 'checkmate') evalAfter = toWhitePov({ mate: 0 }, opp);
   else if (status === 'stalemate') evalAfter = { cp: 0 };
   else {
@@ -139,6 +141,8 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
     evalAfter = s ? toWhitePov(s, opp) : toWhitePov(playedLine.score, mover);
     const nb = after.lines[0]?.move;
     if (nb && legalPrefix(played.fenAfter, [nb]).length === 1) nextBest = { uci: nb, san: playMove(played.fenAfter, nb).san };
+    const top = topMoves(played.fenAfter, after.lines.map((l) => l.move));
+    if (top.length) nextTop = top;
   }
 
   // 3. shallow search
@@ -324,7 +328,11 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
         const ml = mateLineSan(w.fenAfter, w.pv.slice(1), 2 * allows.mateIn - 1);
         if (ml) allows.mateLine = ml;
       }
-      if (allows && !(bestAllows && allowsSignature(bestAllows) === allowsSignature(allows))) immediate = [allows, ...immediate];
+      // (Feedback round 3) a reply whose tactic costs nothing ("Allows Qe3, uncovering an attack on the queen" that just
+      // moves) refutes nothing: no sentence rather than a hollow one
+      const hollow = allows && allows.mateIn === undefined && !allows.perpetual && !((allows.gain ?? 0) >= 1)
+        && !allows.facts.some((x) => x.type === 'checkmate' || x.type === 'fork' || x.type === 'threat' || (x.type === 'capture' && x.outcome === 'wins-material'));
+      if (allows && !hollow && !(bestAllows && allowsSignature(bestAllows) === allowsSignature(allows))) immediate = [allows, ...immediate];
     }
     const short: Fact[] = [narrated.line, ...narrated.forcedReplies];
     shortFacts.set(w.uci, short);
@@ -365,9 +373,13 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
   // (Why round) a Miss is a missed chance: the generic rule (the opponent's last move was a mistake and this one
   // doesn't punish it) keeps Miss only when the best move has a concrete point — it wins material, mates or carries
   // a tactic. Otherwise the win-chance label stands: missing a quiet developing move is no missed opportunity.
-  if (cr.label === 'miss' && cr.labelReason.miss && !cr.labelReason.missedMate && !cr.labelReason.missedMaterial && !concreteChance(bestWork)) {
+  if (cr.label === 'miss' && cr.labelReason.miss && !cr.labelReason.missedMate && !cr.labelReason.missedMaterial && !concreteChance(fen, bestWork)) {
     cr.label = worseLabel(cr.labelReason.winChance, cr.labelReason.material?.label);
   }
+  // (Feedback round 3) a Blunder only because a concrete win was missed is a Miss — a tactic the played move doesn't
+  // carry as well (e8=N+ instead of e8=Q promotes too: the wrong piece is its own mistake, not a missed chance)
+  const bestAhead = laterMaterial(fen, bestWork.pv) >= 1;
+  if (!playedIsBest) missedChanceMiss(cr, bestWork.immediate.some((f) => CONCRETE_TYPES.has(f.type) && (bestAhead || !PAYOFF_TYPES.has(f.type)) && !playedWork.immediate.some((g) => g.type === f.type)));
   // (D1) the label the quick pass showed stays for a small shift
   cr.label = stickyLabel(cr.label, input.provisionalLabel, cr.labelReason.winChance, cr.winLoss, settings);
   // M3 missed-mate rule: the Immediate level names the mate the move misses (best line, ends in checkmate)
@@ -420,12 +432,33 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
     timings,
   };
   if (nextBest) analysis.nextBest = nextBest;
+  if (nextTop) analysis.nextTop = nextTop;
+  // (Points) what the played move does, as short points, and — when it isn't the best move — the best move's, the
+  // played move told by how it differs when they share the idea (movePoints.ts, from the same facts and searches)
+  {
+    const delta = (w: MoveWork) => narratedDelta(fen, w.pv, w.score, settings);
+    const baseline = median(cands.map(delta));
+    const laterBaseline = median(cands.map((w) => laterMaterial(fen, w.pv)));
+    const pointsOf = (w: MoveWork, winLoss: number) => movePoints(fen, { uci: w.uci, pv: w.pv, score: w.score, winLoss, baseline, laterBaseline, prev: prevMove ?? null }, settings, {
+      threat: w.immediate.find((f): f is ThreatFact => f.type === 'threat') ?? null,
+      defends: w.immediate.find((f): f is Extract<Fact, { type: 'defends-threat' }> => f.type === 'defends-threat') ?? null,
+      prevents: w.immediate.find((f): f is Extract<Fact, { type: 'prevents' }> => f.type === 'prevents') ?? null,
+    });
+    const played = pointsOf(playedWork, cr.winLoss);
+    if (playedIsBest) analysis.points = { played: compareIdeas([played])[0]! };
+    else {
+      const [b, p] = compareIdeas([pointsOf(bestWork, 0), played]);
+      analysis.points = { played: p!, best: b! };
+    }
+  }
   // why the best move is better (its own verified facts, incl. quiet / long-term ones — M5b), for the label text and,
   // when the played move's Immediate level has nothing else to say, as a 'misses' sentence there
   const bf = allFacts.get(bestWork.uci);
   const pf = allFacts.get(playedWork.uci);
   const betterR = BAD_LABELS.has(cr.label) && !playedIsBest && bf && pf
-    ? betterReasonFacts([...bf.immediate, ...bf.short, ...bf.long], [...pf.immediate, ...pf.short, ...pf.long], mover, bestWork.uci, { positional: cr.label === 'inaccuracy', playedFenAfter: playedWork.fenAfter })
+    ? betterReasonFacts([...bf.immediate, ...bf.short, ...bf.long], [...pf.immediate, ...pf.short, ...pf.long], mover, bestWork.uci, { positional: cr.label === 'inaccuracy', playedFenAfter: playedWork.fenAfter, laterGain: laterMaterial(fen, bestWork.pv), playedUci: playedWork.uci })
+      // (Feedback round 3) a quiet reason ("develops the bishop") explains an Inaccuracy, never a Mistake / Blunder / Miss
+      .filter((r) => cr.label === 'inaccuracy' || r.magnitude >= QUIET_REASON_MAX)
     : [];
   const better = betterR.map((r) => r.phrase);
   // (M5c) the eval drop (pawns, mover POV, mates as big numbers) vs the biggest verified reason
@@ -435,14 +468,24 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
   // trade into a lost / drawn ending — told when nothing verified covers the drop yet: no label rule names the
   // reason (allowed / missed mate, missed free material, the material rule), the best move's reasons are missing or
   // small, and the played move's own negative facts are small next to the drop. A Miss stays about the chance.
-  let cause: Extract<Fact, { type: 'loosens' }> | Extract<Fact, { type: 'trades-down' }> | null = null;
+  let cause: Cause | null = null;
   let fine: string[] = [];
   if (BAD_LABELS.has(cr.label) && !playedIsBest && pf) {
     const lr = cr.labelReason;
     const ruled = !!lr.allowedMate || !!lr.missedMate || !!lr.missedMaterial || (lr.material?.label !== undefined && lr.material.label === cr.label);
     const covered = betterR.length > 0 && !partial;
     if (!ruled && !covered && cr.label !== 'miss' && negativeSize(pf.immediate) < dropPawns / 2) {
-      cause = tradesDownFact({ fenBefore: fen, pv: playedWork.pv, bestPv: bestWork.pv, winBest, winPlayed: winBest - cr.winLoss }) ?? loosensFact(fen, playedWork.pv);
+      const loose = loosensFact(fen, playedWork.pv);
+      // (Feedback round 3) the moved piece chased with tempo — unless the best move's piece gets chased the same way
+      const bestChased = chasedFact(fen, bestWork.pv);
+      const chased = chasedFact(fen, playedWork.pv);
+      const chase = chased && !(bestChased && bestChased.piece.role === chased.piece.role) ? chased : null;
+      cause = tradesDownFact({ fenBefore: fen, pv: playedWork.pv, bestPv: bestWork.pv, winBest, winPlayed: winBest - cr.winLoss }) ?? (loose?.won ? loose : null) ?? passerFact(fen, playedWork.pv, bestWork.pv) ?? chase ?? loose;
+      // (Feedback round 3) an opening move that brings nothing out, when clearly better moves do
+      if (!cause && (cr.label === 'inaccuracy' || cr.label === 'mistake')) {
+        const better = cands.filter((c) => c.uci !== playedWork.uci && winBest - winPercentFromScore(c.score) <= Math.max(1.5, cr.winLoss / 3));
+        cause = undevelopedFact(fen, playedWork.uci, better);
+      }
     }
     fine = fineAlternatives(cands.map((c) => ({ san: c.san, uci: c.uci, winLoss: Math.max(0, winBest - winPercentFromScore(c.score)) })), playedWork.uci, cr.winLoss);
   }
@@ -480,11 +523,19 @@ export async function analyzeMove(ctx: AnalyzeContext, input: AnalyzeInput): Pro
   const refut = pf?.immediate.find((f): f is Extract<Fact, { type: 'allows' }> => f.type === 'allows');
   const tacticTakes = !!refut && refut.facts.some((x) => x.type === 'fork' || x.type === 'skewer' || x.type === 'discovered-attack') && refut.facts.some((x) => x.type === 'capture' && x.captured.square === hang0?.piece.square);
   const hang = tacticTakes ? undefined : hang0;
-  analysis.labelText = labelText({ ...analysis, bestSan: bestWork.san, bestUci: bestWork.uci, checkmate: cr.checkmate, better, ...(partial ? { betterPartial: true } : {}), verifiedHang: hang ? { piece: hang.piece, loss: hang.loss, ...(hang.already ? { already: true } : {}) } : null, cause, fine, ...(betterLater ? { betterLater } : {}) }, settings);
+  // (Feedback round 3) the played move's refutation, as its Immediate level tells it
+  const pa = pf?.immediate.find((f): f is Extract<Fact, { type: 'allows' }> => f.type === 'allows');
+  // (not when the move's own capture loses material: that is the story — Rxe2 giving up the exchange)
+  const losingCapture = playedWork.immediate.some((f) => f.type === 'capture' && f.outcome === 'loses-material');
+  const refutation = pa && pf && BAD_LABELS.has(cr.label) && !losingCapture ? allowsText(pa, pf.ctx) : undefined;
+  analysis.labelText = labelText({ ...analysis, bestSan: bestWork.san, bestUci: bestWork.uci, checkmate: cr.checkmate, better, ...(partial ? { betterPartial: true } : {}), verifiedHang: hang ? { piece: hang.piece, loss: hang.loss, ...(hang.already ? { already: true } : {}) } : null, cause, fine, ...(betterLater ? { betterLater } : {}), ...(refutation ? { refutation } : {}) }, settings);
   const verdict = verdictText(cr.label, playedIsBest);
   if (verdict) analysis.verdictText = verdict;
   return analysis;
 }
+
+/** (Feedback round 3) Better-move reasons below this size (develop 0.2, castle 0.3, positional 0.4) are quiet ones. */
+export const QUIET_REASON_MAX = 0.5;
 
 /** (Why round) Plies of a PV read for the material it has won or lost further on (no sentence claims more than this). */
 export const LATER_PLIES = 14;
@@ -501,16 +552,21 @@ export const MATE_LINE_MAX_MOVES = 3;
 
 /** Board facts that make a move a concrete chance (Miss): a tactic or a material / mating point. */
 const CONCRETE_TYPES = new Set<Fact['type']>(['checkmate', 'fork', 'pin', 'skewer', 'discovered-attack', 'trapped', 'attack-pinned', 'promotion']);
+/** (Feedback round 3) Tactics that are a chance only when the line ends up material ahead ("e5 uncovers an attack on the queen" that just moves). */
+const PAYOFF_TYPES = new Set<Fact['type']>(['pin', 'skewer', 'discovered-attack', 'attack-pinned']);
 
 /**
  * (Why round) The move has a concrete point: it wins material at once, carries a tactic, threatens mate or material
  * (>= a pawn), or its narrated line wins material or mates.
  */
-function concreteChance(w: Pick<MoveWork, 'immediate' | 'narrated'>): boolean {
+function concreteChance(fen: string, w: Pick<MoveWork, 'immediate' | 'narrated' | 'pv'>): boolean {
   if (w.narrated.line.result === 'wins-material' || w.narrated.line.result === 'mate') return true;
-  return w.immediate.some((f) => CONCRETE_TYPES.has(f.type)
+  // (Feedback round 3) a threat alone is no chance: Bg4 "threatening" Bxf3 on a queen that steps away with Qg3
+  // wins nothing. A mate threat counts; a material threat only when the line is material up further on.
+  const ahead = laterMaterial(fen, w.pv) >= 1;
+  return w.immediate.some((f) => (CONCRETE_TYPES.has(f.type) && (ahead || !PAYOFF_TYPES.has(f.type)))
     || (f.type === 'capture' && f.outcome === 'wins-material')
-    || (f.type === 'threat' && (f.mateIn !== undefined || f.gain >= 1)));
+    || (f.type === 'threat' && (f.mateIn !== undefined || (f.gain >= 1 && laterMaterial(fen, w.pv) >= 1))));
 }
 
 /**
@@ -534,7 +590,7 @@ export function addLineFork(facts: Fact[], fen: string, pv: readonly string[]): 
 }
 
 /** The engine's expected reply (PV ply 2) captures the piece that just moved (on its destination square). */
-function replyTakesMovedPiece(uci: string, reply: string | undefined): boolean {
+export function replyTakesMovedPiece(uci: string, reply: string | undefined): boolean {
   return !!reply && reply.slice(2, 4) === uci.slice(2, 4);
 }
 
@@ -557,7 +613,7 @@ export const VERIFY_PLIES = 6;
 export const TRAPPED_VERIFY_PLIES = 12;
 
 /** The opponent plays `uci` (normalised) within the first VERIFY_PLIES of the move's PV. */
-function opponentPlays(pv: readonly string[], uci: string): boolean {
+export function opponentPlays(pv: readonly string[], uci: string): boolean {
   return pv.slice(0, VERIFY_PLIES).some((m, i) => i % 2 === 1 && m.slice(0, 4) === uci.slice(0, 4));
 }
 
@@ -681,7 +737,7 @@ function seeMoveAfter(threat: ThreatFact): number {
   return cap ? cap.net : Infinity;
 }
 
-function pruneRefuted(facts: Fact[], uci: string, reply: string | undefined): Fact[] {
+export function pruneRefuted(facts: Fact[], uci: string, reply: string | undefined): Fact[] {
   if (!replyTakesMovedPiece(uci, reply)) return facts;
   if (!facts.some((f) => f.type === 'capture')) return facts;
   const to = uci.slice(2, 4);

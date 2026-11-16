@@ -572,6 +572,28 @@ export function mateRules(input: ClassifyInput, settings: AnalysisSettings): { a
   return out;
 }
 
+/**
+ * (Feedback round 3) A Blunder by win chance alone, whose best move was a concrete chance (a missed mate, free
+ * material, or — from analyzeMove — a tactic / material its line wins), is a **Miss** when the played move throws
+ * nothing away itself: no material-rule label (a piece already hanging before the move doesn't count against it: the
+ * material rule caps at the baseline) and no allowed mate. The user's examples: 10.Bd2 / 11.Rd1 missing Qxc6+, which
+ * wins a knight, were Blunders though the moves themselves changed nothing. `concrete`: the best move carries a
+ * tactic (fork, pin, discovered attack, ...); a line that merely ends ahead is not enough (a better recapture is no
+ * missed chance). Sets `labelReason.missedChance`.
+ */
+export function missedChanceMiss(cr: ClassifyResult, concrete: boolean): boolean {
+  const r = cr.labelReason;
+  if (cr.label !== 'blunder' || r.winChance !== 'blunder') return false;
+  if (r.material?.label || r.allowedMate) return false;
+  // a piece (not a pawn) left en prise — new or already hanging — is the move's own doing: axb5 leaving the knight
+  // on c6 to Qxc6+ is a Blunder, not a missed Rc8
+  if (r.material?.hung && (r.material.hungLoss ?? 0) >= 2) return false;
+  if (!(r.missedMate || r.missedMaterial || concrete)) return false;
+  cr.label = 'miss';
+  r.missedChance = true;
+  return true;
+}
+
 // ---------------------------------------------------------------------------------------------------------------
 // classifyMove
 

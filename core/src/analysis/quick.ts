@@ -8,10 +8,10 @@ import type { AnalysisSettings, Arrow, MoveAnalysis, Score } from '@chess-coach/
 import { ANALYSIS_VERSION, moveAccuracy, toWhitePov, winPercentForColor } from '@chess-coach/shared';
 import type { AnalyzeContext, AnalyzeInput } from './analyzeMove';
 import { labelText, verdictText } from './explain';
-import { worseLabel } from './classify';
+import { missedChanceMiss, worseLabel } from './classify';
 import { deepParams, labelMove } from './label';
 import type { SearchParams } from './searchCache';
-import { legalPrefix, playMove, positionStatus, pvToSan, uciSquares } from '../chess/notation';
+import { legalPrefix, playMove, positionStatus, pvToSan, topMoves, uciSquares } from '../chess/notation';
 import type { SearchResult } from '../engine/uci';
 
 /** The quick pass's deep search: depth, MultiPV (2: best + the played move or the 2nd best), time cap. */
@@ -39,9 +39,12 @@ export async function quickAnalysis(ctx: AnalyzeContext, input: AnalyzeInput): P
   if (cr.label === 'miss' && cr.labelReason.miss && !cr.labelReason.missedMate && !cr.labelReason.missedMaterial) {
     cr.label = worseLabel(cr.labelReason.winChance, cr.labelReason.material?.label);
   }
+  // a Blunder only because free material / a mate was missed is a Miss (the facts-based chances: analyzeMove)
+  if (best.move !== played.uci) missedChanceMiss(cr, false);
   const opp = mover === 'white' ? 'black' : 'white';
   let evalAfter: Score;
   let nextBest: MoveAnalysis['nextBest'];
+  let nextTop: MoveAnalysis['nextTop'];
   const status = positionStatus(played.fenAfter);
   if (status === 'checkmate') evalAfter = toWhitePov({ mate: 0 }, opp);
   else if (status === 'stalemate') evalAfter = { cp: 0 };
@@ -51,6 +54,8 @@ export async function quickAnalysis(ctx: AnalyzeContext, input: AnalyzeInput): P
     evalAfter = s ? toWhitePov(s, opp) : toWhitePov(playedLine.score, mover);
     const nb = after.lines[0]?.move;
     if (nb && legalPrefix(played.fenAfter, [nb]).length === 1) nextBest = { uci: nb, san: playMove(played.fenAfter, nb).san };
+    const top = topMoves(played.fenAfter, after.lines.map((l) => l.move));
+    if (top.length) nextTop = top;
   }
   const bestSan = playMove(fen, best.move).san;
   const playedIsBest = cr.label !== 'book' && cr.winLoss === 0 && best.move === played.uci;
@@ -86,6 +91,7 @@ export async function quickAnalysis(ctx: AnalyzeContext, input: AnalyzeInput): P
     provisional: true,
   };
   if (nextBest) analysis.nextBest = nextBest;
+  if (nextTop) analysis.nextTop = nextTop;
   analysis.labelText = labelText({ ...analysis, bestSan, bestUci: best.move, checkmate: cr.checkmate, san: played.san }, ctx.settings);
   const verdict = verdictText(cr.label, playedIsBest || best.move === played.uci);
   if (verdict) analysis.verdictText = verdict;

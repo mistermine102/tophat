@@ -3,7 +3,7 @@
 // (lib/sides.ts). A game opens with the remembered side, else the side whose player name matches the chess.com name
 // last looked up on the Open screen, else the server's guess (GameInfo.you).
 // Plain Vue reactivity; one instance per app (provided via `provide`/`inject`, see useSession()).
-import type { Color, GameInfo, GameSummary, MoveAnalysis, Tone } from '@chess-coach/shared';
+import type { Color, GameInfo, GameSummary, MoveAnalysis, MoveIdea, Tone, TopMove } from '@chess-coach/shared';
 import { computed, inject, reactive, watch, type InjectionKey } from 'vue';
 import { ApiError, type ApiClient, type Health, type Unsubscribe } from '../api/types';
 import { MoveTree, type TreeNode } from '../lib/moveTree';
@@ -46,6 +46,7 @@ export interface SessionOptions {
 }
 
 const SHOW_BEST_KEY = 'chess-coach:show-best';
+const SOUND_KEY = 'chess-coach:sound';
 
 /** (D1) A full (not provisional) analysis. */
 const isFinal = (a: MoveAnalysis | undefined): a is MoveAnalysis => !!a && !a.provisional;
@@ -80,8 +81,14 @@ export function createSession(api: ApiClient, opts: SessionOptions = {}) {
     highlight: [] as string[],
     /** For the time-left estimate: when this session started waiting for the stream, and how many plies were done then. */
     rate: null as { start: number; doneAtStart: number; last: number } | null,
-    /** "Show best move": an arrow for the engine's best move in the position on the board (off by default — it is a hint; remembered). */
+    /** "Show best move": arrows for the engine's top moves in the position on the board (off by default — it is a hint; remembered). */
     showBest: storage?.getItem(SHOW_BEST_KEY) === '1',
+    /** Sound effects for moves on the board (on by default; remembered). */
+    sound: storage?.getItem(SOUND_KEY) !== '0',
+    /** (Engine arrows) api.topMoves results by FEN; 'error' = fall back to the analyses' own top moves. */
+    topMoves: new Map<string, TopMove[] | 'error'>(),
+    /** (Points) api.topIdeas results by FEN: what the top moves do; 'error' = no list for that position. */
+    topIdeas: new Map<string, MoveIdea[] | 'error'>(),
   });
 
   let unsubscribe: Unsubscribe | null = null;
@@ -128,6 +135,46 @@ export function createSession(api: ApiClient, opts: SessionOptions = {}) {
     const next = node.mainPly !== null ? state.analyses[node.mainPly + 1] : undefined;
     return next ? { uci: next.best.uci, san: next.best.san } : null;
   });
+
+  /**
+   * The engine's top moves in the position on the board, best first, for the "Show best move" arrows. With
+   * api.topMoves: its answer for this position (scored: how much each gives up against the best; nothing until it
+   * arrives, so the arrows never change once drawn). Without it (or when it failed): the move that led here (its
+   * search of the position after it), else the next main-line ply's candidates (the same position), else the best
+   * move; up to 3, unscored.
+   */
+  const topHere = computed<(TopMove | { uci: string; san: string; winLoss?: undefined })[]>(() => {
+    const node = current.value;
+    if (!node) return [];
+    const top = api.topMoves ? state.topMoves.get(node.fen) : 'error';
+    if (top !== 'error') return top ?? [];
+    const a = node.ply === 0 ? undefined : analysisFor(node);
+    if (a?.nextTop?.length) return a.nextTop.slice(0, 3);
+    const next = node.ply === 0 ? state.analyses[1] : node.mainPly !== null ? state.analyses[node.mainPly + 1] : undefined;
+    if (next?.candidates.length) return [...next.candidates].sort((x, y) => x.rank - y.rank).slice(0, 3).map((c) => ({ uci: c.uci, san: c.san }));
+    return bestHere.value ? [bestHere.value] : [];
+  });
+
+  /**
+   * (Points) What the top moves of the position on the board do, for the list under the verdict while "Show best
+   * move" is on: null when there is no list (toggle off, no api.topIdeas, the game is over, or it failed); 'pending'
+   * while the arrows or the points are on their way. Same order as the arrows (index i = arrow i + 1).
+   */
+  const ideasHere = computed<MoveIdea[] | 'pending' | null>(() => {
+    const node = current.value;
+    if (!node || !state.showBest || !api.topIdeas || !api.topMoves) return null;
+    const top = state.topMoves.get(node.fen);
+    if (top === 'error') return null;
+    if (top && !top.length) return null;
+    const ideas = state.topIdeas.get(node.fen);
+    if (ideas === 'error') return null;
+    return ideas ?? 'pending';
+  });
+
+  function toggleSound() {
+    state.sound = !state.sound;
+    storage?.setItem(SOUND_KEY, state.sound ? '1' : '0');
+  }
 
   function toggleShowBest() {
     state.showBest = !state.showBest;
@@ -348,6 +395,38 @@ export function createSession(api: ApiClient, opts: SessionOptions = {}) {
     }, focusDebounceMs);
   }
 
+  // (Engine arrows) the top moves of the position on the board, while "Show best move" is on (after a short dwell, so
+  // stepping through a game doesn't queue a search per ply)
+  let topTimer: ReturnType<typeof setTimeout> | null = null;
+  watch(
+    () => [state.showBest ? current.value?.fen : undefined, state.game?.id] as const,
+    ([fen]) => {
+      if (topTimer) clearTimeout(topTimer);
+      topTimer = null;
+      if (!fen || !api.topMoves || state.topMoves.has(fen)) return;
+      topTimer = setTimeout(() => {
+        topTimer = null;
+        if (state.topMoves.has(fen)) return;
+        const node = current.value;
+        const prev = node && node.fen === fen && node.fenBefore && node.uci ? { fenBefore: node.fenBefore, uci: node.uci } : null;
+        api.topMoves!(fen, prev).then(
+          (r) => {
+            state.topMoves.set(fen, r.moves);
+            // (Points) then what those moves do: the arrows never wait for it
+            if (api.topIdeas && !state.topIdeas.has(fen)) {
+              api.topIdeas(fen, prev).then(
+                (i) => state.topIdeas.set(fen, i.moves),
+                () => state.topIdeas.set(fen, 'error'),
+              );
+            }
+          },
+          () => state.topMoves.set(fen, 'error'),
+        );
+      }, focusDebounceMs);
+    },
+    { immediate: true },
+  );
+
   watch(
     () => current.value?.id,
     () => {
@@ -441,7 +520,10 @@ export function createSession(api: ApiClient, opts: SessionOptions = {}) {
     current,
     currentAnalysis,
     bestHere,
+    topHere,
+    ideasHere,
     toggleShowBest,
+    toggleSound,
     summary,
     progress,
     etaSeconds,

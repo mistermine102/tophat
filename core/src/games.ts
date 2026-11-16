@@ -22,7 +22,7 @@
 //   result (winLoss, win%, label). Book chain: every earlier ply is a book position move (pure book check);
 //   analyzeMove additionally breaks the chain if ply N-1 wasn't labelled Book.
 
-import type { AnalysisSettings, Color, GameInfo, GameMove, GameSummary, Label, MoveAnalysis, Score, SideSummary } from '@chess-coach/shared';
+import type { AnalysisSettings, Color, GameInfo, GameMove, GameSummary, Label, MoveAnalysis, Score, SideSummary, TopIdeasResult, TopMovesResult } from '@chess-coach/shared';
 import { ANALYSIS_VERSION, gameAccuracyFromScores, settingsHash } from '@chess-coach/shared';
 import { makeFen } from 'chessops/fen';
 import { emptyHeaders, parsePgn, parseVariant, startingPosition } from 'chessops/pgn';
@@ -30,7 +30,9 @@ import { makeSan, parseSan } from 'chessops/san';
 import { type AnalyzeInput, type PrevResult, analyzeMove } from './analysis/analyzeMove';
 import { bookInfo } from './analysis/book';
 import { quickAnalysis } from './analysis/quick';
-import type { SearchCache, Searcher } from './analysis/searchCache';
+import { addBrilliants, brilliantSearchWorthIt, emptyTopMoves, pickTopMoves, type PrevMove, topParams } from './analysis/topMoves';
+import { topIdeas } from './analysis/movePoints';
+import type { SearchCache, SearchParams, Searcher } from './analysis/searchCache';
 import { sha1 } from './hash';
 import type { CacheStore } from './store';
 import { normalizeFen, playMove, standardUci } from './chess/notation';
@@ -92,6 +94,29 @@ export function youFor(headers: Record<string, string>, username: string | null)
     if (headers.Black?.trim().toLowerCase() === u) return 'black';
   }
   return 'white';
+}
+
+/** The `{ fen }` body of a position request, normalised (BadRequestError otherwise). */
+/** `body.prev` (optional): the move that led to `fen`, or null when missing or not the move that led there. */
+function prevOf(body: unknown, fen: string): PrevMove | null {
+  const pb = (body as { prev?: { fenBefore?: unknown; uci?: unknown } | null }).prev;
+  if (!pb || typeof pb.fenBefore !== 'string' || typeof pb.uci !== 'string') return null;
+  try {
+    const pf = normalizeFen(pb.fenBefore);
+    return normalizeFen(playMove(pf, pb.uci).fenAfter) === fen ? { fenBefore: pf, uci: pb.uci } : null;
+  } catch {
+    return null; // not the move that led here: told without it
+  }
+}
+
+function fenOf(body: unknown): string {
+  const b = body as { fen?: unknown };
+  if (!b || typeof b.fen !== 'string') throw new BadRequestError('body must be { fen }');
+  try {
+    return normalizeFen(b.fen);
+  } catch (e) {
+    throw new BadRequestError((e as Error).message);
+  }
 }
 
 /** Cache key of one move analysis (ARCHITECTURE.md "Cache"). */
@@ -252,6 +277,53 @@ export class GameManager {
     const full = await this.deps.db.get<MoveAnalysis>('analyses', key);
     if (full) return full;
     return this.runQuick(input, key, Priority.SIDELINE);
+  }
+
+  /**
+   * (Engine arrows) The engine's top moves in a position (analysis/topMoves.ts), for the "Show best move" arrows, at
+   * SIDELINE priority (the position on the board). One job per position; the search is cached like any other.
+   * (Brilliant lines) The sound sacrifices among them are marked, and up to BRILLIANT_MAX from outside the list are
+   * appended (`addBrilliants`; that may take one more search). `prev` (optional): the move that led to the position.
+   */
+  async topMoves(body: unknown): Promise<TopMovesResult> {
+    const fen = fenOf(body);
+    const over = emptyTopMoves(fen);
+    if (over) return over;
+    const prev = prevOf(body, fen);
+    const settings = this.deps.settings;
+    const params = topParams(settings);
+    const cached = await this.deps.searchCache.peek(fen, params);
+    if (cached && !brilliantSearchWorthIt(fen, cached, settings)) {
+      return { fen, moves: await addBrilliants(fen, cached, pickTopMoves(fen, cached, settings), settings, prev, null), depth: cached.depth };
+    }
+    const sched = this.deps.scheduler;
+    if (!sched) throw new Error('engine not running');
+    return sched.run(`top:${fen}`, Priority.SIDELINE, async (engine) => {
+      const search = async (f: string, p: SearchParams) => (await this.deps.searchCache.search(engine, f, p)).result;
+      const r = cached ?? (await search(fen, params));
+      return { fen, moves: await addBrilliants(fen, r, pickTopMoves(fen, r, settings), settings, prev, search), depth: r.depth };
+    });
+  }
+
+  /**
+   * (Points) What the engine's top moves in a position do and how they differ (analysis/movePoints.ts), for the list
+   * next to the "Show best move" arrows: the same top-moves search (cached once topMoves ran) plus the null-move
+   * searches of the threats, at SIDELINE priority. Asked for after topMoves, so the arrows never wait for it. `prev`
+   * (optional): the move that led to the position, so a capture on its square reads as taking back.
+   */
+  async topIdeas(body: unknown): Promise<TopIdeasResult> {
+    const fen = fenOf(body);
+    if (emptyTopMoves(fen)) return { fen, moves: [] };
+    // the move that led here (optional): a capture on its square is taking back
+    const prev = prevOf(body, fen);
+    const sched = this.deps.scheduler;
+    if (!sched) throw new Error('engine not running');
+    const settings = this.deps.settings;
+    return sched.run(`ideas:${fen}`, Priority.SIDELINE, async (engine) => {
+      const search = async (f: string, p: SearchParams) => (await this.deps.searchCache.search(engine, f, p)).result;
+      const r = await search(fen, topParams(settings));
+      return { fen, moves: await topIdeas(fen, pickTopMoves(fen, r, settings), r.lines, settings, search, prev) };
+    });
   }
 
   private moveInput(body: unknown): AnalyzeInput {

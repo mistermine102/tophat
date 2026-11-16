@@ -1066,7 +1066,12 @@ export function refutationFact(input: RefutationInput): AllowsFact | null {
   // (M5c) a quiet reply whose line costs material: name the opponent's first forcing move after it (Nf3+)
   if (!kept.length && !targets.length && lineCost >= 1) {
     const f = input.line.steps.find((s, i) => i >= 2 && s.color !== mover && s.facts.some((x) => x.type === 'check' || x.type === 'fork' || (x.type === 'capture' && x.outcome === 'wins-material') || x.type === 'discovered-attack' || x.type === 'skewer'));
-    if (f) out.follow = f.san;
+    if (f) {
+      out.follow = f.san;
+      // (Feedback round 3) what that move does, so the sentence can say it ("…Nd3+ forks the king and bishop")
+      const what = f.facts.find((x) => x.type === 'fork' || x.type === 'skewer' || x.type === 'discovered-attack' || (x.type === 'capture' && x.outcome === 'wins-material'));
+      if (what) out.followFact = what;
+    }
   }
   if (out.perpetual) return out;
   // a plain check (or nothing) is no refutation worth a sentence — unless the line then costs material

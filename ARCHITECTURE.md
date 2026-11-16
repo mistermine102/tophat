@@ -358,8 +358,13 @@ export interface MoveAnalysis {
   timings?: Record<string, number>;
   labelText?: string;                  // rendered label + reason (explain.ts), mover-neutral
   verdictText?: string;                // caption for confirmed moves (Book/Forced/Best/Great), e.g. "Opening theory."
+  points?: { played: MoveIdea; best?: MoveIdea };  // (Points) what the played move (and the best one, when it wasn't played) does
 }
 export interface Arrow { from: string; to: string; kind: 'pick' | 'best' | 'threat' | 'played' }
+// (Points) analysis/movePoints.ts — see "Points: what a move does"
+export interface MovePoint { key: string; text: string; tone: Tone; squares?: string[] }
+export interface MoveIdea { uci: string; san: string; points: MovePoint[]; like?: number; plus?: MovePoint[]; minus?: MovePoint[]; plan?: string[] }
+export interface TopIdeasResult { fen: string; moves: MoveIdea[] }
 
 export interface GameMove { ply: number; san: string; uci: string; color: Color; fenBefore: string; fenAfter: string }
 export interface GameInfo {
@@ -422,6 +427,9 @@ Additions made in M3 (label quality; all additive, `ANALYSIS_VERSION` 2):
   ≤ `settings.mate.missedMaxMoves` (3) and the played move doesn't force mate → at least Miss (a Blunder stays).
   Neither applies to the engine's #1 move, a checkmating move or a single legal move. `labelReason.miss` keeps its
   meaning (the "punish the opponent's mistake" rule only).
+- (Feedback round 3) `labelReason.missedChance?: true`: `missedChanceMiss` (classify.ts) turned a win-chance Blunder
+  into a Miss — the best move was a concrete chance (missed mate / free material / a tactic on the board) and the
+  played move throws nothing away itself (no material-rule label, no piece ≥ 2 left en prise, no allowed mate).
 - `MaterialCheck.hung` now names only a piece that is en prise **right after the move** (on its square, untouched by
   the line until captured, opponent SEE > 0) and `MaterialCheck.hungLoss` is its static-exchange loss (the same number
   as the Immediate `hangs` fact; `loss` stays the line-based comparison); `MaterialCheck.lostInLine?: LostPiece[]` (`PieceRef & { ply }`, ply 1 =
@@ -597,6 +605,14 @@ Additions made in the UI round (tones; all additive optional fields, `ANALYSIS_V
 - `facts/positional.ts`: `positionalFeatures(fen | pos)` per colour; `positionalDelta(fenBefore, fenAfter, mover)` →
   `positional` facts (thresholds in `POSITIONAL_THRESHOLDS`); works for any two positions (e.g. before the move vs
   end of the short line).
+- `facts/cause.ts` (Why round, feedback round 3): why a bad move is bad when no tactic explains it, read from the
+  move's own engine line — `loosensFact` (a piece it leaves loose that the line goes after; not when the attacker
+  arrives by capturing a piece), `tradesDownFact` (a trade into a lost / drawn ending), `chasedFact` (the moved piece
+  is hit by cheaper pieces and steps away again: 3.Qf3 Bg4 Qg3 Bd6 Qh4; a king is no chaser), `passerFact` (an
+  opponent passed pawn reaches the 7th within `PASSER_PLIES`, which the best line doesn't allow), `undevelopedFact`
+  (an opening move that develops nothing while ≥ 2 minors are at home and better moves develop one), and
+  `fineAlternatives`. analyzeMove picks trades-down → a loosened piece the line wins → passer → chased → loosens →
+  undeveloped (Inaccuracy / Mistake only).
 - Benchmark: `npx tsx bench/puzzle-facts.ts [--theme fork] [--n 500] [--report]` → `bench/reports/puzzle-facts.md`.
 
 ## In-browser analysis (C1: no server)
@@ -651,6 +667,65 @@ between them, or a quick Best within `BEST_STICKY_LOSS` (1 %) of the top move. M
 cold): first label 0.6 s (was 2.7 s), 10 plies 1.4 s (7.7 s), every ply labelled 2.2 s; the full analyses still take
 ≈ 50 s. On shiniimini–mistermine102 about 4 of 30 labels change when the full analysis arrives (real differences:
 Good → Miss, Best → Excellent beyond 1 %).
+
+### "Show best move" arrows (engine arrows)
+
+With the toggle on (B / the arrow button; off by default, remembered), the board draws the engine's good moves in the
+position on the board. `GameManager.topMoves({ fen })` (protocol `topMoves`, `ApiClient.topMoves?`) answers from the
+analysis's own deep search of the position (`analysis/topMoves.ts` `topParams` = `deepParams`, so an analysed position
+is a cache hit; else one search at SIDELINE priority). `pickTopMoves` keeps the best `TOP_MIN` (3) whatever they lose,
+then every move within `labels.excellentMaxLoss` of the best, at most `TOP_MAX` (5). Each `TopMove` carries its score
+(White POV), `winLoss` against the best (side to move POV) and `gap` = max(winLoss, cp loss / `GAP_CP_PER_PCT` 30):
+win% barely moves when a side is far ahead or lost, the centipawns still punish a move only the best one avoids
+(feedback round 4). The session asks after a short dwell (`focusDebounceMs`) and caches by FEN; nothing is drawn until
+the answer arrives, so drawn arrows never change. `client/src/lib/topArrows.ts`: gold, brightness and width (12 → 3)
+by `exp(-gap / 2.5)` (brushes `top0` … `top9`), the best drawn last; with several arrows a rank label (chessground
+`label`) at each arrowhead keeps arrows along the same line readable. Without `topMoves` (older API) or when it fails:
+the analyses' own `nextTop` / candidates (up to 3, faded by rank).
+
+### Points: what a move does (`analysis/movePoints.ts`)
+
+Short checked points instead of a forced sentence ("Develops the knight", "Opens the diagonal for the bishop on c1",
+"Keeps the bishop off g4"), and a coach's comparison: a move with the same idea as a better one is told only by how
+it differs ("same idea as Nf3, but ✗ doesn't attack the pawn on e5"), so a list of good moves doesn't repeat itself.
+
+- A `Point` is a verb (base form) + the rest, a tone for the mover, a weight and a `key` naming what it is about
+  (`develop`, `attack:e5`, `defends:c7c4`, …): the same key on two moves is the same point. `said` / `denied` word it
+  ("Develops the knight" / "Doesn't develop the knight"; lacking a drawback is good). Shared output: `MovePoint`,
+  `MoveIdea`, `TopIdeasResult` (types.ts).
+- Sources, all checked: the immediate facts verified with the move's engine line exactly as analyzeMove does
+  (`verifyWithLine`, `pruneRefuted`, `addLineFork`, the threat / defends / prevents rules); the line's material
+  result, told only when it differs by a pawn from the median of the moves compared (`baseline`) and still holds 14
+  plies on (`laterMaterial`; a gambit pawn won back is no point), naming the capture that wins it and what comes back
+  ("Sets up …Nxe4, winning a pawn", "Gives up a rook for a bishop"); and board rules (file header): centre, challenges, a bishop opened / blocked (squares ahead only),
+  a piece in front of the unmoved d/e-pawn (c-pawn in queen's-pawn structures), prepares castling, prepares the line's
+  next move (illegal or losing before, safe after — g3 → Bg2), a square taken from an enemy minor / queen, activity /
+  centralisation, rooks on open files / connected, passed pawns, pawn structure and the bishop pair. One point per
+  key (heaviest wins); defending / saving the piece a threat hits is that threat's key; an attack on the piece the
+  move's own threat (or later capture) takes is that point; a capture that also escapes is told as the capture. With
+  the previous move known (`prev`: analyzeMove's, the "Moves here" request's), a capture on its square is taking back.
+- `compareIdeas`: move `a` has the same idea as an earlier (better) move `b` when they move the same kind of piece
+  (pawn / minor / rook / queen / king), `b` makes `a`'s main point too, and `b` makes ≥ `SAME_IDEA_SHARE` (½) of
+  `a`'s good points by weight or it is the very same piece; or `a`'s main point is a purpose `b` has too (stops the
+  same threat, wins the same piece). Then `like` = index of `b`, `plus` = `a`'s own good points `b` lacks + `b`'s drawbacks it avoids,
+  `minus` = its drawbacks + `b`'s good points (weight ≥ 14, not a specific follow-up) it lacks, at most 2 each. A move
+  with at most one point gets `plan`: its next two moves in the line.
+- Top moves ("Moves here"): `GameManager.topIdeas({ fen })` (protocol `topIdeas`, `ApiClient.topIdeas?`, SIDELINE)
+  reuses the top-moves search and adds the null-move searches (budget.threat: the opponent's threat now, each move's
+  own threat, "does the threat still work" per move). The session asks for it once the arrows' `topMoves` answer is
+  in (the arrows never wait). `TopIdeas.vue` (layout A, under the verdict, its own scroll area while the toggle is
+  on): one row per arrow, same number and colour (`topLabelFill`), points or "same idea as Nf3" + differences, or
+  the plan; hovering highlights the move's squares.
+- The played move: `MoveAnalysis.points` (`analyzeMove`, from the facts and searches it already has: no new search)
+  = the played move's `MoveIdea` and, when it wasn't best, the best move's, the played one compared with it. Layout
+  A's verdict (`lib/verdict.ts` `verdictPoints`): a good move shows its points instead of the sentence (they say the
+  same, `sentenceWithPoints`; Great / Brilliant keep their own plain reason); the same idea as the best move →
+  "Same idea as Nf3, the best move:" + the differences (a bad move only when one is a ✗ — "a little less precise"
+  would contradict its label); another idea → a good move's points, a bad move's sentence alone (its points would
+  repeat it), and "Best was Nf3:" + 2 of its ✓ points.
+- Eyeball reports: `bench/move-points.ts` (top moves of real positions; 439 moves of 10 Lichess games: 59 % get a good
+  point of their own, 18 % are told as the same idea as a better move, 22 % only a plan) and `bench/verdict-points.ts`
+  (the verdict card per played move).
 
 ### Performance (browser)
 
@@ -724,6 +799,17 @@ M2-client additions (client wired to the real server end to end):
   (`e2e/real/*.spec.ts`: the in-browser analysis on a dev server on 5293 with `VITE_ANALYSIS_DEFAULTS=profile=fast&engines=2&testhooks=1`;
   one browser context per file, so IndexedDB carries over between its tests; chess.com blocked). `E2E_REAL=0` runs only
   the mock project; `E2E_MOCK_PORT` / `E2E_REAL_PORT` change the ports. Screenshots of real data: `client/e2e/screenshots/real-<size>-*.png`.
+
+### Phone layout
+
+Phones (`(max-width: 767px)`, `client/src/lib/phone.ts` `isPhone`) showing a game get `layouts/MobileLayout.vue` instead
+of layout A, under a slimmer header (40px, "+" for Open). One screen, no page scrolling (`#app` is `100dvh` on phones,
+so Safari's toolbars don't hide anything): `PlayersCompact` (both players in one row), the board as wide as the screen
+with a slim `EvalBar` beside it (no number; the board shrinks only to keep the explanation >= 130px), the explanation
+filling the rest and scrolling by itself (`VerdictCard compact`: label, move name, sentence and points in one block, no
+mover / eval line; `TopIdeas`; the move list), swiped left / right for the next / previous move, and `MobileToolbar`
+(all controls in one row) at the bottom. `VerdictCard` is shared with layout A. Tested in `e2e/mobile.spec.ts`
+(390x664 and 320x568). Chosen from four prototypes (move strip, bottom sheet, tabs, side buttons) on 2026-11-11.
 
 ## Client layouts (UI round: prototypes)
 

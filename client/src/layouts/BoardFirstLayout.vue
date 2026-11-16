@@ -2,17 +2,19 @@
 // Prototype A "Board-first" (`?ui=a`): a big board with the label badge on the moved piece and the move's consequences
 // drawn on it (tinted, tagged squares + thin arrows, lib/consequences.ts), the players above / below it (PlayerBar:
 // taken pieces and +N material) and the eval graph under it. Next to it one column: the summary, the verdict card
-// (one sentence, round 10; the better move is the arrow on the board) and right below it the main-line move list.
+// (one sentence, round 10; the better move is the arrow on the board), "Moves here" while "Show best move" is on (what
+// the arrows' moves do, TopIdeas) and right below it the main-line move list.
 import { computed } from 'vue';
 import BoardView from '../components/BoardView.vue';
 import EvalBar from '../components/EvalBar.vue';
 import EvalGraph from '../components/EvalGraph.vue';
 import GameOverview from '../components/GameOverview.vue';
-import LabelGlyph from '../components/LabelGlyph.vue';
 import MoveList from '../components/MoveList.vue';
 import NavControls from '../components/NavControls.vue';
 import PlayerBar from '../components/PlayerBar.vue';
 import SummaryCompact from '../components/SummaryCompact.vue';
+import TopIdeas from '../components/TopIdeas.vue';
+import VerdictCard from '../components/VerdictCard.vue';
 
 import { isCheckmate, sideToMove } from '../lib/chess';
 import { useMove } from '../lib/useMove';
@@ -28,12 +30,6 @@ const game = computed(() => session.state.game);
 // players around the board, as on chess.com: the side at the bottom ("You") below, the other one above
 const bottomColor = computed(() => session.state.orientation);
 const ending = computed(() => (game.value ? gameEnding(game.value) : null));
-/** The player who made the viewed move, by name (falls back to White / Black). */
-const mover = computed(() => {
-  const c = node.value?.color;
-  if (!c) return null;
-  return { color: c, name: game.value?.headers[c === 'white' ? 'White' : 'Black'] || (c === 'white' ? 'White' : 'Black') };
-});
 const topColor = computed(() => (session.state.orientation === 'white' ? 'black' : 'white'));
 
 // --- eval bar / graph (as in the classic board column) ---
@@ -47,7 +43,8 @@ const evalScore = computed(() => {
 const mated = computed(() => (node.value && isCheckmate(node.value.fen) ? sideToMove(node.value.fen) : null));
 const graphPly = computed(() => (node.value && tree.value ? (tree.value.branchPoint(node.value).mainPly ?? 0) : 0));
 
-const accent = computed(() => m.meta.value?.color ?? '#737373');
+// "Moves here" is showing: the verdict / game card gives it room
+const ideasOn = computed(() => session.ideasHere.value !== null);
 </script>
 
 <template>
@@ -92,51 +89,11 @@ const accent = computed(() => m.meta.value?.color ?? '#737373');
     <!-- summary, the verdict card, and the moves right below it -->
     <div class="flex min-h-0 w-[380px] shrink-0 flex-col gap-3">
       <SummaryCompact />
-      <div class="pa-explain shrink-0 overflow-y-auto" data-testid="explanation">
+      <div class="pa-explain shrink-0 overflow-y-auto" :class="{ 'pa-explain-short': ideasOn }" data-testid="explanation">
         <GameOverview v-if="!node || node.ply === 0" />
-        <div
-          v-else
-          class="th-panel p-4"
-          :style="{ '--accent': accent }"
-          data-testid="verdict-bubble"
-        >
-          <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] text-neutral-400">
-            <span class="text-[14px] font-bold text-neutral-100">{{ m.moveName.value }}</span>
-            <span v-if="mover" class="inline-flex min-w-0 items-center gap-1.5 text-[13px] text-neutral-300" data-testid="mover">
-              <span class="h-2.5 w-2.5 shrink-0 rounded-full" :class="mover.color === 'white' ? 'th-side-white' : 'th-side-black'"></span>
-              <span class="truncate">{{ mover.name }}</span>
-            </span>
-            <span v-if="node.mainPly === null" class="th-badge th-badge-info">Side line</span>
-            <span v-if="m.evalChange.value" class="ml-auto tabular-nums" title="Engine evaluation from White's side (+ = White better)" data-testid="eval-change">
-              eval {{ m.evalChange.value.before }} → <b class="text-neutral-200">{{ m.evalChange.value.after }}</b>
-            </span>
-          </div>
-
-          <!-- verdict -->
-          <div v-if="m.a.value && m.verdict.value" class="mt-2 flex items-start gap-2.5" data-testid="verdict" :data-tone="m.verdict.value.tone">
-            <LabelGlyph :label="m.a.value.label" size="lg" />
-            <p class="min-w-0 pt-0.5 text-[16px] leading-snug text-neutral-50">
-              <b class="th-display text-[21px] font-bold" :style="{ color: accent }" data-testid="label-name">{{ m.verdict.value.name }}</b>
-              <template v-if="m.verdict.value.sentence"><span class="text-neutral-500"> — </span>{{ m.verdict.value.sentence }}</template>
-            </p>
-          </div>
-          <!-- no full analysis yet: its failure, the quick label's "working out why", or the spinner -->
-          <div v-if="m.error.value && (!m.a.value || m.a.value.provisional)" class="mt-2 text-sm text-rose-300" data-testid="ply-error">
-            <p>The analysis of this move failed: {{ m.error.value }}</p>
-            <button class="th-btn th-btn-sm mt-1.5" data-testid="retry" @click="m.retry()">Try again</button>
-          </div>
-          <!-- (D1) a quick label: the full analysis (and the why) is on its way -->
-          <p v-else-if="m.a.value?.provisional" class="mt-2 flex items-center gap-2 text-[13px] text-neutral-400" data-testid="provisional">
-            <span class="h-3 w-3 animate-spin rounded-full border-2 border-neutral-500 border-t-transparent"></span>
-            Working out why…
-          </p>
-          <p v-else-if="!m.a.value" class="mt-2 flex items-center gap-2 text-[15px] text-neutral-300">
-            <span class="h-4 w-4 animate-spin rounded-full border-2 border-neutral-500 border-t-transparent"></span>
-            Analysing {{ m.moveName.value }}…
-          </p>
-
-        </div>
+        <VerdictCard v-else />
       </div>
+      <TopIdeas class="pa-ideas min-h-0 overflow-y-auto" />
       <MoveList class="min-h-[150px]" :side-lines="false" />
     </div>
   </main>
@@ -163,5 +120,13 @@ const accent = computed(() => m.meta.value?.color ?? '#737373');
 }
 .pa-explain {
   max-height: 62%;
+}
+.pa-explain-short {
+  max-height: 34%;
+}
+/* the "Moves here" list shrinks before the move list does, but never below a few rows */
+.pa-ideas {
+  flex: 0 1 auto;
+  min-height: 132px;
 }
 </style>

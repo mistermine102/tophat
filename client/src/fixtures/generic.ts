@@ -1,6 +1,6 @@
 // Mock-only: a plausible generic MoveAnalysis for any legal move, built from chessops (no engine).
 // Eval = material balance; label 'good' (or 'forced' when it was the only legal move).
-import type { MoveAnalysis, Score } from '@chess-coach/shared';
+import type { MoveAnalysis, Score, TopMovesResult } from '@chess-coach/shared';
 import type { AnalyseRequest } from '../api/types';
 import { isCheckmate, legalDests, materialBalance, playUci } from '../lib/chess';
 import { assembleAnalysis } from './assemble';
@@ -31,4 +31,20 @@ export function genericAnalysis(req: AnalyseRequest): MoveAnalysis {
   const next = from && tos ? playUci(played.fenAfter, from + tos[0]) : null;
   if (next) a.nextBest = { uci: next.uci, san: next.san };
   return a;
+}
+
+/** Win-chance losses of the generic "top moves": one clear best, a close second, then weaker ones. */
+const GENERIC_LOSSES = [0, 1, 4, 12, 25];
+
+/** Mock-only "Show best move" arrows: the first legal moves (one per piece where possible), fading. */
+export function genericTopMoves(fen: string): TopMovesResult {
+  const moves: TopMovesResult['moves'] = [];
+  for (const [from, tos] of legalDests(fen)) {
+    const to = tos[tos.length - 1];
+    const m = to ? playUci(fen, from + to) : null;
+    if (!m || moves.length >= GENERIC_LOSSES.length) continue;
+    const loss = GENERIC_LOSSES[moves.length]!;
+    moves.push({ uci: m.uci, san: m.san, score: { cp: (m.color === 'white' ? 1 : -1) * (30 - loss * 10) }, winLoss: loss, gap: loss });
+  }
+  return { fen, moves, depth: 14 };
 }

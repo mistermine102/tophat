@@ -38,8 +38,11 @@ export type Fact =
   | { type: 'threat'; move: string; san: string; gain: number; mateIn?: number; facts: Fact[] }
   | { type: 'defends-threat'; move: string; san: string; gain: number; mateIn?: number; facts: Fact[] }  // the opponent's threat (as in 'threat', opponent POV) no longer works after the move
   | { type: 'line'; steps: LineStep[]; materialDelta: number; mateIn?: number; result: 'wins-material' | 'loses-material' | 'mate' | 'mated' | 'trade' | 'quiet' | 'unclear'; won?: PieceRole[]; lost?: PieceRole[]; measuredAt?: number; balance?: number; owed?: number; nextForcing?: string; recapture?: string; draw?: 'perpetual' | 'repetition'; drawBy?: Color }  // draw/drawBy (M5c): the narrated line repeats a position and the engine scores it as a draw (perpetual: every move of drawBy in the cycle is a check); recapture (M5b): SAN of the PV's next move, a recapture already counted in the material result; nextForcing (M5b): SAN of the PV moves right after the narrated steps up to the first check or capture within 3 plies; won/lost: net pieces gained/lost by the mover; measuredAt: material measured after this many plies (> steps.length); 'unclear' = material still changing where the line ends (no result is claimed); balance: mover's material balance (points) at the line end (material results only); owed: material the opponent's previous move captured, which the line may be winning back
-  | { type: 'allows'; reply: { san: string; uci: string }; facts: Fact[]; targets?: PieceRef[]; gain?: number; mateIn?: number; already?: boolean; mateLine?: string[]; keepsThreat?: boolean; threatParried?: boolean; follow?: string; perpetual?: boolean }  // perpetual (M5c): the line is a draw by perpetual check given by the opponent; threatParried (M5c): the reply's threat is not carried out in the line, which still costs the mover gain points (the threat is why); follow (M5c): SAN of the opponent's first forcing move later in the line, for a quiet reply whose line costs material; keepsThreat (M5b): the reply's threat is the opponent's threat from before the move, playable right after it ("Doesn't deal with …"). mateLine (M5b): SAN from the reply to the checkmate, verified on the board. negative (bad moves): the opponent's best reply from the move's PV and what it does — its board facts / verified threat, mover pieces it newly puts en prise, material the opponent gains in the line (pawns), mate against the mover; already: the reply worked before the move too (the move just doesn't deal with it)
+  | { type: 'allows'; reply: { san: string; uci: string }; facts: Fact[]; targets?: PieceRef[]; gain?: number; mateIn?: number; already?: boolean; mateLine?: string[]; keepsThreat?: boolean; threatParried?: boolean; follow?: string; perpetual?: boolean; followFact?: Fact }  // followFact (feedback round 3): the fork / skewer / discovered attack / winning capture of the follow move; perpetual (M5c): the line is a draw by perpetual check given by the opponent; threatParried (M5c): the reply's threat is not carried out in the line, which still costs the mover gain points (the threat is why); follow (M5c): SAN of the opponent's first forcing move later in the line, for a quiet reply whose line costs material; keepsThreat (M5b): the reply's threat is the opponent's threat from before the move, playable right after it ("Doesn't deal with …"). mateLine (M5b): SAN from the reply to the checkmate, verified on the board. negative (bad moves): the opponent's best reply from the move's PV and what it does — its board facts / verified threat, mover pieces it newly puts en prise, material the opponent gains in the line (pawns), mate against the mover; already: the reply worked before the move too (the move just doesn't deal with it)
   | { type: 'loosens'; moved: PieceRef; target: PieceRef; undefended?: boolean; attacker: PieceRef; route: string[]; answer?: { san: string; how: 'king' | 'defends' | 'moves-away' }; castlingLost?: boolean; won?: boolean }  // (Why round) negative, played bad move: the move takes its protection away from the mover's target (moved = the piece as it stood before the move; undefended = nothing defends it any more), and the move's engine line goes after it — the opponent's attacker (on the square it attacks from) gets there by route (SAN of that piece's moves in the line); answer = the mover's reply in the line (a king walk that gives up castling, a piece that defends it, or the target stepping away); won = the line then takes it and the mover ends material down
+  | { type: 'chased'; piece: PieceRef; hits: { attack: string; retreat: string }[] }  // (Feedback round 3) negative, played bad move: the moved piece (piece = where it lands) is hit by cheaper opponent pieces in the move's engine line and has to step away again (hits = SAN of each attack and the mover's retreat), so the opponent gains time
+  | { type: 'passer'; pawn: PieceRef; promotes?: boolean; line: string[] }  // (Feedback round 3) negative, played bad move: its engine line lets an opponent passed pawn reach the square before promotion (pawn = where it lands; promotes = it queens), which the best move's line doesn't; line = SAN of the PV after the move up to that pawn move
+  | { type: 'undeveloped'; home: number; moves: string[] }  // (Feedback round 3) negative, played bad move in the opening: it brings no piece out while home (>= 2) of the mover's knights and bishops are still on their starting squares, and moves (SAN) that were better do develop one
   | { type: 'trades-down'; trade: 'queens' | 'pieces'; ending: 'pawn' | 'other'; verdict: 'lost' | 'draw' | 'worse'; line: string[] }  // (Why round) negative, played bad move: its engine line trades off (the queens / pieces down to a pawn ending) within a few plies, material level, and the ending is lost / only a draw / clearly worse than the position the best move keeps; line = SAN of the trade
   | { type: 'forced-reply'; san: string; alternatives: number }      // opponent's reply was (nearly) the only move
   | { type: 'positional'; feature: PositionalFeature; delta: number; detail?: string; side?: 'own' | 'opponent'; squares?: string[]; at?: 'line-end' }  // delta: + = good for mover; side: whose pieces changed; at: 'line-end' = change measured at the end of the short line, not right after the move
@@ -113,7 +116,7 @@ export interface MoveAnalysis {
   winLoss: number;
   accuracy: number;                    // per-move accuracy %
   label: Label;
-  labelReason: { winChance: Label; material?: MaterialCheck; miss?: boolean; great?: { secondBestLoss: number }; book?: { eco: string; name: string }; allowedMate?: AllowedMate; missedMate?: MissedMate; missedMaterial?: MissedMaterial; brilliant?: BrilliantSacrifice };
+  labelReason: { winChance: Label; material?: MaterialCheck; miss?: boolean; great?: { secondBestLoss: number }; book?: { eco: string; name: string }; allowedMate?: AllowedMate; missedMate?: MissedMate; missedMaterial?: MissedMaterial; brilliant?: BrilliantSacrifice; missedChance?: boolean };
   played: Candidate;                   // the played move as a candidate, with explanation
   best: Candidate;
   pick: Candidate | null;              // explainable pick; null if none
@@ -126,7 +129,36 @@ export interface MoveAnalysis {
   verdictText?: string;                // caption for confirmed moves (Book/Forced/Brilliant/Best/Great), e.g. "Opening theory."
   provisional?: boolean;               // (fast feedback, D1) a quick result (light search, no explanations); the full analysis replaces it
   nextBest?: { uci: string; san: string };  // (Why round) the engine's best move in the position after this move (the deep search for evalAfter), for the "Show best move" toggle; absent when the game is over
+  points?: { played: MoveIdea; best?: MoveIdea };  // (Points) what the played move does as short points (analysis/movePoints.ts); `best` = the best move's when it wasn't played, and then `played` is compared with it (like = 0: the same idea, told by its differences)
+  nextTop?: { uci: string; san: string }[];  // (feedback round 3) the engine's top moves (up to 3, best first) in the position after this move, from the same search as nextBest; the "Show best move" fallback when no top-moves search is available
 }
+/**
+ * (Engine arrows) One of the engine's good moves in a position, for the "Show best move" arrows: its score (White POV)
+ * and how much win chance it gives up against the best move (side to move POV, 0 for the best). `gap`: how much worse
+ * than the best it is drawn (win% loss, or the centipawn loss in win% terms when larger: analysis/topMoves.ts).
+ */
+/**
+ * One of the engine's top moves. (Brilliant lines) `brilliant`: the move is a sound sacrifice by the Brilliant !! rule
+ * (classify.ts `brilliantSacrifice`); `extra`: a brilliant move from outside the regular list, appended after it.
+ */
+export interface TopMove { uci: string; san: string; score: Score; winLoss: number; gap: number; brilliant?: BrilliantSacrifice; extra?: boolean }
+/** The engine's top moves in `fen`, best first (analysis/topMoves.ts picks how many). Empty when the game is over. */
+export interface TopMovesResult { fen: string; moves: TopMove[]; depth: number }
+/**
+ * (Points) One short point about what a move does ("Develops the knight", "Attacks the bishop on c5"), checked on the
+ * board or against the move's engine line (analysis/movePoints.ts). `key` names what the point is about, so two moves
+ * with the same key make the same point ('develop', 'attack:c5'); `tone` is for the side that plays the move.
+ */
+export interface MovePoint { key: string; text: string; tone: Tone; squares?: string[] }
+/**
+ * (Points) What one of the engine's top moves does. A move with the same idea as a better one (`like`: its index in
+ * the list) is told by how it differs: `plus` = what it has or avoids that the better move doesn't, `minus` = what it
+ * lacks or spoils (both empty = the same idea, just a little less precise). `plan` = the mover's next moves in the
+ * engine line (SAN), when the move has at most one point of its own.
+ */
+export interface MoveIdea { uci: string; san: string; points: MovePoint[]; like?: number; plus?: MovePoint[]; minus?: MovePoint[]; plan?: string[] }
+/** (Points) The points of the top moves in `fen`, in the order of TopMovesResult.moves. */
+export interface TopIdeasResult { fen: string; moves: MoveIdea[] }
 export interface Arrow { from: string; to: string; kind: 'pick' | 'best' | 'threat' | 'played' }
 
 export interface GameMove { ply: number; san: string; uci: string; color: Color; fenBefore: string; fenAfter: string }

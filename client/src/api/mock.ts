@@ -3,13 +3,33 @@
 //  - stream() replays finished analyses on connect, like the server.
 //  - analyse() answers side-line moves after `analyseDelayMs` (fixture analysis if it is a known game move,
 //    otherwise a generic analysis built with chessops).
+//  - topMoves() answers after `analyseDelayMs`: a game move's candidates in that position, else generic legal moves.
+//  - topIdeas() tells those moves with the real point rules (core analysis/movePoints.ts) on their fixture lines (no
+//    engine, so no threats), after one more `analyseDelayMs`.
 //  - Any other pasted PGN works too: its plies get generic analyses.
-import type { ChessComGames, GameInfo, MoveAnalysis } from '@chess-coach/shared';
-import { genericAnalysis } from '../fixtures/generic';
+import { DEFAULT_SETTINGS, toWhitePov, type ChessComGames, type GameInfo, type MoveAnalysis, type TopIdeasResult, type TopMovesResult } from '@chess-coach/shared';
+import { compareIdeas, movePoints } from '@chess-coach/core/analysis/movePoints';
+import { genericAnalysis, genericTopMoves } from '../fixtures/generic';
 import { FIXTURE_PGN, FIXTURE_USERNAME, fixtureGame } from '../fixtures/game';
 import { PgnImportError, pgnToGame, sideOf } from '../fixtures/pgnGame';
 import { computeSummary } from '../lib/summary';
 import { ApiError, type AnalyseRequest, type ApiClient, type GameSnapshot, type Health, type StreamHandlers, type Unsubscribe } from './types';
+
+/** (Points) The fixture analyses get their points from the real rules (core movePoints.ts) on their own lines. */
+function withPoints(a: MoveAnalysis, prev: { fenBefore: string; uci: string } | null = null): void {
+  if (a.points || a.provisional) return;
+  try {
+    const mover = a.color;
+    const of = (c: MoveAnalysis['played'], winLoss: number) => movePoints(a.fenBefore, { uci: c.uci, pv: c.pvUci.length ? c.pvUci : [c.uci], score: toWhitePov(c.score, mover), winLoss, prev }, DEFAULT_SETTINGS);
+    if (a.best.uci === a.uci) a.points = { played: compareIdeas([of(a.played, 0)])[0]! };
+    else {
+      const [best, played] = compareIdeas([of(a.best, 0), of(a.played, a.winLoss)]);
+      a.points = { played: played!, best: best! };
+    }
+  } catch {
+    // a fixture line that doesn't play out: no points (the verdict sentence stays)
+  }
+}
 
 export interface MockOptions {
   intervalMs?: number;
@@ -47,6 +67,11 @@ export class MockApiClient implements ApiClient {
       existing.game = game;
       return existing;
     }
+    game.moves.forEach((m, i) => {
+      const a = all[m.ply];
+      const p = game.moves[i - 1];
+      if (a) withPoints(a, p ? { fenBefore: p.fenBefore, uci: p.uci } : null);
+    });
     const g: MockGame = { game, all, done: {}, queue: game.moves.map((m) => m.ply), timer: null, listeners: new Set() };
     this.games.set(game.id, g);
     return g;
@@ -162,10 +187,43 @@ export class MockApiClient implements ApiClient {
       if (m && g.all[m.ply]) return g.all[m.ply]!;
     }
     try {
-      return genericAnalysis(req);
+      const a = genericAnalysis(req);
+      withPoints(a, req.prev ?? null);
+      return a;
     } catch (e) {
       throw new ApiError((e as Error).message, 400);
     }
+  }
+
+  async topMoves(fen: string): Promise<TopMovesResult> {
+    await delay(this.analyseDelayMs);
+    for (const g of [...this.games.values()]) {
+      const m = g.game.moves.find((mv) => mv.fenBefore === fen);
+      const a = m ? g.all[m.ply] : undefined;
+      if (a?.candidates.length) {
+        // (Brilliant lines) the played move keeps its Brilliant mark in the list
+        const sac = a.label === 'brilliant' ? a.labelReason.brilliant : undefined;
+        const moves = [...a.candidates]
+          .filter((c) => c.rank > 0)
+          .sort((x, y) => x.rank - y.rank)
+          .map((c) => ({ uci: c.uci, san: c.san, score: c.score, winLoss: c.winLoss, gap: c.winLoss, ...(sac && c.uci === m!.uci ? { brilliant: sac } : {}) }));
+        return { fen, moves, depth: 14 };
+      }
+    }
+    return genericTopMoves(fen);
+  }
+
+  async topIdeas(fen: string, prev: { fenBefore: string; uci: string } | null = null): Promise<TopIdeasResult> {
+    const top = await this.topMoves(fen);
+    await delay(this.analyseDelayMs);
+    const pvs = new Map<string, string[]>();
+    for (const g of [...this.games.values()]) {
+      const m = g.game.moves.find((mv) => mv.fenBefore === fen);
+      for (const c of (m ? g.all[m.ply]?.candidates : undefined) ?? []) pvs.set(c.uci, c.pvUci);
+    }
+    const mover = fen.split(' ')[1] === 'b' ? 'black' : 'white';
+    const all = top.moves.map((m) => movePoints(fen, { uci: m.uci, pv: pvs.get(m.uci) ?? [m.uci], score: toWhitePov(m.score, mover), winLoss: m.winLoss, prev }, DEFAULT_SETTINGS));
+    return { fen, moves: compareIdeas(all) };
   }
 
   /** One game: the fixture (any username; "nobody" is an unknown player). */

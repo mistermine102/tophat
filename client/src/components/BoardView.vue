@@ -1,13 +1,13 @@
 <script setup lang="ts">
 // The board for the prototype layouts: chessground + the move's label badge on its destination square (spinner
-// while it is analysed), suggestion arrows, promotion picker, and previews / replays (session.state.preview: a
+// while it is analysed), the threat arrow and the "Show best move" arrows (the engine's top moves, as bright as they are good), promotion picker, and previews / replays (session.state.preview: a
 // position with its own arrows and a ✓ / ✗ marker). Fills its parent (give the parent a square size).
-import type { Arrow } from '@chess-coach/shared';
 import type { DrawShape } from 'chessground/draw';
 import type { Key } from 'chessground/types';
 import { computed, ref } from 'vue';
 import { isCheck, legalDests, needsPromotion, sideToMove, uciSquares } from '../lib/chess';
 import { type Consequences, moveConsequences } from '../lib/consequences';
+import { topArrowShapes } from '../lib/topArrows';
 import { useSession } from '../stores/session';
 import BoardBadge from './BoardBadge.vue';
 import BoardTags from './BoardTags.vue';
@@ -40,25 +40,16 @@ const THIN = { good: 'goodThin', bad: 'badThin', neutral: 'neutralThin' } as con
 
 const threatBrush = computed(() => (analysis.value?.color === session.state.you ? THIN.good : THIN.bad));
 
-const ORDER: Record<Arrow['kind'], number> = { played: 0, threat: 1, best: 2, pick: 3 };
-// "Show best move" (session.state.showBest): the best move here, instead of the arrows about the previous move's alternatives
-const bestHereShape = computed<DrawShape | null>(() => {
-  const b = session.state.showBest && !preview.value ? session.bestHere.value : null;
-  return b ? { orig: b.uci.slice(0, 2) as Key, dest: b.uci.slice(2, 4) as Key, brush: 'bestHere' } : null;
-});
+// "Show best move" (session.state.showBest): the engine's top moves here, as bright as they are good (lib/topArrows.ts)
+const topHereShapes = computed<DrawShape[]>(() => (session.state.showBest && !preview.value ? topArrowShapes(session.topHere.value) : []));
 const shapes = computed<DrawShape[]>(() => {
   if (preview.value) return (preview.value.arrows ?? []).map((a) => ({ orig: a.from as Key, dest: a.to as Key, brush: a.brush }));
-  const here = bestHereShape.value ? [bestHereShape.value] : [];
+  const here = topHereShapes.value;
   if (!analysis.value || !props.arrows) return here;
-  const played = analysis.value.uci;
-  const noSuggestion = analysis.value.label === 'book' || analysis.value.label === 'forced';
-  const arrows = analysis.value.arrows.filter(
-    (a) => !((a.kind === 'pick' || a.kind === 'best') && (noSuggestion || played.startsWith(a.from + a.to) || session.state.showBest)),
-  );
-  const contrast = arrows.some((a) => a.kind === 'pick' || a.kind === 'best');
-  const suggestions: DrawShape[] = arrows
-    .filter((a) => a.kind !== 'played' || contrast)
-    .sort((a, b) => ORDER[a.kind] - ORDER[b.kind])
+  // (feedback round 3) no big arrows for the best / suggested move (the "Show best move" arrows show the engine's
+  // choices when wanted), so no grey "played" arrow to contrast them with either: the threat arrow only
+  const suggestions: DrawShape[] = analysis.value.arrows
+    .filter((a) => a.kind === 'threat')
     // with consequence marks red means "bad for you": the mover's threat is a thin arrow, green when you made the move
     .map((a) => ({ orig: a.from as Key, dest: a.to as Key, brush: cons.value && a.kind === 'threat' ? threatBrush.value : a.kind }));
   if (!cons.value) return [...suggestions, ...here];

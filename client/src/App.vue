@@ -1,25 +1,42 @@
 <script setup lang="ts">
 // Header (Tophat logo = home, players, progress, Open game) + one of two screens (lib/route.ts): the Open screen
 // (OpenScreen: the landing page when no game is open) or the game in layout A (board-first); the older layouts only
-// by URL (`?ui=classic|b|c`, lib/uiMode.ts). All layouts share the session store.
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+// by URL (`?ui=classic|b|c`, lib/uiMode.ts). All layouts share the session store. Phones (< 768px) get the phone
+// layout (MobileLayout) instead of layout A, under a slimmer header.
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import OpenScreen from './components/OpenScreen.vue';
 import TophatMark from './components/TophatMark.vue';
 import BoardFirstLayout from './layouts/BoardFirstLayout.vue';
 import ClassicLayout from './layouts/ClassicLayout.vue';
 import CoachLayout from './layouts/CoachLayout.vue';
 import GoodBadLayout from './layouts/GoodBadLayout.vue';
+import MobileLayout from './layouts/MobileLayout.vue';
+import { isPhone } from './lib/phone';
+import { playSound, soundFor } from './lib/sound';
 import { gameIdOf, isOpenState, OPEN_STATE, type Screen, withGame } from './lib/route';
 import { uiMode } from './lib/uiMode';
 import { useSession } from './stores/session';
 
 const session = useSession();
+
+// Sound effects: one move forward (played, or "Next") sounds like that move, one move back a quiet knock, a jump
+// (start / end / a click further away in the move list, another game) nothing.
+watch(
+  () => session.current.value,
+  (now, before) => {
+    if (!session.state.sound || !now || !before || screen.value !== 'game') return;
+    if (now.parent === before && now.uci) playSound(soundFor(now.san, now.fen));
+    else if (before.parent === now) playSound('back');
+  },
+);
 /** null while booting (a `?game=` URL is being opened). */
 const screen = ref<Screen | null>(null);
 const game = computed(() => session.state.game);
 const progress = computed(() => session.progress.value);
 const analysing = computed(() => progress.value.total > 0 && progress.value.done + progress.value.failed < progress.value.total);
 const health = computed(() => session.state.health);
+/** A phone showing a game: the phone layout and a slimmer header. */
+const phoneGame = computed(() => isPhone.value && uiMode.value === 'a' && screen.value === 'game');
 /** 'about 2 min left' / 'under a minute left' (null until the pace is known). */
 const timeLeft = computed(() => {
   const s = session.etaSeconds.value;
@@ -82,6 +99,7 @@ function onKey(e: KeyboardEvent) {
     f: () => session.flip(),
     n: () => session.nextMistake(),
     b: () => session.toggleShowBest(),
+    m: () => session.toggleSound(),
   };
   const act = actions[e.key];
   if (act && session.state.tree) {
@@ -97,8 +115,8 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="flex h-full min-h-[600px] flex-col text-neutral-100">
-    <header class="flex h-14 shrink-0 items-center gap-4 px-5 pt-1">
+  <div class="flex h-full flex-col text-neutral-100 md:min-h-[600px]">
+    <header class="flex h-14 shrink-0 items-center gap-4 px-5 pt-1 max-sm:gap-2 max-sm:px-3" :class="{ 'h-10! pt-0!': phoneGame }">
       <div class="flex items-center gap-2">
         <button
           class="-ml-1 flex items-center gap-2 rounded-lg px-1 py-0.5 hover:bg-white/5"
@@ -106,10 +124,10 @@ onBeforeUnmount(() => {
           data-testid="home"
           @click="showOpen()"
         >
-          <TophatMark class="h-8 w-8" />
-          <span class="th-display text-[26px] font-bold leading-none tracking-[-0.01em]">Tophat</span>
+          <TophatMark :class="phoneGame ? 'h-7 w-7' : 'h-8 w-8'" />
+          <span class="th-display text-[26px] font-bold leading-none tracking-[-0.01em] max-sm:text-[22px]" :class="{ 'text-[20px]!': phoneGame }">Tophat</span>
         </button>
-        <span v-if="session.api.mode === 'mock'" class="th-badge th-badge-info" title="Mock mode: fixture data, no server">
+        <span v-if="session.api.mode === 'mock'" class="th-badge th-badge-info max-sm:hidden!" title="Mock mode: fixture data, no server">
           Mock
         </span>
       </div>
@@ -132,7 +150,8 @@ onBeforeUnmount(() => {
         >
           <template v-if="analysing">
             <span class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-amber-500 border-t-transparent"></span>
-            Analysed {{ progress.done }}/{{ progress.total }}<span v-if="timeLeft" class="text-neutral-500" data-testid="time-left"> · {{ timeLeft }}</span>
+            <!-- phones: just the count -->
+            <span><span class="max-sm:hidden">Analysed </span>{{ progress.done }}/{{ progress.total }}</span><span v-if="timeLeft" class="text-neutral-500 max-sm:hidden" data-testid="time-left"> · {{ timeLeft }}</span>
           </template>
           <template v-else-if="progress.failed">Analysed {{ progress.done }}/{{ progress.total }}</template>
           <template v-else>Analysis complete</template>
@@ -140,9 +159,9 @@ onBeforeUnmount(() => {
         </span>
         <span v-if="health && !health.ok" class="th-badge th-badge-bad" :title="health.error" data-testid="engine-down">Engine offline</span>
         <span v-if="session.state.connectionError" class="th-badge th-badge-bad" :title="session.state.connectionError">Connection lost</span>
-        <button v-if="screen === 'game'" class="th-btn th-btn-primary" data-testid="open-pgn" @click="showOpen()">
+        <button v-if="screen === 'game'" class="th-btn th-btn-primary" :class="{ 'h-8! px-2.5! py-0!': phoneGame }" :aria-label="phoneGame ? 'Open game' : undefined" data-testid="open-pgn" @click="showOpen()">
           <svg viewBox="0 0 20 20" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4v12M4 10h12" /></svg>
-          Open game
+          <template v-if="!phoneGame">Open<span class="max-sm:hidden"> game</span></template>
         </button>
       </div>
     </header>
@@ -150,7 +169,8 @@ onBeforeUnmount(() => {
     <OpenScreen v-if="screen === 'open'" @opened="screen = 'game'" @back="backToGame()" />
 
     <template v-else-if="screen === 'game' && game">
-      <BoardFirstLayout v-if="uiMode === 'a'" />
+      <MobileLayout v-if="phoneGame" />
+      <BoardFirstLayout v-else-if="uiMode === 'a'" />
       <CoachLayout v-else-if="uiMode === 'b'" />
       <GoodBadLayout v-else-if="uiMode === 'c'" />
       <ClassicLayout v-else />

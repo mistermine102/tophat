@@ -10,6 +10,7 @@ import 'chessground/assets/chessground.brown.css';
 import 'chessground/assets/chessground.cburnett.css';
 import type { Color } from '@chess-coach/shared';
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { topBrushes } from '../lib/topArrows';
 
 const props = defineProps<{
   fen: string;
@@ -37,6 +38,8 @@ const BRUSHES = {
   best: { key: 'cc-best', color: '#2563eb', opacity: 0.85, lineWidth: 11 },
   // "Show best move": the engine's best move in the position on the board
   bestHere: { key: 'cc-best-here', color: '#e0a400', opacity: 0.9, lineWidth: 12 },
+  // "Show best move": the engine's top moves here, top0 (faintest) … top9 (the best), lib/topArrows.ts
+  ...topBrushes(),
   threat: { key: 'cc-threat', color: '#dc2626', opacity: 0.85, lineWidth: 10 },
   played: { key: 'cc-played', color: '#6b7280', opacity: 0.55, lineWidth: 9 },
   // (UI prototypes) replayed steps, by tone for the mover
@@ -144,6 +147,15 @@ defineExpose({ sync });
 .cc-board square.cc-mark-neutral {
   background: rgba(61, 127, 176, 0.3);
   box-shadow: inset 0 0 0 3px rgba(61, 127, 176, 0.9);
+}
+/* "Show best move" rank numbers (chessground labels): smaller than chessground's 0.4-square disc */
+.cc-board svg.cg-custom-svgs circle {
+  r: 0.13px;
+}
+.cc-board svg.cg-custom-svgs text {
+  font-size: 0.19px;
+  font-weight: 700;
+  transform: translateY(-0.03px);
 }
 .cc-board coords {
   font-size: 11px;

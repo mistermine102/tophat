@@ -1,10 +1,10 @@
 <script setup lang="ts">
 // Eval bar + board (+ promotion picker, preview caption) + navigation + eval graph.
-import type { Arrow } from '@chess-coach/shared';
 import type { DrawShape } from 'chessground/draw';
 import type { Key } from 'chessground/types';
 import { computed, ref } from 'vue';
 import { isCheck, isCheckmate, legalDests, needsPromotion, sideToMove, uciSquares } from '../lib/chess';
+import { TOP_GOLD, topArrowShapes } from '../lib/topArrows';
 import { useSession } from '../stores/session';
 import ChessBoard from './ChessBoard.vue';
 import EvalBar from './EvalBar.vue';
@@ -28,23 +28,15 @@ const lastMove = computed(() => {
 });
 const check = computed(() => isCheck(fen.value));
 
-const BRUSH: Record<Arrow['kind'], string> = { pick: 'pick', best: 'best', threat: 'threat', played: 'played' };
-const ORDER: Record<Arrow['kind'], number> = { played: 0, threat: 1, best: 2, pick: 3 };
+// (feedback round 3) no big arrows for the best / suggested move: the threat arrow, and with "Show best move" on the
+// engine's top moves here, as bright as they are good (lib/topArrows.ts)
 const shapes = computed<DrawShape[]>(() => {
-  if (preview.value || !analysis.value) return [];
-  const played = analysis.value.uci;
-  // a pick/best arrow for the move that was actually played only repeats the last-move highlight
-  // no suggestions for book / forced moves (matches the explanation panel)
-  const noSuggestion = analysis.value.label === 'book' || analysis.value.label === 'forced';
-  const arrows = analysis.value.arrows.filter(
-    (a) => !((a.kind === 'pick' || a.kind === 'best') && (noSuggestion || played.startsWith(a.from + a.to))),
-  );
-  // the grey "played" arrow is only useful as a contrast to a suggested move
-  const contrast = arrows.some((a) => a.kind === 'pick' || a.kind === 'best');
-  return arrows
-    .filter((a) => a.kind !== 'played' || contrast)
-    .sort((a, b) => ORDER[a.kind] - ORDER[b.kind])
-    .map((a) => ({ orig: a.from as Key, dest: a.to as Key, brush: BRUSH[a.kind] }));
+  if (preview.value) return [];
+  const top: DrawShape[] = session.state.showBest
+    ? topArrowShapes(session.topHere.value)
+    : [];
+  const threat: DrawShape[] = (analysis.value?.arrows ?? []).filter((a) => a.kind === 'threat').map((a) => ({ orig: a.from as Key, dest: a.to as Key, brush: 'threat' }));
+  return [...threat, ...top];
 });
 
 const evalScore = computed(() => {
@@ -79,12 +71,10 @@ function cancelPromotion() {
 const tree = computed(() => session.state.tree);
 const graphPly = computed(() => (node.value && tree.value ? (tree.value.branchPoint(node.value).mainPly ?? 0) : 0));
 const legend = [
-  { kind: 'pick', label: 'Try this', color: '#16a34a' },
-  { kind: 'best', label: 'Engine’s top', color: '#2563eb' },
   { kind: 'threat', label: 'Threat', color: '#dc2626' },
-  { kind: 'played', label: 'Played', color: '#6b7280' },
+  { kind: 'top', label: 'Engine’s top moves', color: TOP_GOLD },
 ] as const;
-const shownKinds = computed(() => new Set(shapes.value.map((s) => s.brush)));
+const shownKinds = computed(() => new Set(shapes.value.map((s) => (s.brush?.startsWith('top') ? 'top' : s.brush))));
 </script>
 
 <template>

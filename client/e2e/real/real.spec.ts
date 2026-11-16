@@ -324,3 +324,35 @@ test('1920x1080 screenshots of finished games', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   await shot(page, '19-opera-material');
 });
+
+test('show best move: the engine’s top moves, as bright as they are good, ranked at the arrowheads', async ({ page }) => {
+  await importPgn(page, TWO_PLIES);
+  await expect(page.getByTestId('board')).toBeVisible();
+  await page.keyboard.press('Home');
+  await page.keyboard.press('b');
+  await expect(page.getByTestId('show-best')).toHaveAttribute('aria-pressed', 'true');
+  const gold = () => page.locator('cg-container svg line').evaluateAll((ls) => ls.filter((l) => l.getAttribute('stroke') === '#e0a400').map((l) => Number(l.getAttribute('opacity'))));
+  // at least the best three (more when they are almost as good: how many depends on the engine's search, so on the
+  // machine's load), at most five; the best drawn last and brightest
+  await expect.poll(async () => (await gold()).length, { timeout: 60_000 }).toBeGreaterThanOrEqual(3);
+  const ops = await gold();
+  expect(ops.length).toBeLessThanOrEqual(5);
+  expect(ops[ops.length - 1]).toBe(Math.max(...ops));
+  const ranks = await page.locator('cg-container svg text').allTextContents();
+  expect(ranks).toContain('1');
+  expect(ranks.length).toBe(ops.length);
+  await shot(page, '20-show-best', 300);
+  // (Points) then what those moves do, numbered like the arrows ("Moves here", in the app's own layout A)
+  await page.goto(page.url().replace('ui=classic&', '').replace(/[?&]ui=classic/, ''));
+  await expect(page.getByTestId('board')).toBeVisible();
+  await page.keyboard.press('Home');
+  if ((await page.getByTestId('show-best').getAttribute('aria-pressed')) !== 'true') await page.getByTestId('show-best').click();
+  await expect(page.getByTestId('show-best')).toHaveAttribute('aria-pressed', 'true');
+  const list = page.getByTestId('top-ideas');
+  await expect(list.getByTestId('top-idea')).toHaveCount(ops.length, { timeout: 30_000 });
+  await expect(page.getByTestId('top-ideas-pending')).toHaveCount(0, { timeout: 60_000 });
+  await expect(list.getByTestId('tone-line').first()).toBeVisible();
+  expect(await list.textContent()).toMatch(/Develops the knight|Occupies the centre/);
+  await shot(page, '21-moves-here', 300);
+  await page.keyboard.press('b');
+});

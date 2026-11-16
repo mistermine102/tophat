@@ -76,6 +76,12 @@ body,
 #app {
   height: 100%;
 }
+/* phones: the visible height (Safari's toolbars excluded), so the phone layouts fit one screen */
+@media (max-width: 767px) {
+  #app {
+    height: 100dvh;
+  }
+}
 
 /* Big screens: scale rem-based text up a little so the panels stay readable next to a large board. */
 @media (min-width: 1800px) and (min-height: 1000px) {
@@ -261,4 +267,14 @@ body {
 }
 .cc-board coords coord {
   color: rgba(74, 46, 31, 0.55) !important;
+}
+/* file letters in each square's bottom-right corner (chessground's default shifts them 24px right, so the h-file's fell
+   off the board) */
+.cc-board coords.files {
+  left: 0;
+  text-align: right;
+}
+.cc-board coords.files coord {
+  flex: 1 1 0;
+  padding-right: 3px;
 }
