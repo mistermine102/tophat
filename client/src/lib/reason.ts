@@ -121,7 +121,7 @@ export function labelReasonText(a: MoveAnalysis, ctx: ReasonContext): string {
       const s = r.brilliant;
       const stays = a.winAfter >= 70 ? 'winning' : 'fine';
       const are = ctx.moverIsYou ? 'you stay' : `${sideName(a.color)} stays`;
-      return s ? `A sound sacrifice: ${a.san} gives up the ${s.piece.role} on ${s.piece.square}, and ${are} ${stays}.` : 'A sound sacrifice.';
+      return s ? `A sound sacrifice: ${a.san} offers the ${s.piece.role} on ${s.piece.square}, and ${are} ${stays}.` : 'A sound sacrifice.';
     }
     case 'miss': {
       const mm = r.missedMaterial;

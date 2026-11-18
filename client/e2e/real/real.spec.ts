@@ -329,7 +329,7 @@ test('show best move: the engine’s top moves, as bright as they are good, rank
   await importPgn(page, TWO_PLIES);
   await expect(page.getByTestId('board')).toBeVisible();
   await page.keyboard.press('Home');
-  await page.keyboard.press('b');
+  // on by default
   await expect(page.getByTestId('show-best')).toHaveAttribute('aria-pressed', 'true');
   const gold = () => page.locator('cg-container svg line').evaluateAll((ls) => ls.filter((l) => l.getAttribute('stroke') === '#e0a400').map((l) => Number(l.getAttribute('opacity'))));
   // at least the best three (more when they are almost as good: how many depends on the engine's search, so on the

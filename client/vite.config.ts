@@ -21,18 +21,19 @@ const ISOLATION_HEADERS = {
   'Cross-Origin-Resource-Policy': 'same-origin',
 };
 
-/** Stockfish.js builds served at /engine/ (from node_modules/stockfish/bin; copied into dist/engine/ by a build). */
-export const ENGINE_FILES = [
-  // full NNUE network, single-threaded (default; no cross-origin isolation needed)
-  'stockfish-19-single.js',
-  'stockfish-19-single.wasm',
-  // full network, multi-threaded (?threads=N with cross-origin isolation)
-  'stockfish-19.js',
-  'stockfish-19.wasm',
-  // small network (?engine=lite): ~2 MB instead of ~100 MB, weaker
-  'stockfish-19-lite-single.js',
-  'stockfish-19-lite-single.wasm',
-];
+/** The lite network (the default, ?engine=lite): ~2 MB, single-threaded. */
+const LITE_ENGINE_FILES = ['stockfish-19-lite-single.js', 'stockfish-19-lite-single.wasm'];
+/** The full NNUE network (?engine=full): ~100 MB per .wasm; single-threaded, and multi-threaded (?threads=N). */
+const FULL_ENGINE_FILES = ['stockfish-19-single.js', 'stockfish-19-single.wasm', 'stockfish-19.js', 'stockfish-19.wasm'];
+
+/** Stockfish.js builds served at /engine/ by the dev and preview servers (from node_modules/stockfish/bin). */
+export const ENGINE_FILES = [...LITE_ENGINE_FILES, ...FULL_ENGINE_FILES];
+
+/**
+ * The builds a production build copies into dist/engine/: only the lite network (the full one's 100 MB files are
+ * more than many hosts accept, and nobody needs them by default), unless env FULL_ENGINE=1.
+ */
+export const BUILD_ENGINE_FILES = process.env.FULL_ENGINE === '1' ? ENGINE_FILES : LITE_ENGINE_FILES;
 
 function stockfishDir(): string {
   const require = createRequire(import.meta.url);
@@ -71,7 +72,7 @@ function stockfishAssets(): Plugin {
     closeBundle() {
       const target = join(outDir, 'engine');
       mkdirSync(target, { recursive: true });
-      for (const f of ENGINE_FILES) copyFileSync(join(dir, f), join(target, f));
+      for (const f of BUILD_ENGINE_FILES) copyFileSync(join(dir, f), join(target, f));
       copyFileSync(join(dirname(dir), 'Copying.txt'), join(target, 'STOCKFISH-COPYING.txt'));
     },
   };

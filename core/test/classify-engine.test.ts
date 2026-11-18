@@ -47,13 +47,15 @@ describe.skipIf(!engineAvailable())('classification on real positions (Stockfish
   );
 
   it(
-    'b1) LĂ©gal: 5.Nxe5! "sacrifices" the queen (5...Bxd1? 6.Bxf7+ Ke7 7.Nd5#) -> not flagged (Best/Great)',
+    'b1) LĂ©gal: 5.Nxe5! "sacrifices" the queen (5...Bxd1? 6.Bxf7+ Ke7 7.Nd5#) -> not flagged; Brilliant',
     async () => {
       const fen = after('e2e4 e7e5 g1f3 d7d6 f1c4 c8g4 b1c3 g7g6');
       const a = await analyseMove(engine, fen, 'f3e5', { book: false });
       const msg = dump(a);
       expect(a.input.playedIsBest, msg).toBe(true);
-      expect(['best', 'great'], msg).toContain(a.result.label);
+      // (ANALYSIS_VERSION 14, chess.com's rule) the classic Brilliant: the queen is offered, the line wins it back
+      expect(a.result.label, msg).toBe('brilliant');
+      expect(a.result.labelReason.brilliant?.piece, msg).toMatchObject({ role: 'queen', square: 'd1' });
       expect(a.result.labelReason.material?.label, msg).toBeUndefined();
     },
     T,

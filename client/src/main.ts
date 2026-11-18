@@ -10,6 +10,12 @@ function setGameParam(id: string | null) {
   history.replaceState(null, '', withGame(location.href, id));
 }
 
+// Dev only: `?pieces` puts the Tophat pieces (lib/pieceSet.ts; pawn, knight, king so far) on the board and in the
+// captured-piece strips. The look lab is /pieces.html.
+if (import.meta.env.DEV && new URLSearchParams(location.search).has('pieces')) {
+  void import('./lib/pieceSet').then((m) => m.installPieceSet('th-pieces', '.cg-wrap'));
+}
+
 async function bootstrap() {
   const api = await createApiClient();
   const session = createSession(api, { storage: localStorage, onGameChange: setGameParam });

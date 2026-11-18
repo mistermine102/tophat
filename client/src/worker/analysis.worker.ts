@@ -12,7 +12,7 @@ import { Scheduler } from '@chess-coach/core/engine/scheduler';
 import { Engine, SearchAbortedError } from '@chess-coach/core/engine/uci';
 import { BadRequestError, GameManager, PgnImportError } from '@chess-coach/core/games';
 import { analysisSettingsFor } from '@chess-coach/core/profiles';
-import { type CacheStore, MemoryStore } from '@chess-coach/core/store';
+import { type CacheStore, MemoryStore, prefixedStore } from '@chess-coach/core/store';
 import bookA from '../../../core/data/openings/a.tsv?url';
 import bookB from '../../../core/data/openings/b.tsv?url';
 import bookC from '../../../core/data/openings/c.tsv?url';
@@ -66,7 +66,10 @@ async function loadBook(): Promise<void> {
 }
 
 async function init(config: AnalysisConfig): Promise<State> {
-  const [db] = await Promise.all([openStore(), loadBook()]);
+  const [store] = await Promise.all([openStore(), loadBook()]);
+  // the lite network's analyses and searches apart from the full engine's (which keep the unprefixed keys of earlier
+  // versions); the games are shared
+  const db = prefixedStore(store, config.flavour === 'lite' ? 'lite:' : '');
   const settings = analysisSettingsFor(config.profile);
   const searchCache = new SearchCache(db);
   const file = engineFile(config);

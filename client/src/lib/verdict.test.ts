@@ -79,7 +79,7 @@ describe('(B) Brilliant and missed free material', () => {
   it('a Brilliant move names the sacrificed piece', () => {
     const a = base({ label: 'brilliant', san: 'Qb8+', uci: 'b3b8', winLoss: 0, winAfter: 100, best: { san: 'Qb8+', uci: 'b3b8' } as MoveAnalysis['best'], labelReason: { winChance: 'best', brilliant: { sacrifice: 9, piece: { role: 'queen', square: 'b8', color: 'white' } } } });
     expect(moveVerdict(a, { moverIsYou: true })).toMatchObject({ name: 'Brilliant', sentence: 'a sound sacrifice of the queen.', tone: 'good' });
-    expect(labelReasonText(a, { moverIsYou: true })).toBe('A sound sacrifice: Qb8+ gives up the queen on b8, and you stay winning.');
+    expect(labelReasonText(a, { moverIsYou: true })).toBe('A sound sacrifice: Qb8+ offers the queen on b8, and you stay winning.');
   });
 });
 

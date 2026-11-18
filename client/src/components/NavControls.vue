@@ -80,8 +80,8 @@ const session = useSession();
   padding: 0;
 }
 .best-btn.is-on {
-  background: #e0a400;
-  border-color: #b98700;
-  color: #1c1917;
+  background: var(--th-ink);
+  border-color: var(--th-ink);
+  color: #f0c24b;
 }
 </style>

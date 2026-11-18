@@ -9,11 +9,12 @@
 //  - Each rule is documented once, at the function that implements it.
 
 import type { AllowedMate, BrilliantSacrifice, Color, Label, LostPiece, MaterialCheck, MissedMate, MissedMaterial, MoveAnalysis, PieceRef, Score } from '@chess-coach/shared';
-import { type AnalysisSettings, winPercentFromScore } from '@chess-coach/shared';
+import { type AnalysisSettings, scoreToCp, winPercentFromScore } from '@chess-coach/shared';
 import { normalizeMove } from 'chessops/chess';
 import type { NormalMove } from 'chessops/types';
 import { parseSquare, parseUci } from 'chessops/util';
 import { hangingLoss, see, seeMove } from '../chess/see';
+import { staticSacrifice } from './brilliant';
 import { makeBoardFen } from 'chessops/fen';
 import { type LineMaterialResult, type LineMove, lineMaterial, materialBalance, PIECE_VALUES, positionFromFen } from '../chess/material';
 
@@ -500,48 +501,45 @@ export function missedMaterial(input: ClassifyInput, settings: AnalysisSettings)
 }
 
 /**
- * (B2) SPEC-extension "Brilliant !!": a sound sacrifice. The played move is the engine's #1 move or within
- * `brilliant.maxWinLoss` (2) win% of it, and
- *  - it genuinely gives up material: its line ends >= `brilliant.minSacrifice` (2, an exchange) pawns down at the
- *    quiet point (`lineMaterial`) compared with the material baseline (`materialBaseline`) and with the best
- *    alternative move's line (a piece that is lost whatever you play is no sacrifice), and a mover's piece (not a
- *    pawn) is en prise right after the move and lost in the line (`findHung`) — and it wasn't en prise before the
- *    move already (leaving an attacked piece is not offering it);
- *  - the position stays good: mover's win% after the move >= `brilliant.minWinAfter` (50).
- * Exclusions (GreatRule style): already completely winning anyway (the best alternative also keeps >=
- * `brilliant.maxWinOther` = 90 win%), a take-back on the opponent's last square, a check evasion with <=
- * `brilliant.maxLegalMovesInCheck` legal moves, < `brilliant.minLegalMoves` legal moves. Plain trades are no
- * sacrifice (the line nets 0). A checkmate on the board is Best (classifyMove). Book moves (gambits) stay Book.
- * Unlike Great, the continuation of a combination (the opponent's previous move was forced) is NOT excluded: in
- * Rxd8+ Rxd8 Qe8+!! Rxe8 Rxe8# (benchmark game) the first move is a plain trade and the queen offer is the sacrifice.
- * Benchmark (60 Lichess games, d14): no Brilliant without this case; classics: Opera 16.Qb8+!!, Deep Blue–Kasparov
- * 1997 g6 8.Nxe6 — and nothing else in those games.
+ * (B2) SPEC-extension "Brilliant !!", chess.com's rule (support.chess.com/en/articles/8572705): "a good piece
+ * sacrifice" — "always the best or nearly best move", "you should not be in a bad position after", "you should not
+ * be completely winning even if you hadn't found the move". The engine half (here; the gate of WintrChess'
+ * `isMoveCriticalCandidate`, see analysis/brilliant.ts for the source):
+ *  - best or nearly best: the engine's #1 move or within `brilliant.maxWinLoss` (2) win% of it;
+ *  - not worse after: mover's win% after the move >= `brilliant.minWinAfter` (50, i.e. >= 0 cp);
+ *  - not completely winning anyway: the best alternative (the 2nd line when the move is the best, else the best)
+ *    keeps < `brilliant.maxAltCp` (700) cp, mate counting as more;
+ *  - not out of check (the move had to be played anyway), not a promotion, at least `brilliant.minLegalMoves`,
+ *    not a take-back on the opponent's last square;
+ * and the board half, analysis/brilliant.ts `staticSacrifice`: the move leaves a piece (not a pawn) en prise that is
+ * worth more than what it took — not a counter-threat trade, not a piece that is trapped anyway, not moving a piece to
+ * safety. Unlike our first rule (ANALYSIS_VERSION <= 13) the engine line doesn't have to end material down: a
+ * sacrifice the opponent mustn't accept, or one that wins the material back, is exactly chess.com's Brilliant.
+ * A checkmate on the board is Best (classifyMove). Book moves (gambits) stay Book. Plain trades are no sacrifice
+ * (the piece is worth no more than what it took), and nor are pieces left hanging that the opponent can't punish:
+ * the move must still be (nearly) the best. chess.com is "more generous for newer players"; that leniency is not
+ * public and not modelled.
  */
 export function brilliantSacrifice(input: ClassifyInput, playedIsBest: boolean, winPlayed: number, winLoss: number, settings: AnalysisSettings): BrilliantSacrifice | undefined {
+  const r = brilliantCheck(input, playedIsBest, winPlayed, winLoss, settings);
+  return 'sac' in r ? r.sac : undefined;
+}
+
+/** `brilliantSacrifice` with the reason a move is not Brilliant (also for the benchmark, bench/brilliants.ts). */
+export function brilliantCheck(input: ClassifyInput, playedIsBest: boolean, winPlayed: number, winLoss: number, settings: AnalysisSettings): { sac: BrilliantSacrifice } | { reject: string } {
   const b = settings.brilliant;
   const fen = input.fenBefore;
-  if (input.legalMoveCount < b.minLegalMoves) return undefined;
-  if (!playedIsBest && winLoss > b.maxWinLoss) return undefined;
-  if (winPlayed < b.minWinAfter) return undefined;
+  if (input.legalMoveCount < b.minLegalMoves) return { reject: 'legal-moves' };
+  if (!playedIsBest && winLoss > b.maxWinLoss) return { reject: 'not-best' };
+  if (winPlayed < b.minWinAfter) return { reject: 'worse-after' };
   const altLine = playedIsBest ? input.second : input.best;
   const alt = altLine && !sameMoveUci(fen, altLine.uci, input.played.uci) ? altLine : null;
-  if (alt && winPercentFromScore(alt.score) >= b.maxWinOther) return undefined;
-  if (input.prev?.uci && isTakeBack(fen, input.played.uci, input.prev.uci)) return undefined;
-  const pos = positionFromFen(fen);
-  if (pos.isCheck() && input.legalMoveCount <= b.maxLegalMovesInCheck) return undefined;
-  const opts = { horizonPlies: settings.material.quietHorizonPlies };
-  const played = lineMaterial(fen, pvFor(input.played, fen), opts);
-  let reference = input.prev?.fenBefore ? materialBaseline(fen, input.prev.fenBefore, played.startBalance) : played.startBalance;
-  if (alt) {
-    const a = lineMaterial(fen, pvFor(alt, fen), opts);
-    if (!moverMates(a, alt.score)) reference = Math.min(reference, a.balance);
-  }
-  const sacrifice = reference - played.balance;
-  if (sacrifice < b.minSacrifice) return undefined;
-  const hung = findHung(fen, played.moves, played.mover);
-  if (!hung || hung.role === 'pawn') return undefined;
-  if (wasHangingBefore(fen, input.played.uci, hung.square)) return undefined;
-  return { sacrifice, piece: hung };
+  if (scoreToCp(alt ? alt.score : input.played.score) >= b.maxAltCp) return { reject: 'winning-anyway' };
+  if (positionFromFen(fen).isCheck()) return { reject: 'in-check' };
+  if (input.prev?.uci && isTakeBack(fen, input.played.uci, input.prev.uci)) return { reject: 'take-back' };
+  const st = staticSacrifice(fen, input.played.uci, input.prev?.fenBefore ?? null);
+  if ('reject' in st) return { reject: st.reject };
+  return { sac: { sacrifice: st.value, piece: st.piece } };
 }
 
 /**

@@ -17,7 +17,7 @@ export interface LabelMeta {
 export const LABELS: Record<Label, LabelMeta> = {
   book: { name: 'Book', glyph: '≡', color: '#a07a45', severity: 0, blurb: 'A known opening move.', rule: 'Still in opening theory (Lichess opening book).' },
   forced: { name: 'Forced', glyph: '□', color: '#7c8691', severity: 0, blurb: 'The only legal move.', rule: 'The only legal move.' },
-  brilliant: { name: 'Brilliant', glyph: '!!', color: '#119c8f', severity: 0, blurb: 'A sound sacrifice.', rule: 'The best move (or nearly), and it gives up material — a piece is left to be taken — while the position stays good. Not when the position was already completely winning anyway, nor for recaptures or plain trades.' },
+  brilliant: { name: 'Brilliant', glyph: '!!', color: '#119c8f', severity: 0, blurb: 'A sound sacrifice.', rule: 'A good piece sacrifice, as on chess.com: the best move (or nearly), and it leaves a piece (not a pawn) to be taken — even if taking it would be a mistake — while you are not worse after it. Not when you were already completely winning anyway, not out of check, nor for recaptures or plain trades.' },
   great: { name: 'Great', glyph: '!', color: '#1f7fb3', severity: 0, blurb: 'The only good move here.', rule: 'The best move, and the only good one: the 2nd-best move would have been a mistake.' },
   best: { name: 'Best', glyph: '★', color: '#2f8a4c', severity: 0, blurb: 'The best move.', rule: 'The top move — only that one (gold star).' },
   excellent: { name: 'Excellent', glyph: '✓', color: '#4fa36a', severity: 1, blurb: 'Almost as good as the best move.', rule: 'Loses at most 2% win chance compared with the best move.' },

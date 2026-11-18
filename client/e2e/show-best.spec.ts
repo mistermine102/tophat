@@ -47,6 +47,7 @@ test('show best move: gold arrows for the top moves here, main line and side lin
   await page.addInitScript(() => {
     if (!sessionStorage.getItem('cleared')) {
       localStorage.clear();
+      localStorage.setItem('chess-coach:show-best', '0'); // on by default: start from off to test the toggle
       sessionStorage.setItem('cleared', '1');
     }
   });
@@ -98,6 +99,7 @@ test('show best move: "Moves here" lists what the arrows\' moves do, numbered li
   await page.addInitScript(() => {
     if (!sessionStorage.getItem('cleared')) {
       localStorage.clear();
+      localStorage.setItem('chess-coach:show-best', '0'); // on by default: start from off to test the toggle
       sessionStorage.setItem('cleared', '1');
     }
   });

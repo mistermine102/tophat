@@ -32,12 +32,11 @@ loads the engine (about 100 MB, from your own PC); after that it comes from the 
 
 ### Hosting it somewhere else
 
-`npm run build` writes a static site to `client/dist/` (the app, plus the engine files in `client/dist/engine/`). Any
-static web host can serve it. For the fastest analysis the host should send the two cross-origin isolation headers
-`Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp` (they allow the
-multi-threaded engine, `?threads=2`); without them the default single-threaded engines still work. The engine's
-`.wasm` files are about 100 MB each, more than some free hosts allow per file — the small engine (`?engine=lite`,
-2 MB) works everywhere.
+`npm run build` writes a static site to `client/dist/` (the app, plus the small 2 MB engine in `client/dist/engine/`).
+Any static web host can serve it. The big engine (`?engine=full`, about 100 MB per file, more than some free hosts
+allow) is left out of the build; to include it, build with the environment variable `FULL_ENGINE=1`. Its
+multi-threaded version (`?engine=full&threads=2`) also needs the host to send the cross-origin isolation headers
+`Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp`.
 
 ## Open a game from chess.com
 
@@ -153,15 +152,15 @@ the browser, so opening the same game again is instant.
 
 Chess Coach runs one engine copy per CPU core (minus two, at most six, fewer on PCs with little memory). Each copy
 needs about 0.4 GB of memory. You can choose another number by adding `?engines=3` to the address (fewer = slower
-but lighter), or use the much smaller engine with `?engine=lite` (2 MB instead of 100 MB to load, about a third
-faster, a bit weaker).
+but lighter). By default it uses Stockfish's small network (2 MB to load); `?engine=full` uses the big one instead
+(100 MB to load, about a third slower, a bit stronger).
 
 ## Troubleshooting
 
 - **"Another program is using port 5174"** — close that program, or use a different port: `$env:PORT=5180;
   npm start` (PowerShell) or `set PORT=5180 && npm start` (Command Prompt), then open <http://localhost:5180>.
 - **"Engine offline"** — the engine could not start in the browser (the panel says why). Reload the page; if your
-  PC is short of memory, close other tabs or try `?engines=2` or `?engine=lite` in the address.
+  PC is short of memory, close other tabs or try `?engines=2` in the address.
 - **Analysis failed for a move** — click **Try again** in the panel. If it keeps failing, reload the page.
 - **Clear the saved analyses** — they are stored in the browser (IndexedDB) for this address: clear the site data
   in the browser's settings (in Chrome: the icon left of the address → Site settings → Delete data). Games are
@@ -188,8 +187,8 @@ Workspaces: `shared/` (types, settings, win% formulas), `core/` (the analysis pi
 facts, labels, explanations — environment-neutral TypeScript), `client/` (Vue app; `client/src/worker/` runs `core`
 in a Web Worker with Stockfish WASM workers and an IndexedDB cache).
 
-URL parameters for the analysis: `engines=N`, `threads=N` (per engine; needs the isolation headers), `hash=MB`,
-`engine=lite`, `profile=fast` (shallow searches, for tests), `testhooks=1`.
+URL parameters for the analysis: `engines=N`, `threads=N` (per engine; needs the isolation headers and
+`engine=full`), `hash=MB`, `engine=full` (the 100 MB network; default: lite, 2 MB), `profile=fast` (shallow searches, for tests), `testhooks=1`.
 
 Benchmarks and tools run the same pipeline in Node: `npm run bench:engine` (engine timing), `npx tsx
 core/scripts/analyze-pgn.ts game.pgn --out report.md` (whole pipeline → markdown), `npx tsx core/scripts/profile-game.ts
@@ -208,5 +207,7 @@ It uses [Stockfish](https://stockfishchess.org/) (GPL-3.0) compiled to WebAssemb
 [Stockfish.js](https://github.com/nmrugg/stockfish.js) (npm `stockfish`, GPL-3.0; its licence is copied next to the
 engine files as `client/dist/engine/STOCKFISH-COPYING.txt`), [chessground](https://github.com/lichess-org/chessground)
 and [chessops](https://github.com/niklasf/chessops) (GPL-3.0), and the
-[Lichess opening book](https://github.com/lichess-org/chess-openings) (CC0). Not affiliated with chess.com or Lichess.
+[Lichess opening book](https://github.com/lichess-org/chess-openings) (CC0). The move sounds are from
+[PyChess](https://github.com/pychess/pychess) (GPL-3.0-or-later; see `client/public/sounds/CREDITS.md`). Not affiliated
+with chess.com or Lichess.
 

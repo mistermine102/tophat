@@ -9,9 +9,9 @@
 // one good move one bright arrow and two faint traces.
 // (Brilliant lines) `addBrilliants` marks the moves that are sound sacrifices (the Brilliant !! rule of the labels,
 // classify.ts `brilliantSacrifice`): one in the list keeps its place, one outside it is appended (`extra`), at most
-// BRILLIANT_MAX in all. Outside the deep search's lines that takes one more search, restricted to the moves that leave
-// a piece en prise, and only when such a move could still be within `brilliant.maxWinLoss` of the best (the last deep
-// line is): in most positions there is no such search.
+// BRILLIANT_MAX in all. Outside the deep search's lines that takes one more search, restricted to the moves that
+// sacrifice a piece on the board (brilliant.ts `staticSacrifice`), and only when such a move could still be within
+// `brilliant.maxWinLoss` of the best (the last deep line is): in most positions there is no such search.
 
 import type { AnalysisSettings, BrilliantSacrifice, TopMove, TopMovesResult } from '@chess-coach/shared';
 import { scoreToCp, toWhitePov, winPercentFromScore } from '@chess-coach/shared';
@@ -19,7 +19,7 @@ import { makeUci } from 'chessops/util';
 import type { PvLine, SearchResult } from '../engine/uci';
 import { legalPrefix, playMove, positionStatus } from '../chess/notation';
 import { positionFromFen } from '../chess/material';
-import { hangingLoss } from '../chess/see';
+import { staticSacrifice } from './brilliant';
 import { brilliantSacrifice, type ClassifyInput, countLegalMoves, sameMoveUci } from './classify';
 import { deepParams } from './label';
 import type { SearchParams } from './searchCache';
@@ -104,34 +104,23 @@ function brilliantOf(fen: string, line: PvLine, best: PvLine, second: PvLine | u
 }
 
 /**
- * The legal moves (not in `exclude`) after which one of the mover's pieces (not a pawn or the king) is en prise that
- * wasn't before, or the moved piece itself is: the only moves that can be a sacrifice. Promotions to a queen only.
+ * The legal moves (not in `exclude`) that sacrifice a piece on the board (analysis/brilliant.ts `staticSacrifice`,
+ * the board half of the Brilliant rule): the only moves outside the deep lines worth a search. Not out of check
+ * (no Brilliant there), no promotions, no checkmates (those are Best).
  */
-export function sacrificeCandidates(fen: string, exclude: readonly string[]): string[] {
+export function sacrificeCandidates(fen: string, exclude: readonly string[], prevFenBefore: string | null = null): string[] {
   const pos = positionFromFen(fen);
-  const mover = pos.turn;
-  const hangingBefore = new Set<number>();
-  for (const sq of pos.board[mover]) {
-    if (!pos.board.pawn.has(sq) && !pos.board.king.has(sq) && hangingLoss(pos, sq) > 0) hangingBefore.add(sq);
-  }
+  if (pos.isCheck()) return [];
   const out: string[] = [];
   for (const [from, dests] of pos.allDests()) {
     for (const to of dests) {
-      const promo = pos.board.pawn.has(from) && (to >> 3 === 0 || to >> 3 === 7);
-      const move = promo ? { from, to, promotion: 'queen' as const } : { from, to };
-      const uci = makeUci(move);
+      if (pos.board.pawn.has(from) && (to >> 3 === 0 || to >> 3 === 7)) continue;
+      const uci = makeUci({ from, to });
       if (exclude.some((e) => sameMoveUci(fen, e, uci))) continue;
       const after = pos.clone();
-      after.play(move);
+      after.play({ from, to });
       if (after.isEnd()) continue;
-      for (const sq of after.board[mover]) {
-        if (after.board.pawn.has(sq) || after.board.king.has(sq)) continue;
-        if (hangingBefore.has(sq) && sq !== move.to) continue;
-        if (hangingLoss(after, sq) > 0) {
-          out.push(uci);
-          break;
-        }
-      }
+      if (!('reject' in staticSacrifice(fen, uci, prevFenBefore))) out.push(uci);
     }
   }
   return out;
@@ -149,7 +138,8 @@ export function brilliantSearchWorthIt(fen: string, result: SearchResult, settin
   const last = lines[lines.length - 1];
   if (!best || !last || lines.length < TOP_MAX || countLegalMoves(fen) <= lines.length) return false;
   const winBest = winPercentFromScore(best.score);
-  if (winBest < b.minWinAfter || winBest >= b.maxWinOther) return false;
+  // a move outside the lines is never the best: its alternative is the best move
+  if (winBest < b.minWinAfter || scoreToCp(best.score) >= b.maxAltCp) return false;
   return winBest - winPercentFromScore(last.score) <= b.maxWinLoss;
 }
 
@@ -175,7 +165,7 @@ export async function addBrilliants(fen: string, result: SearchResult, top: TopM
     else out.push({ ...toTopMove(fen, l, best), brilliant: sac, extra: true });
   }
   if (count >= BRILLIANT_MAX || !search || !brilliantSearchWorthIt(fen, result, settings)) return out;
-  const candidates = sacrificeCandidates(fen, lines.map((l) => l.move));
+  const candidates = sacrificeCandidates(fen, lines.map((l) => l.move), prev?.fenBefore ?? null);
   if (!candidates.length) return out;
   const r = await search(fen, { ...topParams(settings), multipv: Math.min(candidates.length, BRILLIANT_MAX), searchmoves: candidates });
   for (const l of legalLines(fen, r)) {

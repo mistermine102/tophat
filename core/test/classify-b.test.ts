@@ -84,9 +84,9 @@ describe('B2: Brilliant', () => {
     const r = classifyMove(asBest(fen, qb8, qb7, { fenBefore: '4kb1r/p2B1ppp/4qn2/4p1B1/4P3/1Q6/PPP2PPP/2KR4 b k - 0 15', uci: 'f6d7' }), S);
     expect(r.label).toBe('brilliant');
     expect(r.labelReason.brilliant).toMatchObject({ piece: { role: 'queen', square: 'b8', color: 'white' } });
-    expect(r.labelReason.brilliant!.sacrifice).toBeGreaterThanOrEqual(S.brilliant.minSacrifice);
+    expect(r.labelReason.brilliant!.sacrifice).toBe(9);
     const t = labelText({ label: r.label, labelReason: r.labelReason, color: 'white', evalBefore: { mate: 2 }, evalAfter: { mate: 2 }, winBefore: r.winBest, winAfter: r.winPlayed, winLoss: 0, uci: 'b3b8', bestSan: 'Qb8+', bestUci: 'b3b8', san: 'Qb8+' }, S);
-    expect(t).toBe('Brilliant !! — a sound sacrifice: Qb8+ gives up the queen on b8, and White stays winning.');
+    expect(t).toBe('Brilliant !! — a sound sacrifice: Qb8+ offers the queen on b8, and White stays winning.');
   });
 
   it('…but not when the alternative was completely winning anyway', () => {

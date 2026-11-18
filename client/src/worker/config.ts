@@ -2,7 +2,8 @@
 //
 // URL overrides (for testing and tuning): `?engines=N` (Stockfish instances = plies analysed at once), `?threads=N`
 // (threads per instance; > 1 needs cross-origin isolation and uses the multi-threaded build), `?hash=MB` (per
-// instance), `?engine=lite` (small network: ~2 MB download instead of ~100 MB, weaker), `?profile=fast` (shallow
+// instance), `?engine=full` (the big network: ~100 MB download instead of the default lite one's ~2 MB, a bit stronger; the
+// only one with a multi-threaded build), `?profile=fast` (shallow
 // searches, for E2E tests), `?testhooks=1` (window.__chessCoachTest: kill engines, inject failures).
 
 export type EngineFlavour = 'full' | 'lite';
@@ -50,7 +51,8 @@ function int(v: string | null, min: number, max: number): number | undefined {
 
 export function analysisConfig(search: string, env: BrowserEnv): AnalysisConfig {
   const q = new URLSearchParams(search);
-  const flavour: EngineFlavour = q.get('engine') === 'lite' ? 'lite' : 'full';
+  // the lite network by default (2 MB to load instead of 100 MB, about a third faster); `?engine=full` for the big one
+  const flavour: EngineFlavour = q.get('engine') === 'full' ? 'full' : 'lite';
   const wantThreads = int(q.get('threads'), 1, 64) ?? 1;
   // threads need SharedArrayBuffer (cross-origin isolation) and the full multi-threaded build
   const threads = flavour === 'full' && env.crossOriginIsolated ? wantThreads : 1;

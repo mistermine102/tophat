@@ -12,7 +12,11 @@ import CoachLayout from './layouts/CoachLayout.vue';
 import GoodBadLayout from './layouts/GoodBadLayout.vue';
 import MobileLayout from './layouts/MobileLayout.vue';
 import { isPhone } from './lib/phone';
-import { playSound, soundFor } from './lib/sound';
+import { playSound, preloadSounds, soundFor } from './lib/sound';
+import SoundLab from './components/SoundLab.vue';
+
+/** Dev only: `?sounds` shows the sound lab (components/SoundLab.vue). */
+const soundLab = import.meta.env.DEV && new URLSearchParams(location.search).has('sounds');
 import { gameIdOf, isOpenState, OPEN_STATE, type Screen, withGame } from './lib/route';
 import { uiMode } from './lib/uiMode';
 import { useSession } from './stores/session';
@@ -25,7 +29,7 @@ watch(
   () => session.current.value,
   (now, before) => {
     if (!session.state.sound || !now || !before || screen.value !== 'game') return;
-    if (now.parent === before && now.uci) playSound(soundFor(now.san, now.fen));
+    if (now.parent === before && now.uci) playSound(soundFor(now.san, now.fen), { capture: now.san.includes('x') });
     else if (before.parent === now) playSound('back');
   },
 );
@@ -63,6 +67,9 @@ async function route() {
   if (id) history.replaceState(null, '', withGame(location.href, null));
   screen.value = 'open';
 }
+
+// decode the move sounds now (no audio is started), so the first move already has them
+void preloadSounds();
 
 onMounted(async () => {
   await session.checkHealth();
@@ -181,6 +188,7 @@ onBeforeUnmount(() => {
       <span class="h-6 w-6 animate-spin rounded-full border-2 border-neutral-500 border-t-transparent"></span>
       <p class="text-sm text-neutral-400">Loading…</p>
     </main>
+    <SoundLab v-if="soundLab" />
   </div>
 </template>
 

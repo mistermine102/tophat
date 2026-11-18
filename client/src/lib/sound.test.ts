@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { playSound, soundFor } from './sound';
+import { loadedSamples, playSound, preloadSounds, soundFor } from './sound';
 
 describe('soundFor', () => {
   it('the end of the game first, then check, then the move itself', () => {
@@ -16,5 +16,11 @@ describe('soundFor', () => {
 
   it('playing without Web Audio is a no-op', () => {
     expect(() => playSound('move')).not.toThrow();
+    expect(() => playSound('checkmate', { capture: true, volume: 0.5 })).not.toThrow();
+  });
+
+  it('loading the recordings without Web Audio settles with none (the synthesised fallback)', async () => {
+    await expect(preloadSounds()).resolves.toBeUndefined();
+    expect(loadedSamples()).toEqual([]);
   });
 });

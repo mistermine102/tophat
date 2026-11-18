@@ -34,7 +34,7 @@ async function probe() {
   // Is something already listening on the port? 'coach' = a running Chess Coach (it serves the engine files),
   // 'other' = another program.
   try {
-    const res = await fetch(`${url}/engine/stockfish-19-single.js`, { method: 'HEAD', signal: AbortSignal.timeout(3000) });
+    const res = await fetch(`${url}/engine/stockfish-19-lite-single.js`, { method: 'HEAD', signal: AbortSignal.timeout(3000) });
     return res.ok ? 'coach' : 'other';
   } catch (e) {
     return e?.cause?.code === 'ECONNREFUSED' ? 'free' : e?.name === 'TimeoutError' ? 'other' : 'free';

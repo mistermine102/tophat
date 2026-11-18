@@ -1553,7 +1553,7 @@ export function labelText(a: LabelTextInput, settings: AnalysisSettings): string
       return isBestMove ? `${name} — the best move.` : `${name} — as good as the best move (${a.bestSan}).`;
     case 'brilliant': {
       const s = a.labelReason.brilliant;
-      return s ? `${name} — a sound sacrifice: ${a.san ?? 'the move'} gives up ${the(s.piece)}, and ${me} stays ${a.winAfter >= settings.suggest.winningMin ? 'winning' : 'fine'}.` : `${name} — a sound sacrifice.`;
+      return s ? `${name} — a sound sacrifice: ${a.san ?? 'the move'} offers ${the(s.piece)}, and ${me} stays ${a.winAfter >= settings.suggest.winningMin ? 'winning' : 'fine'}.` : `${name} — a sound sacrifice.`;
     }
     case 'great':
       return `${name} — the only good move here: the next best loses ${Math.round(a.labelReason.great?.secondBestLoss ?? 0)}% winning chances.`;

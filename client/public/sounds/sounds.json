@@ -1,0 +1,4 @@
+{
+  "place": ["move.wav"],
+  "take": ["capture.wav", "capture-2.wav", "capture-3.wav", "capture-4.wav", "capture-5.wav"]
+}

@@ -36,3 +36,19 @@ export class MemoryStore implements CacheStore {
     return this.tables.get(table)?.size ?? 0;
   }
 }
+
+/** Tables whose entries depend on the engine that produced them (games and settings don't). */
+const ENGINE_TABLES: readonly Table[] = ['analyses', 'searches'];
+
+/**
+ * `store` with the engine-dependent tables (analyses, searches) under `prefix`: results of another engine (the lite
+ * network) never mix with the full engine's. The games and settings stay shared.
+ */
+export function prefixedStore(store: CacheStore, prefix: string): CacheStore {
+  if (!prefix) return store;
+  const k = (table: Table, key: string) => (ENGINE_TABLES.includes(table) ? `${prefix}${key}` : key);
+  return {
+    get: <T>(table: Table, key: string) => store.get<T>(table, k(table, key)),
+    put: (table: Table, key: string, value: unknown) => store.put(table, k(table, key), value),
+  };
+}

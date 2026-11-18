@@ -3,7 +3,7 @@
 // Win-chance values are percentages (0..100) from the mover's point of view; cp values are centipawns.
 
 /** Bump whenever analysis output semantics change. Part of the cache key, so bumping invalidates the cache. */
-export const ANALYSIS_VERSION = 13; // 13 (Points): MoveAnalysis.points, what the played move and the best move do as short points; 12 + 11 (feedback round 3): a Blunder that only missed a concrete win is a Miss, a threat alone is no concrete chance, new causes (a piece chased with tempo, a pawn let run to the 7th, an opening move that develops nothing), "…" on Black's moves in cause lines, only reasons the lines bear out (no hollow attacks / defences / refutations), the refutation leads the label text when the better move has no reason, "After X, Y forks …"; 10 (Why round): causes read from the played move's own line (a piece it leaves loose that the line goes after, a trade into a lost / drawn ending), the moves that keep the position, Miss only for concrete chances; 9 (B): Miss for missed free material at any eval, Brilliant !! (sound sacrifices); 8: plain one-sentence wording (no point counts or "hard to put into words" filler, material in words, at most one dash); 7: no "engine" wording or pointers to other panels in the explanations ("with best play", "Nxf5 was better"); 6: Best = only the engine's top move (no 0.5% band; those moves are Excellent); 5 (UI round): Level.tones / Level.story, bad-first order for bad moves, balance wording; 2 (M3): mate rules, Great exclusions + window, truthful hung piece, verify near thresholds; 3 (M5b): new explanation facts; 4 (M5c): explanation round 3 (pawn forks, batteries, perpetuals, payoff horizon, contrasted suggestions)
+export const ANALYSIS_VERSION = 15; // 15: no Brilliant for a piece that was already hanging (offered by the move, or a fresh threat ignored); 14 (Brilliant like chess.com): a piece sacrifice is judged on the board (a piece left en prise, analysis/brilliant.ts), not by the engine line ending material down, so sacrifices the opponent mustn't take and ones that win the material back count; not when the alternative keeps >= 700 cp, out of check, or a promotion; 13 (Points): MoveAnalysis.points, what the played move and the best move do as short points; 12 + 11 (feedback round 3): a Blunder that only missed a concrete win is a Miss, a threat alone is no concrete chance, new causes (a piece chased with tempo, a pawn let run to the 7th, an opening move that develops nothing), "…" on Black's moves in cause lines, only reasons the lines bear out (no hollow attacks / defences / refutations), the refutation leads the label text when the better move has no reason, "After X, Y forks …"; 10 (Why round): causes read from the played move's own line (a piece it leaves loose that the line goes after, a trade into a lost / drawn ending), the moves that keep the position, Miss only for concrete chances; 9 (B): Miss for missed free material at any eval, Brilliant !! (sound sacrifices); 8: plain one-sentence wording (no point counts or "hard to put into words" filler, material in words, at most one dash); 7: no "engine" wording or pointers to other panels in the explanations ("with best play", "Nxf5 was better"); 6: Best = only the engine's top move (no 0.5% band; those moves are Excellent); 5 (UI round): Level.tones / Level.story, bad-first order for bad moves, balance wording; 2 (M3): mate rules, Great exclusions + window, truthful hung piece, verify near thresholds; 3 (M5b): new explanation facts; 4 (M5c): explanation round 3 (pawn forks, batteries, perpetuals, payoff horizon, contrasted suggestions)
 
 export interface LabelThresholds {
   /** Excellent: winLoss <= this (Best is only the engine's top move, classify.ts). */
@@ -66,22 +66,18 @@ export interface MissRule {
 }
 
 /**
- * (B2) Brilliant !!: a best or near-best move that sacrifices material (classify.ts `brilliantSacrifice`).
- * Thresholds in the GreatRule style; see the doc comment there for the exclusions.
+ * (B2) Brilliant !!, chess.com's rule: a good piece sacrifice (classify.ts `brilliantSacrifice`; the sacrifice itself
+ * is judged on the board, analysis/brilliant.ts `staticSacrifice`). Not out of check, not a promotion, no take-back.
  */
 export interface BrilliantRule {
-  /** The played move loses at most this much win% vs the best move (0 = only the engine's top move). */
+  /** The played move loses at most this much win% vs the best move (0 = only the engine's top move): "best or nearly best". */
   maxWinLoss: number;
-  /** The played line ends at least this many pawns down at its quiet point (vs the material baseline and vs the alternative's line). */
-  minSacrifice: number;
-  /** Mover's win% after the played move must be at least this (the position stays good). */
+  /** Mover's win% after the played move must be at least this (50 = not worse: "not in a bad position after"). */
   minWinAfter: number;
-  /** Not Brilliant: the best alternative move keeps at least this win% too (already completely winning anyway). */
-  maxWinOther: number;
+  /** Not Brilliant: the best alternative move keeps at least this many centipawns (mover POV; "completely winning even without it"). */
+  maxAltCp: number;
   /** Brilliant requires at least this many legal moves. */
   minLegalMoves: number;
-  /** Not Brilliant: a check evasion with at most this many legal moves. */
-  maxLegalMovesInCheck: number;
 }
 
 export interface MateRule {
@@ -198,11 +194,9 @@ export const DEFAULT_SETTINGS: AnalysisSettings = {
   },
   brilliant: {
     maxWinLoss: 2,
-    minSacrifice: 2,
     minWinAfter: 50,
-    maxWinOther: 90,
+    maxAltCp: 700,
     minLegalMoves: 2,
-    maxLegalMovesInCheck: 3,
   },
   material: {
     blunderMinLoss: 3,

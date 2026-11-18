@@ -19,8 +19,9 @@ parallel. If you need to change a contract, update this file in the same commit 
 - Tests: **Vitest** (unit/integration), **Playwright** (e2e). Benchmarks are scripts under `bench/`.
 - Engine: **Stockfish.js 19** (npm `stockfish` 19.0.1, by Nathan Rugg / Chess.com, GPL-3.0 — compatible with this
   repo's GPL-3.0-or-later): Stockfish 19 with its full NNUE network compiled to WebAssembly. Browser: the files are
-  served from `node_modules/stockfish/bin` at `/engine/` (Vite plugin in `client/vite.config.ts`; copied to
-  `dist/engine/` with the licence). Node: the same build run by `node` as a child process; env `STOCKFISH_PATH` may
+  served from `node_modules/stockfish/bin` at `/engine/` (Vite plugin in `client/vite.config.ts`, all builds in the
+  dev and preview servers); a build copies only the lite network to `dist/engine/` with the licence
+  (`BUILD_ENGINE_FILES`; env `FULL_ENGINE=1` adds the full network's single- and multi-threaded builds). Node: the same build run by `node` as a child process; env `STOCKFISH_PATH` may
   point at a native binary instead (≈ 2.3× faster per thread, identical search at 1 thread).
 - **TypeScript 6.0.x** (not 7.x): TS 7 is the native Go port without the JS compiler API, and `vue-tsc` cannot
   run on it. One TS version for the whole repo (root devDependency). No build step: `noEmit`, `moduleResolution:
@@ -413,11 +414,16 @@ Additions made in Session B (labels; additive, `ANALYSIS_VERSION` 9):
   least **Miss**, whatever the win% (7.O-O at +10 instead of 7.Nxh4 winning the queen). `free`: the capture loses
   nothing back. The played move's 'misses' fact then carries `free` and `alsoStops`.
 - Label `brilliant` (`!!`, ranked above Great) with `labelReason.brilliant?: BrilliantSacrifice` = `{ sacrifice,
-  piece }`: a best or near-best (≤ `brilliant.maxWinLoss` 2 win%) move whose line ends ≥ `brilliant.minSacrifice`
-  (2) points down vs the baseline and vs the alternative move's line, with a non-pawn piece en prise right after the
-  move, and win% after ≥ `brilliant.minWinAfter` (50). Not when the alternative also keeps ≥
-  `brilliant.maxWinOther` (90) win%, take-backs, check evasions with ≤ 3 moves, the continuation of a combination.
-  `verdictText` "Brilliant — a sound sacrifice.". Settings: new `brilliant: BrilliantRule`.
+  piece }`. Since `ANALYSIS_VERSION` 14 chess.com's rule ("a good piece sacrifice", support.chess.com article
+  8572705), modelled on WintrChess' open re-implementation: a best or near-best (≤ `brilliant.maxWinLoss` 2 win%)
+  move after which the mover is not worse (win% ≥ `brilliant.minWinAfter` 50) and that leaves a non-pawn piece
+  worth more than what it took *unsafe on the board* (analysis/brilliant.ts `staticSacrifice`: attacked by a cheaper
+  piece or by more attackers than defenders, x-rays counted; not a counter-threat trade, not a trapped piece, not
+  moving a piece to safety) — the engine line need not lose the material (sacrifices the opponent mustn't take, or
+  that win it back, count). Not when the alternative keeps ≥ `brilliant.maxAltCp` (700) cp, out of check, a
+  promotion, a take-back. (Before 14: the line had to end ≥ 2 points down — almost never in real games.)
+  `verdictText` "Brilliant — a sound sacrifice.". Settings: `brilliant: BrilliantRule`. Benchmark:
+  bench/brilliants.ts (chess.com games, near misses with the rejecting condition).
 
 Additions made in M3 (label quality; all additive, `ANALYSIS_VERSION` 2):
 - `labelReason.allowedMate?: AllowedMate` = `{ matedIn, bestMatedIn? }`: the played move allows a forced mate in
@@ -631,9 +637,10 @@ page (Vue app)
   Node: `engine/node.ts` (child process). `Engine.killInstance()` simulates a crash (test hook); the next search
   starts a new instance.
 - **Engines** (`worker/config.ts`): default `min(cores − 2, 6, ⌊0.75 × navigator.deviceMemory⌋)` instances of the
-  **single-threaded full-network build** (`stockfish-19-single.js`; works without cross-origin isolation), Hash 32 MB
-  each. URL overrides: `engines`, `threads` (per instance; > 1 only when `crossOriginIsolated`, uses the
-  multi-threaded `stockfish-19.js`), `hash`, `engine=lite` (`stockfish-19-lite-single.js`, 2 MB network),
+  **single-threaded lite-network build** (`stockfish-19-lite-single.js`, 2 MB network; works without cross-origin
+  isolation), Hash 32 MB each. URL overrides: `engines`, `engine=full` (the 100 MB network, `stockfish-19-single.js`),
+  `threads` (per instance; > 1 only with `engine=full` and `crossOriginIsolated`, uses the multi-threaded
+  `stockfish-19.js`), `hash`,
   `profile=fast`, `testhooks=1`; `VITE_ANALYSIS_DEFAULTS` bakes defaults into a dev server/build (E2E). The first
   instance starts alone (fills the HTTP/code cache), its scheduler slot is a stand-in whose searches wait for it, so
   games open and jobs queue at once; the others start in parallel afterwards and join with `Scheduler.addEngine`.
@@ -670,7 +677,7 @@ Good → Miss, Best → Excellent beyond 1 %).
 
 ### "Show best move" arrows (engine arrows)
 
-With the toggle on (B / the arrow button; off by default, remembered), the board draws the engine's good moves in the
+With the toggle on (B / the arrow button; on by default, remembered), the board draws the engine's good moves in the
 position on the board. `GameManager.topMoves({ fen })` (protocol `topMoves`, `ApiClient.topMoves?`) answers from the
 analysis's own deep search of the position (`analysis/topMoves.ts` `topParams` = `deepParams`, so an analysed position
 is a cache hit; else one search at SIDELINE priority). `pickTopMoves` keeps the best `TOP_MIN` (3) whatever they lose,
@@ -748,7 +755,10 @@ server on this machine at the same depth (the M4 table's 68–74 s was measured 
 slower than native per thread (same node counts), but 1-thread instances use the cores best (as in M4: threads widen
 the search at a fixed depth) — 3 × 2 threads took twice as long as 6 × 1. Memory: ≈ 0.4 GB per full-network instance
 (6 instances ≈ 2.4 GB of browser memory); hence the cap and the deviceMemory rule. The lite network is ≈ 1/3 faster
-and loads 2 MB instead of 100 MB but is weaker (its label agreement was not benchmarked), so it is opt-in.
+and loads 2 MB instead of 100 MB but is weaker; it is the default since 2026-11 (deploying a 100 MB file is a
+problem for most hosts). Its label agreement with the full network is not benchmarked yet. Its analyses and searches
+are cached under a `lite:` key prefix (core/src/store.ts `prefixedStore`), apart from the full network's (whose keys
+are unprefixed, as before); the games are shared.
 
 ## HTTP API (historical: removed in C1)
 

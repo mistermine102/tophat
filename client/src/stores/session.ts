@@ -81,8 +81,8 @@ export function createSession(api: ApiClient, opts: SessionOptions = {}) {
     highlight: [] as string[],
     /** For the time-left estimate: when this session started waiting for the stream, and how many plies were done then. */
     rate: null as { start: number; doneAtStart: number; last: number } | null,
-    /** "Show best move": arrows for the engine's top moves in the position on the board (off by default — it is a hint; remembered). */
-    showBest: storage?.getItem(SHOW_BEST_KEY) === '1',
+    /** "Show best move": arrows for the engine's top moves in the position on the board (on by default; remembered). */
+    showBest: storage?.getItem(SHOW_BEST_KEY) !== '0',
     /** Sound effects for moves on the board (on by default; remembered). */
     sound: storage?.getItem(SOUND_KEY) !== '0',
     /** (Engine arrows) api.topMoves results by FEN; 'error' = fall back to the analyses' own top moves. */

@@ -139,7 +139,8 @@ describe('classifyMove: win-chance labels', () => {
   });
 
   it('same move detected without the flag (castling given as king-takes-rook)', () => {
-    const fen = 'r3k2r/pppq1ppp/8/8/8/8/PPPQ1PPP/R3K2R w KQkq - 0 1';
+    // (no queens: with Qd2 facing Qd7, castling would leave the queen en prise — a Brilliant-shaped "sacrifice")
+    const fen = 'r3k2r/ppp2ppp/8/8/8/8/PPP2PPP/R3K2R w KQkq - 0 1';
     const r = classifyMove(mkInput({ fenBefore: fen, legalMoveCount: countLegalMoves(fen), played: line('e1h1', { cp: -50 }), best: line('e1g1', { cp: 20 }) }), S);
     expect(r).toMatchObject({ label: 'best', winLoss: 0 });
   });
@@ -285,13 +286,15 @@ describe('classifyMove: Great', () => {
     const CONT = '3r2k1/5ppp/p7/8/4Q3/8/q4PPP/4R1K1 w - - 0 24';
     const prevFen = 'r2R2k1/5ppp/p7/8/4Q3/8/q4PPP/4R1K1 b - - 0 23';
     expect(countLegalMoves(prevFen)).toBe(1);
+    // (the queen offer is also chess.com's Brilliant — classify-b.test.ts; switched off here, this is about Great)
+    const noBrilliant = withSettings((x) => (x.brilliant.minLegalMoves = 999));
     const cont = (prevFenBefore: string | undefined) =>
       classifyMove(
         mkInput({
           fenBefore: CONT, legalMoveCount: countLegalMoves(CONT), played: line('e4e8', { mate: 2 }), best: line('e4e8', { mate: 2 }), playedIsBest: true, second: line('h2h4', { cp: -16 }),
           prev: { winLoss: 0, winBefore: 2.5, winAfter: 2.5, uci: 'a8d8', ...(prevFenBefore ? { fenBefore: prevFenBefore } : {}) },
         }),
-        S,
+        noBrilliant,
       ).label;
     expect(cont(prevFen)).toBe('best');
     expect(cont(undefined)).toBe('great'); // (without the context it would be)
