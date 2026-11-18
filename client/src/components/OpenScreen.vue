@@ -294,6 +294,11 @@ function onPgnKey(e: KeyboardEvent) {
           </ul>
         </div>
       </div>
+      <footer class="mt-4 flex flex-wrap justify-center gap-x-4 gap-y-1 text-[13px] text-neutral-500" data-testid="site-footer">
+        <a class="hover:underline" href="/about.html">About</a>
+        <a class="hover:underline" href="/about.html#privacy">Privacy</a>
+        <a class="hover:underline" href="/about.html#source">Source code &amp; licences</a>
+      </footer>
     </div>
   </main>
 </template>
