@@ -94,7 +94,7 @@ test('show best move: gold arrows for the top moves here, main line and side lin
   await expect(page.getByTestId('show-best')).toHaveAttribute('aria-pressed', 'true');
 });
 
-test('show best move: "Moves here" lists what the arrows\' moves do, numbered like the arrows', async ({ page }) => {
+test('show best move: "Moves here" lists the arrows\' moves with their scores, numbered like the arrows', async ({ page }) => {
   await page.setViewportSize({ width: 1366, height: 768 });
   await page.addInitScript(() => {
     if (!sessionStorage.getItem('cleared')) {
@@ -113,9 +113,8 @@ test('show best move: "Moves here" lists what the arrows\' moves do, numbered li
   // one row per arrow, in the arrows' order
   await expect.poll(async () => (await goldOpacities(page)).length).toBeGreaterThanOrEqual(2);
   await expect(list.getByTestId('top-idea')).toHaveCount((await goldOpacities(page)).length);
-  // the points arrive after the arrows
-  await expect(page.getByTestId('top-ideas-pending')).toHaveCount(0, { timeout: 10_000 });
-  await expect(list.getByTestId('tone-line').first()).toBeVisible();
+  // each move with its score (no sentences since 2a49cc0)
+  await expect(list.getByTestId('top-idea').first()).toHaveText(/[+-]?\d+\.\d|M\d+/);
   // hovering a move highlights its squares
   const first = list.getByTestId('top-idea').first();
   const uci = (await first.getAttribute('data-uci'))!;

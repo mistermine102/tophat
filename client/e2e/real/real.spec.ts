@@ -351,8 +351,8 @@ test('show best move: the engine’s top moves, as bright as they are good, rank
   const list = page.getByTestId('top-ideas');
   await expect(list.getByTestId('top-idea')).toHaveCount(ops.length, { timeout: 30_000 });
   await expect(page.getByTestId('top-ideas-pending')).toHaveCount(0, { timeout: 60_000 });
-  await expect(list.getByTestId('tone-line').first()).toBeVisible();
-  expect(await list.textContent()).toMatch(/Develops the knight|Occupies the centre/);
+  // each move with its score (no sentences since 2a49cc0)
+  await expect(list.getByTestId('top-idea').first()).toHaveText(/[+-]?\d+\.\d|M\d+/);
   await shot(page, '21-moves-here', 300);
   await page.keyboard.press('b');
 });
