@@ -7,20 +7,20 @@ parallel. If you need to change a contract, update this file in the same commit 
 
 - **npm workspaces** monorepo, TypeScript everywhere, ESM, Node 24 (for tooling only).
 - **No server (C1):** the whole analysis runs in the browser — see "In-browser analysis" below. A static build
-  (`client/dist`) can be hosted anywhere.
+  (`nuxt generate` → `client/.output/public`) can be hosted anywhere.
 - `shared/` — types + pure chess helpers (no Node/browser-specific APIs).
 - `core/` (was `server/`) — the analysis pipeline: engine wrapper (pluggable UCI transport), scheduler, search cache,
   facts, labels, explanations, GameManager. Environment-neutral TypeScript: runs in the browser's analysis worker and
   in Node (tests, `core/scripts/*`, `bench/*`; `core/src/node.ts` sets up the Node environment). Node-only files:
   `src/node.ts`, `src/engine/node.ts`, `src/cache.ts` (sqlite, scripts/benchmarks only).
-- `client/` — Vue 3 + Vite + Tailwind 4 + TypeScript, `chessground` (board), `chessops` (rules/SAN/FEN/PGN);
-  `client/src/worker/` hosts `core` in a Web Worker.
+- `client/` — Nuxt 4 (Vue 3, Vite) + Tailwind 4 + TypeScript, `chessground` (board), `chessops` (rules/SAN/FEN/PGN);
+  `client/src/worker/` hosts `core` in a Web Worker. See "Nuxt: pages and prerendering" below.
 - Chess logic library everywhere: **`chessops`** (Lichess, GPL-3). Do not add chess.js.
 - Tests: **Vitest** (unit/integration), **Playwright** (e2e). Benchmarks are scripts under `bench/`.
 - Engine: **Stockfish.js 19** (npm `stockfish` 19.0.1, by Nathan Rugg / Chess.com, GPL-3.0 — compatible with this
   repo's GPL-3.0-or-later): Stockfish 19 with its full NNUE network compiled to WebAssembly. Browser: the files are
-  served from `node_modules/stockfish/bin` at `/engine/` (Vite plugin in `client/vite.config.ts`, all builds in the
-  dev and preview servers); a build copies only the lite network to `dist/engine/` with the licence
+  served from `node_modules/stockfish/bin` at `/engine/` (Vite plugin in `client/nuxt.config.ts`, all builds on the
+  dev server); a build copies only the lite network to `.output/public/engine/` with the licence
   (`BUILD_ENGINE_FILES`; env `FULL_ENGINE=1` adds the full network's single- and multi-threaded builds). Node: the same build run by `node` as a child process; env `STOCKFISH_PATH` may
   point at a native binary instead (≈ 2.3× faster per thread, identical search at 1 thread).
 - **TypeScript 6.0.x** (not 7.x): TS 7 is the native Go port without the JS compiler API, and `vue-tsc` cannot
@@ -74,7 +74,7 @@ chess-coach/
   client/src/worker/      # in-browser analysis: analysis.worker.ts, stockfish.ts, idbStore.ts, protocol.ts, config.ts
   client/src/api/         # ApiClient: local.ts (worker), mock.ts (?mock=1), chesscom.ts (direct chess.com API)
   client/scripts/browser-profile.ts  # `npm run bench:browser`: in-browser timing with Playwright Chromium
-  scripts/start.mjs       # `npm start`: build if stale, `vite preview` on 5174 (COOP/COEP), open the browser
+  scripts/start.mjs       # `npm start`: build if stale (nuxt generate), serve it on 5174 (scripts/serve-static.mjs, COOP/COEP), open the browser
   bench/games/            # sample PGNs (Opera game, Kasparov–Topalov 1999, Deep Blue–Kasparov g6, 60 Lichess games)
   client/e2e/             # playwright (e2e/acceptance = beginner walk-through vs a running `npm start`, `npm run acceptance`)
   bench/                  # puzzle + annotated-games benchmarks, reports written to bench/reports/*.md
@@ -644,7 +644,7 @@ page (Vue app)
   `profile=fast`, `testhooks=1`; `VITE_ANALYSIS_DEFAULTS` bakes defaults into a dev server/build (E2E). The first
   instance starts alone (fills the HTTP/code cache), its scheduler slot is a stand-in whose searches wait for it, so
   games open and jobs queue at once; the others start in parallel afterwards and join with `Scheduler.addEngine`.
-- **Cross-origin isolation:** Vite dev and preview send `COOP: same-origin`, `COEP: require-corp`, `CORP:
+- **Cross-origin isolation:** the Nuxt dev server and `scripts/serve-static.mjs` send `COOP: same-origin`, `COEP: require-corp`, `CORP:
   same-origin`. Needed only for `threads > 1` (SharedArrayBuffer). chess.com's API sends `Access-Control-Allow-Origin:
   *`, so it works from the isolated page (verified in Chromium); requests use only CORS-safelisted headers.
 - **Worker protocol** (`worker/protocol.ts`, replaces the HTTP API + SSE one to one): requests `{ id, type, payload }`
@@ -804,16 +804,33 @@ M2-client additions (client wired to the real server end to end):
 - (C1) Server env is gone. The browser equivalents are the URL parameters in "In-browser analysis" (`profile=fast` =
   the old `ANALYSIS_PROFILE=fast`: deep d10/1 s, shallow d6, threat / forcedness d8, 300 ms caps — own settings hash),
   test hooks `?testhooks=1` → `window.__chessCoachTest.killEngines()` / `.failNext(n)` (each ply is attempted twice).
-  Node scripts: `STOCKFISH_PATH`, `CHESS_COACH_DB`, `ANALYSIS_PROFILE`. Vite: `CLIENT_PORT` (dev, 5173), `PORT` (preview, 5174).
+  Node scripts: `STOCKFISH_PATH`, `CHESS_COACH_DB`, `ANALYSIS_PROFILE`. Client: `CLIENT_PORT` (dev, 5173), `PORT` (`npm start`, 5174), `SITE_URL` (canonical links / sitemap, default https://tophat.pro), `FULL_ENGINE=1`.
 - E2E (`npm run e2e`): Playwright projects `mock` (`e2e/*.spec.ts`, `?mock=1`, port 5283) and `real`
   (`e2e/real/*.spec.ts`: the in-browser analysis on a dev server on 5293 with `VITE_ANALYSIS_DEFAULTS=profile=fast&engines=2&testhooks=1`;
   one browser context per file, so IndexedDB carries over between its tests; chess.com blocked). `E2E_REAL=0` runs only
   the mock project; `E2E_MOCK_PORT` / `E2E_REAL_PORT` change the ports. Screenshots of real data: `client/e2e/screenshots/real-<size>-*.png`.
 
+### Nuxt: pages and prerendering
+
+`client/` is a Nuxt 4 app (`srcDir: 'src/'`; no auto-imports, no component auto-registration: explicit imports, like
+the rest of the repo; `src/layouts/` holds the game layouts, so Nuxt's layouts dir is renamed). `npm run build` =
+`nuxt generate`: every page is prerendered to static HTML (`about.html`, not `about/index.html`), so search engines and
+link previews see real text and head tags (`lib/seo.ts`: title, description, canonical, Open Graph with
+`public/og.png`).
+- **The app** is browser only: `pages/index.vue` → `components/ClientApp.vue` loads `boot.ts` (API client + session)
+  and `CoachApp.vue` after mounting; until then (and in the prerendered HTML) the page shows the landing text. The app
+  keeps managing `?game=` with `history` itself (lib/route.ts); vue-router only sees query changes on `/`.
+- **Text pages:** `pages/about.vue` and the guides (`pages/*.vue`, listed in `src/guides.ts` for the sitemap and link
+  lists) in `components/SitePage.vue`, styled by `.th-prose` (style.css). `server/routes/sitemap.xml.ts` is
+  prerendered; `public/robots.txt` points at it.
+- **CSS order:** chessground's CSS is global (nuxt.config `css`) before `style.css`, which overrides parts of it.
+- `import.meta.env.BASE_URL` is Nuxt's asset path (`/_nuxt/`): the engine and sound URLs use `VITE_APP_BASE` (define).
+- Dev-only pages: `/pieces`, `/identity` (look labs), with `LABS=1 npm run dev` only (identity.css would leak into the app in dev). E2E dev servers use their own build dirs (`NUXT_BUILD_DIR`).
+
 ### Phone layout
 
 Phones (`(max-width: 767px)`, `client/src/lib/phone.ts` `isPhone`) showing a game get `layouts/MobileLayout.vue` instead
-of layout A, under a slimmer header (40px, "+" for Open). One screen, no page scrolling (`#app` is `100dvh` on phones,
+of layout A, under a slimmer header (40px, "+" for Open). One screen, no page scrolling (`#app`, in `pages/index.vue`, is `100dvh` on phones,
 so Safari's toolbars don't hide anything): `PlayersCompact` (both players in one row), the board as wide as the screen
 with a slim `EvalBar` beside it (no number; the board shrinks only to keep the explanation >= 130px), the explanation
 filling the rest and scrolling by itself (`VerdictCard compact`: label, move name, sentence and points in one block, no
@@ -824,7 +841,7 @@ mover / eval line; `TopIdeas`; the move list), swiped left / right for the next 
 ## Client layouts (UI round: prototypes)
 
 `?ui=classic|a|b|c` (`client/src/lib/uiMode.ts`; default `classic`, a switch in the header keeps the URL in sync).
-`App.vue` = header + dialogs + one layout from `client/src/layouts/`; every layout uses the same session store —
+`CoachApp.vue` = header + dialogs + one layout from `client/src/layouts/`; every layout uses the same session store —
 only presentation differs. Shared presentation pieces:
 - `BoardView` (chessground + arrows + promotion + previews) with `BoardBadge`: an absolutely positioned overlay over
   chessground's `cg-container` (ResizeObserver; position from square + orientation) showing the viewed move's label

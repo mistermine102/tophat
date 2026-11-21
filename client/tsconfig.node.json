@@ -1,0 +1,9 @@
+{
+  // Node-side files: the Nuxt / Vitest / Playwright configs, the E2E tests and the server routes (sitemap).
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["node"]
+  },
+  "include": ["nuxt.config.ts", "vitest.config.ts", "playwright.config.ts", "playwright.acceptance.config.ts", "e2e/**/*.ts", "server/**/*.ts", "./.nuxt/nuxt.d.ts"]
+}

@@ -1,7 +1,7 @@
 // The two screens and the URL: `?game=<id>` is the game screen (a reload opens the game again), no `game` parameter
 // is the Open screen (the landing page). Other parameters (`mock`, `ui`) are kept. Going from a game to the Open
 // screen pushes a history entry, so the browser's Back button returns to the game; opening a game from the Open
-// screen replaces that entry with the game's URL (main.ts → setGameParam).
+// screen replaces that entry with the game's URL (boot.ts → setGameParam).
 export type Screen = 'open' | 'game';
 
 /** History state of the Open screen entry pushed over a game (`history.back()` returns to the game). */

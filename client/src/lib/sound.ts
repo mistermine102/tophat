@@ -202,7 +202,7 @@ export function preloadSounds(): Promise<void> {
     samplesSettled = true;
     return (samplesLoading = Promise.resolve());
   }
-  const base = `${import.meta.env.BASE_URL ?? '/'}sounds/`;
+  const base = `${import.meta.env.VITE_APP_BASE ?? '/'}sounds/`;
   samplesLoading = (async () => {
     try {
       const decoder = new Offline(1, 1, 44100);

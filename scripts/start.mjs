@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 // `npm start`: serves the app on one port and opens the browser. There is no server-side analysis any more: the
 // browser runs Stockfish (WASM) itself, this only serves static files. Builds the client first when its sources
-// changed since the last build (client/dist), then runs `vite preview` (with the cross-origin isolation headers).
+// changed since the last build (client/.output/public, `nuxt generate`), then serves it (scripts/serve-static.mjs,
+// with the cross-origin isolation headers).
 //   PORT (default 5174), --no-open (don't open a browser).
 // If Chess Coach is already running on the port, it only opens the browser again.
-// Any static web server works for client/dist too (see README "Hosting").
+// Any static web server works for client/.output/public too (see README "Hosting").
 
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, statSync } from 'node:fs';
@@ -13,7 +14,8 @@ import { fileURLToPath } from 'node:url';
 
 const repo = dirname(dirname(fileURLToPath(import.meta.url)));
 const client = join(repo, 'client');
-const distIndex = join(client, 'dist', 'index.html');
+const outDir = join(client, '.output', 'public');
+const distIndex = join(outDir, 'index.html');
 const port = Number(process.env.PORT ?? 5174);
 const url = `http://localhost:${port}`;
 
@@ -23,7 +25,7 @@ function newestMtime(paths) {
     if (!existsSync(p)) return;
     const st = statSync(p);
     if (st.isDirectory()) {
-      for (const n of readdirSync(p)) if (n !== 'node_modules' && n !== 'dist') visit(join(p, n));
+      for (const n of readdirSync(p)) if (n !== 'node_modules' && n !== '.output' && !n.startsWith('.nuxt')) visit(join(p, n));
     } else newest = Math.max(newest, st.mtimeMs);
   };
   paths.forEach(visit);
@@ -55,11 +57,11 @@ if (portState === 'other') {
   process.exit(1);
 }
 
-const sources = [join(client, 'src'), join(client, 'index.html'), join(client, 'vite.config.ts'), join(client, 'package.json'), join(repo, 'shared', 'src'), join(repo, 'core', 'src'), join(repo, 'core', 'data')];
-const stale = !existsSync(distIndex) || !existsSync(join(client, 'dist', 'engine')) || newestMtime(sources) > statSync(distIndex).mtimeMs;
+const sources = [join(client, 'src'), join(client, 'public'), join(client, 'server'), join(client, 'nuxt.config.ts'), join(client, 'package.json'), join(repo, 'shared', 'src'), join(repo, 'core', 'src'), join(repo, 'core', 'data')];
+const stale = !existsSync(distIndex) || !existsSync(join(outDir, 'engine')) || newestMtime(sources) > statSync(distIndex).mtimeMs;
 if (stale) {
-  console.log('[start] building the app (vite build) …');
-  const r = spawnSync('npx vite build --logLevel warn', { cwd: client, stdio: 'inherit', shell: true });
+  console.log('[start] building the app (nuxt generate) …');
+  const r = spawnSync('npx nuxt generate', { cwd: client, stdio: ['inherit', 'ignore', 'inherit'], shell: true });
   if (r.status !== 0) {
     console.error('[start] build failed');
     process.exit(r.status ?? 1);
@@ -68,11 +70,11 @@ if (stale) {
   console.log('[start] build is up to date');
 }
 
-const server = spawn(`npx vite preview --port ${port} --strictPort`, { cwd: client, stdio: ['inherit', 'pipe', 'inherit'], shell: true, env: { ...process.env, PORT: String(port) } });
+const server = spawn(process.execPath, [join(repo, 'scripts', 'serve-static.mjs')], { stdio: ['inherit', 'pipe', 'inherit'], env: { ...process.env, PORT: String(port) } });
 let opened = noOpen;
 server.stdout.setEncoding('utf8');
 server.stdout.on('data', (chunk) => {
-  // Vite colours its output: strip the escape codes before looking for its "Local: http://localhost:…" line
+  // strip any colour escape codes before looking for the "Local: http://localhost:…" line
   if (!opened && /localhost:\d+/.test(chunk.replace(/\x1b\[[0-9;]*m/g, ''))) {
     opened = true;
     console.log(`[start] Chess Coach is running — open ${url} (keep this window open; Ctrl+C stops it)`);

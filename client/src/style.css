@@ -73,6 +73,7 @@
 
 html,
 body,
+#__nuxt,
 #app {
   height: 100%;
 }
@@ -278,3 +279,36 @@ body {
   flex: 1 1 0;
   padding-right: 3px;
 }
+
+/* Text pages (components/SitePage.vue: about, guides): readable long-form text in the Tophat palette. */
+.th-prose {
+  color: var(--th-ink);
+  font-size: 16px;
+  line-height: 1.65;
+}
+.th-prose h1,
+.th-prose h2,
+.th-prose h3 {
+  font-family: var(--font-display);
+  font-variation-settings: var(--th-display-settings);
+  font-weight: 700;
+  line-height: 1.2;
+}
+.th-prose h1 { font-size: 32px; margin: 0 0 6px; }
+.th-prose h2 { font-size: 22px; margin: 30px 0 8px; padding-top: 18px; border-top: 1px solid var(--th-paper-2); }
+.th-prose h3 { font-size: 18px; margin: 20px 0 4px; }
+.th-prose p { margin: 10px 0; }
+.th-prose .lead { color: var(--th-ink-soft); font-size: 18px; margin-top: 0; }
+.th-prose .small { color: var(--th-ink-soft); font-size: 14px; }
+.th-prose a:not(.th-btn) { color: var(--th-accent); text-decoration: underline; text-underline-offset: 2px; }
+.th-prose ul,
+.th-prose ol { margin: 10px 0; padding-left: 24px; }
+.th-prose ul { list-style: disc; }
+.th-prose ol { list-style: decimal; }
+.th-prose li { margin: 5px 0; }
+.th-prose code { font-size: 0.9em; background: var(--th-paper-2); border-radius: 4px; padding: 1px 5px; }
+.th-prose table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 15px; }
+.th-prose th,
+.th-prose td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--th-paper-2); }
+.th-prose th { font-weight: 700; }
+.th-prose .cta { margin: 22px 0 4px; }

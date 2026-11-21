@@ -1,9 +1,19 @@
 {
-  "extends": "../tsconfig.base.json",
+  // The app (src/): Nuxt's generated config (paths for #imports, #components, ~ …; `nuxt prepare` writes it) with the
+  // repo's strict settings on top. Node-side files (nuxt.config, tests' tooling, server routes): tsconfig.node.json.
+  "extends": "./.nuxt/tsconfig.app.json",
   "compilerOptions": {
+    "target": "ES2023",
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
-    "types": ["vite/client"],
-    "jsx": "preserve"
+    "strict": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "noUncheckedIndexedAccess": false,
+    "noEmit": true
   },
-  "include": ["src/**/*.ts", "src/**/*.vue", "e2e/**/*.ts", "vite.config.ts", "playwright.config.ts"]
+  "include": ["./.nuxt/nuxt.d.ts", "src/**/*.ts", "src/**/*.vue"]
 }

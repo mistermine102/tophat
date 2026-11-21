@@ -10,3 +10,6 @@ playwright-report/
 *.log
 /.claude/
 /tmp/
+.nuxt/
+.nuxt-*/
+.output/

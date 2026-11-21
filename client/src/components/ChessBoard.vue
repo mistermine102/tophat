@@ -1,13 +1,11 @@
 <script setup lang="ts">
 // Thin chessground wrapper. All chess logic (legal moves, SAN, FEN) stays in chessops on our side.
+// (chessground's CSS is global: nuxt.config.ts `css`, loaded before style.css)
 import { Chessground } from 'chessground';
 import type { Api } from 'chessground/api';
 import type { Config } from 'chessground/config';
 import type { DrawShape } from 'chessground/draw';
 import type { Dests, Key } from 'chessground/types';
-import 'chessground/assets/chessground.base.css';
-import 'chessground/assets/chessground.brown.css';
-import 'chessground/assets/chessground.cburnett.css';
 import type { Color } from '@chess-coach/shared';
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { topBrushes } from '../lib/topArrows';

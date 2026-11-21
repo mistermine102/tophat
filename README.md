@@ -32,8 +32,12 @@ loads the engine (about 100 MB, from your own PC); after that it comes from the 
 
 ### Hosting it somewhere else
 
-`npm run build` writes a static site to `client/dist/` (the app, plus the small 2 MB engine in `client/dist/engine/`).
-Any static web host can serve it. The big engine (`?engine=full`, about 100 MB per file, more than some free hosts
+`npm run build` (Nuxt's `nuxt generate`) writes a static site to `client/.output/public/`: the app, the prerendered
+text pages (home, guides, about, `sitemap.xml`, `robots.txt`) and the small 2 MB engine in `engine/`. Any static web
+host can serve it. Pages are written as `about.html` etc., so the server should try `<path>.html` for a path without an
+extension and answer unknown paths with `404.html` and status 404 (nginx: `try_files $uri $uri.html $uri/ =404;` and
+`error_page 404 /404.html;`). Set env `SITE_URL` when building for another domain (canonical links, sitemap; default
+`https://tophat.pro`). The big engine (`?engine=full`, about 100 MB per file, more than some free hosts
 allow) is left out of the build; to include it, build with the environment variable `FULL_ENGINE=1`. Its
 multi-threaded version (`?engine=full&threads=2`) also needs the host to send the cross-origin isolation headers
 `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: require-corp`.
@@ -173,10 +177,10 @@ but lighter). By default it uses Stockfish's small network (2 MB to load); `?eng
 ## For developers
 
 ```
-npm run dev         # Vite dev server with hot reload (http://localhost:5173); the analysis runs in the page
+npm run dev         # Nuxt dev server with hot reload (http://localhost:5173); the analysis runs in the page
 npm test            # unit + integration tests (Vitest); engine tests use Stockfish WASM in Node
 npm run typecheck   # tsc + vue-tsc
-npm run build       # static production build (client/dist, incl. the engine files)
+npm run build       # static production build (nuxt generate → client/.output/public, incl. the engine files)
 npm run e2e         # Playwright: mock UI tests + real in-browser analysis tests
 npm run acceptance  # beginner walk-through against a running `npm start` (screenshots + log in tmp/acceptance)
 npm run bench:browser -- <file.pgn> --url http://localhost:5173 [--query "engines=4"] [--probe]
@@ -205,7 +209,7 @@ budget), [PLAN.md](PLAN.md) (build history).
 Chess Coach is free software under the **GNU GPL v3.0 or later** (see [LICENSE](LICENSE)).
 It uses [Stockfish](https://stockfishchess.org/) (GPL-3.0) compiled to WebAssembly by
 [Stockfish.js](https://github.com/nmrugg/stockfish.js) (npm `stockfish`, GPL-3.0; its licence is copied next to the
-engine files as `client/dist/engine/STOCKFISH-COPYING.txt`), [chessground](https://github.com/lichess-org/chessground)
+engine files as `client/.output/public/engine/STOCKFISH-COPYING.txt`), [chessground](https://github.com/lichess-org/chessground)
 and [chessops](https://github.com/niklasf/chessops) (GPL-3.0), and the
 [Lichess opening book](https://github.com/lichess-org/chess-openings) (CC0). The move sounds are from
 [PyChess](https://github.com/pychess/pychess) (GPL-3.0-or-later; see `client/public/sounds/CREDITS.md`). Not affiliated

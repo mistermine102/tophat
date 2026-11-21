@@ -1,7 +1,7 @@
 import { defineConfig } from '@playwright/test';
 
 // Two projects, both run by `npm run e2e`:
-//  - `mock`: e2e/*.spec.ts against the Vite dev server in mock mode (`?mock=1`, fixture data, no engine).
+//  - `mock`: e2e/*.spec.ts against the Nuxt dev server in mock mode (`?mock=1`, fixture data, no engine).
 //  - `real`: e2e/real/*.spec.ts against the real in-browser analysis (Stockfish WASM in the page's workers). Its dev
 //    server bakes in VITE_ANALYSIS_DEFAULTS: the `fast` profile (shallow searches, ~1 s per ply), 2 engine
 //    instances and the test hooks (window.__chessCoachTest: kill engines, inject failures). The tests of a file
@@ -27,22 +27,24 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: `npx vite --port ${MOCK_PORT} --strictPort`,
+      command: `npx nuxt dev --port ${MOCK_PORT}`,
       cwd: '.',
       url: `http://localhost:${MOCK_PORT}`,
       reuseExistingServer: false,
-      timeout: 60_000,
+      timeout: 120_000,
+      env: { ...(process.env as Record<string, string>), NUXT_BUILD_DIR: '.nuxt-e2e-mock' },
     },
     ...(withReal
       ? [
           {
-            command: `npx vite --port ${REAL_CLIENT_PORT} --strictPort`,
+            command: `npx nuxt dev --port ${REAL_CLIENT_PORT}`,
             cwd: '.',
             url: `http://localhost:${REAL_CLIENT_PORT}`,
             reuseExistingServer: false,
-            timeout: 60_000,
+            timeout: 120_000,
             env: {
               ...(process.env as Record<string, string>),
+              NUXT_BUILD_DIR: '.nuxt-e2e-real',
               VITE_ANALYSIS_DEFAULTS: process.env.E2E_ANALYSIS ?? 'profile=fast&engines=2&testhooks=1',
             },
           },

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// The Open screen ("Open a game", App.vue): your chess.com games, paste a PGN, recently opened. Its own screen rather
+// The Open screen ("Open a game", CoachApp.vue): your chess.com games, paste a PGN, recently opened. Its own screen rather
 // than a dialog: the landing page when no game is open (lib/route.ts), and reached from the header with a way back to
 // the game that is still loaded. Emits `opened` once a game is open, `back` to return to the loaded game.
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
@@ -295,9 +295,10 @@ function onPgnKey(e: KeyboardEvent) {
         </div>
       </div>
       <footer class="mt-4 flex flex-wrap justify-center gap-x-4 gap-y-1 text-[13px] text-neutral-500" data-testid="site-footer">
-        <a class="hover:underline" href="/about.html">About</a>
-        <a class="hover:underline" href="/about.html#privacy">Privacy</a>
-        <a class="hover:underline" href="/about.html#source">Source code &amp; licences</a>
+        <a class="hover:underline" href="/about">About</a>
+        <a class="hover:underline" href="/about#privacy">Privacy</a>
+        <a class="hover:underline" href="/about#source">Source code &amp; licences</a>
+        <a class="hover:underline" href="/chess-move-labels">What the move labels mean</a>
       </footer>
     </div>
   </main>

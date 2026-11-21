@@ -3,7 +3,7 @@
 // Build: stockfish.js 19 by Nathan Rugg / Chess.com (npm `stockfish`, GPL-3.0), Stockfish 19 with its NNUE network
 // compiled to WebAssembly. The worker script is the engine itself: UCI commands go in with postMessage(string),
 // output lines come back as string messages (other messages, e.g. download progress objects, are ignored). It
-// loads the .wasm next to it (same name). Served at /engine/ (client/vite.config.ts copies the files from
+// loads the .wasm next to it (same name). Served at /engine/ (client/nuxt.config.ts serves / copies the files from
 // node_modules/stockfish/bin).
 import { EngineCrashedError, type UciProcess, type UciSpawn } from '@chess-coach/core/engine/uci';
 
@@ -45,6 +45,6 @@ export function workerSpawn(url: string): UciSpawn {
 }
 
 /** Absolute URL of an engine file under the app's base path (works from the page and from module workers). */
-export function engineUrl(file: string, base: string = import.meta.env.BASE_URL, origin: string = self.location.origin): string {
+export function engineUrl(file: string, base: string = import.meta.env.VITE_APP_BASE ?? '/', origin: string = self.location.origin): string {
   return new URL(`${base.replace(/\/?$/, '/')}engine/${file}`, origin).href;
 }
